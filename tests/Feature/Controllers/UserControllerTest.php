@@ -7,6 +7,33 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 
+it('renders users index page with the user list', function (): void {
+    $authenticated = User::factory()->create();
+    $other = User::factory()->create();
+
+    $response = $this->actingAs($authenticated)
+        ->get(route('users.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/index')
+            ->has('users', 2)
+            ->has('users.0', fn ($user) => $user
+                ->has('id')
+                ->has('name')
+                ->has('email')
+                ->has('created_at')
+                ->etc()
+            )
+        );
+});
+
+it('requires authentication to view users index page', function (): void {
+    $response = $this->get(route('users.index'));
+
+    $response->assertRedirectToRoute('login');
+});
+
 it('renders registration page', function (): void {
     $response = $this->fromRoute('home')
         ->get(route('register'));

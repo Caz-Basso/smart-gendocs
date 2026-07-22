@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Lab404\Impersonate\Models\Impersonate;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
@@ -39,6 +40,7 @@ final class User extends Authenticatable implements MustVerifyEmail
     use HasFactory;
 
     use HasUuids;
+    use Impersonate;
     use Notifiable;
     use TwoFactorAuthenticatable;
 

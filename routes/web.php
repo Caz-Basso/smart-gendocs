@@ -7,6 +7,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserEmailResetNotificationController;
 use App\Http\Controllers\UserEmailVerificationController;
 use App\Http\Controllers\UserEmailVerificationNotificationController;
+use App\Http\Controllers\UserImpersonationController;
 use App\Http\Controllers\UserPasswordController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
@@ -22,6 +23,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 Route::middleware('auth')->group(function (): void {
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
+    Route::get('users', [UserController::class, 'index'])->name('users.index');
 
     // User Profile...
     Route::redirect('settings', '/settings/profile');
@@ -40,6 +42,12 @@ Route::middleware('auth')->group(function (): void {
     // User Two-Factor Authentication...
     Route::get('settings/two-factor', [UserTwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
+
+    // User Impersonation...
+    Route::post('users/{user}/impersonate', [UserImpersonationController::class, 'store'])
+        ->name('users.impersonate');
+    Route::delete('impersonate', [UserImpersonationController::class, 'destroy'])
+        ->name('users.impersonate.stop');
 });
 
 Route::middleware('guest')->group(function (): void {

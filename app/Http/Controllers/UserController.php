@@ -17,6 +17,16 @@ use Inertia\Response;
 
 final readonly class UserController
 {
+    public function index(): Response
+    {
+        return Inertia::render('user/index', [
+            'users' => User::query()
+                ->select(['id', 'name', 'email', 'created_at'])
+                ->latest()
+                ->get(),
+        ]);
+    }
+
     public function create(): Response
     {
         return Inertia::render('user/create');
