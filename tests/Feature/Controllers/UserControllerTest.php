@@ -162,7 +162,7 @@ it('may delete user account', function (): void {
 
     $response = $this->actingAs($user)
         ->fromRoute('user-profile.edit')
-        ->delete(route('user.destroy'), [
+        ->delete(route('user.destroy', $user), [
             'password' => 'password',
         ]);
 
@@ -178,7 +178,7 @@ it('requires password to delete account', function (): void {
 
     $response = $this->actingAs($user)
         ->fromRoute('user-profile.edit')
-        ->delete(route('user.destroy'), []);
+        ->delete(route('user.destroy', $user), []);
 
     $response->assertRedirectToRoute('user-profile.edit')
         ->assertSessionHasErrors('password');
@@ -193,7 +193,7 @@ it('requires correct password to delete account', function (): void {
 
     $response = $this->actingAs($user)
         ->fromRoute('user-profile.edit')
-        ->delete(route('user.destroy'), [
+        ->delete(route('user.destroy', $user), [
             'password' => 'wrong-password',
         ]);
 
@@ -201,6 +201,73 @@ it('requires correct password to delete account', function (): void {
         ->assertSessionHasErrors('password');
 
     expect($user->fresh())->not->toBeNull();
+});
+
+it('may delete another user without password', function (): void {
+    $authenticated = User::factory()->create();
+    $target = User::factory()->create();
+
+    $response = $this->actingAs($authenticated)
+        ->fromRoute('users.index')
+        ->delete(route('user.destroy', $target));
+
+    $response->assertRedirectToRoute('users.index');
+
+    expect($target->fresh())->toBeNull();
+    expect($authenticated->fresh())->not->toBeNull();
+});
+
+it('may update a user name', function (): void {
+    config(['audit.console' => true]);
+
+    $authenticated = User::factory()->create();
+    $target = User::factory()->create([
+        'name' => 'Old Name',
+    ]);
+
+    $response = $this->actingAs($authenticated)
+        ->fromRoute('users.index')
+        ->patch(route('users.update', $target), [
+            'name' => 'New Name',
+        ]);
+
+    $response->assertRedirectToRoute('users.index')
+        ->assertInertiaFlash('success', 'User updated successfully');
+
+    expect($target->fresh()->name)->toBe('New Name')
+        ->and($target->audits()->where('event', 'updated')->count())->toBeGreaterThan(0);
+});
+
+it('requires a name when updating a user', function (): void {
+    $authenticated = User::factory()->create();
+    $target = User::factory()->create([
+        'name' => 'Old Name',
+    ]);
+
+    $response = $this->actingAs($authenticated)
+        ->fromRoute('users.index')
+        ->patch(route('users.update', $target), [
+            'name' => '',
+        ]);
+
+    $response->assertRedirectToRoute('users.index')
+        ->assertSessionHasErrors('name');
+
+    expect($target->fresh()->name)->toBe('Old Name');
+});
+
+it('requires authentication to update a user name', function (): void {
+    $target = User::factory()->create([
+        'name' => 'Old Name',
+    ]);
+
+    $response = $this->patch(route('users.update', $target), [
+        'name' => 'New Name',
+    ]);
+
+    $response->assertRedirectToRoute('login');
+
+    expect($target->fresh()->name)->toBe('Old Name');
 });
 
 it('redirects authenticated users away from registration', function (): void {

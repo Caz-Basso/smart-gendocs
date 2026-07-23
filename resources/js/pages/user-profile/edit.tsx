@@ -142,8 +142,6 @@ export default function Edit({
                         )}
                     </Form>
                 </div>
-
-                <DeleteUser />
             </SettingsLayout>
         </AppLayout>
     );

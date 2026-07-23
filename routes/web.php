@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Enums\AuditableType;
+use App\Http\Controllers\AuditController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserEmailResetNotificationController;
@@ -22,7 +24,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     // User...
-    Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
+    Route::delete('user/{user}', [UserController::class, 'destroy'])->name('user.destroy');
+    Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::get('users', [UserController::class, 'index'])->name('users.index');
 
     // User Profile...
@@ -48,6 +51,11 @@ Route::middleware('auth')->group(function (): void {
         ->name('users.impersonate');
     Route::delete('impersonate', [UserImpersonationController::class, 'destroy'])
         ->name('users.impersonate.stop');
+
+    // User Audit...
+    Route::get('audit/{type}/{id}', [AuditController::class, 'show'])
+        ->whereIn('type', array_column(AuditableType::cases(), 'value'))
+        ->name('audit.show');
 });
 
 Route::middleware('guest')->group(function (): void {

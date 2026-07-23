@@ -1,4 +1,4 @@
-import { Form } from '@inertiajs/react';
+import { Form, usePage } from '@inertiajs/react';
 import { useRef } from 'react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import Heading from '@/components/heading';
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 
 export default function DeleteUser() {
     const passwordInput = useRef<HTMLInputElement>(null);
+    const { auth } = usePage().props;
 
     return (
         <div className="space-y-6">
@@ -55,7 +56,9 @@ export default function DeleteUser() {
                         </DialogDescription>
 
                         <Form
-                            {...UserController.destroy.form()}
+                            {...UserController.destroy.form({
+                                id: String(auth.user.id),
+                            })}
                             options={{
                                 preserveScroll: true,
                             }}
