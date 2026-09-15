@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 
 it('renders audits for an auditable user', function (): void {
-    $authenticated = User::factory()->create();
+    $authenticated = userWithPermissions('user.viewAudits');
     $target = User::factory()->create();
 
     $response = $this->actingAs($authenticated)
@@ -28,8 +28,18 @@ it('requires authentication to view audits', function (): void {
     $response->assertRedirectToRoute('login');
 });
 
-it('returns not found for unknown auditable types', function (): void {
+it('forbids audits without permission', function (): void {
     $authenticated = User::factory()->create();
+    $target = User::factory()->create();
+
+    $response = $this->actingAs($authenticated)
+        ->get(route('audit.show', ['type' => 'users', 'id' => $target->id]));
+
+    $response->assertForbidden();
+});
+
+it('returns not found for unknown auditable types', function (): void {
+    $authenticated = userWithPermissions('user.viewAudits');
 
     $response = $this->actingAs($authenticated)
         ->get(route('audit.show', ['type' => 'widgets', 'id' => $authenticated->id]));
@@ -38,7 +48,7 @@ it('returns not found for unknown auditable types', function (): void {
 });
 
 it('returns not found when the auditable model does not exist', function (): void {
-    $authenticated = User::factory()->create();
+    $authenticated = userWithPermissions('user.viewAudits');
 
     $response = $this->actingAs($authenticated)
         ->get(route('audit.show', ['type' => 'users', 'id' => (string) str()->uuid()]));

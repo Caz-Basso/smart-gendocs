@@ -17,7 +17,8 @@
         "laravel/wayfinder": "^0.1.20",
         "nunomaduro/essentials": "^1.2.0",
         "opcodesio/log-viewer": "^3.24",
-        "owen-it/laravel-auditing": ">=14.0.6"
+        "owen-it/laravel-auditing": ">=14.0.6",
+        "spatie/laravel-permission": ">=8.3"
     },
     "require-dev": {
         "andreapollastri/checkpoint": "^1.0.10",

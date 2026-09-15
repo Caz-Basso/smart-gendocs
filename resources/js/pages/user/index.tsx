@@ -147,15 +147,17 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                     ) : (
                                                         <div className="flex items-center gap-2">
                                                             <span>{user.name}</span>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => startEditing(user)}
-                                                            >
-                                                                <Pencil className="h-3.5 w-3.5" />
-                                                                <span className="sr-only">Edit name</span>
-                                                            </Button>
+                                                            {auth.can.users.update && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => startEditing(user)}
+                                                                >
+                                                                    <Pencil className="h-3.5 w-3.5" />
+                                                                    <span className="sr-only">Edit name</span>
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>
@@ -167,6 +169,7 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                 </td>
                                                 <td className="flex justify-end gap-2 px-6 py-3">
                                                     {user.id !== currentUserId &&
+                                                        auth.can.users.impersonate &&
                                                         (auth.impersonating ? (
                                                             <Button
                                                                 variant="outline"
@@ -184,22 +187,26 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                                 </Link>
                                                             </Button>
                                                         ))}
-                                                    <Button asChild variant="outline" size="sm">
-                                                        <Link href={show({ type: 'users', id: user.id })}>
-                                                            <ListChecks className="mr-2 h-4 w-4" />
-                                                            Audit
-                                                        </Link>
-                                                    </Button>
-                                                    <Button asChild variant="outline" size="sm">
-                                                        <Link
-                                                            href={destroy(user)}
-                                                            as="button"
-                                                            method="delete"
-                                                        >
-                                                            <Trash className="mr-2 h-4 w-4" />
-                                                            Delete
-                                                        </Link>
-                                                    </Button>
+                                                    {auth.can.users.viewAudits && (
+                                                        <Button asChild variant="outline" size="sm">
+                                                            <Link href={show({ type: 'users', id: user.id })}>
+                                                                <ListChecks className="mr-2 h-4 w-4" />
+                                                                Audit
+                                                            </Link>
+                                                        </Button>
+                                                    )}
+                                                    {auth.can.users.delete && (
+                                                        <Button asChild variant="outline" size="sm">
+                                                            <Link
+                                                                href={destroy(user)}
+                                                                as="button"
+                                                                method="delete"
+                                                            >
+                                                                <Trash className="mr-2 h-4 w-4" />
+                                                                Delete
+                                                            </Link>
+                                                        </Button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))

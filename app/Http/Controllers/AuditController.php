@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\GetAudits;
 use App\Enums\AuditableType;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -24,6 +25,8 @@ final readonly class AuditController
         $auditableType = AuditableType::tryFrom($type) ?? throw new InvalidArgumentException("Auditable type {$type} not found");
 
         $model = $auditableType->resolve($id);
+
+        Gate::authorize('viewAudits', $model);
 
         return Inertia::render('audit/show', [
             'id' => $model->getKey(),

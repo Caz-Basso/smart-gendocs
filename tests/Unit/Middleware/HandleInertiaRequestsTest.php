@@ -26,7 +26,9 @@ it('shares null user when guest', function (): void {
 
     expect($shared)->toHaveKey('auth')
         ->and($shared['auth'])->toHaveKey('user')
-        ->and($shared['auth']['user'])->toBeNull();
+        ->and($shared['auth']['user'])->toBeNull()
+        ->and($shared['auth']['can']['users']['viewAny'])->toBeFalse()
+        ->and($shared['auth']['can']['roles']['viewAny'])->toBeFalse();
 });
 
 it('shares authenticated user data', function (): void {
@@ -45,7 +47,8 @@ it('shares authenticated user data', function (): void {
     expect($shared['auth']['user'])->not->toBeNull()
         ->and($shared['auth']['user']->id)->toBe($user->id)
         ->and($shared['auth']['user']->name)->toBe('Test User')
-        ->and($shared['auth']['user']->email)->toBe('test@example.com');
+        ->and($shared['auth']['user']->email)->toBe('test@example.com')
+        ->and($shared['auth']['can']['users']['viewAny'])->toBeFalse();
 });
 
 it('defaults sidebarOpen to true when no cookie', function (): void {
