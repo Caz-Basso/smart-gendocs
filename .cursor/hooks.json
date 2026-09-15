@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/block-non-sail.sh",
+        "timeout": 5
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/pint-and-test.sh",
+        "matcher": "Write|TabWrite",
+        "timeout": 180
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": ".cursor/hooks/log-event.sh",
+        "timeout": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": ".cursor/hooks/log-event.sh",
+        "timeout": 5
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/log-event.sh",
+        "timeout": 5
+      },
+      {
+        "command": ".cursor/hooks/notify-n8n.sh",
+        "timeout": 15
+      }
+    ]
+  }
+}

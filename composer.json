@@ -1,0 +1,141 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "nunomaduro/laravel-starter-kit-inertia-react",
+    "type": "project",
+    "description": "The skeleton application for the Laravel framework.",
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
+    "license": "MIT",
+    "require": {
+        "php": "^8.5.0",
+        "inertiajs/inertia-laravel": "^3.0.6",
+        "lab404/laravel-impersonate": ">=1.7.8",
+        "laravel/fortify": "^1.37.2",
+        "laravel/framework": "^13.18.0",
+        "laravel/wayfinder": "^0.1.20",
+        "nunomaduro/essentials": "^1.2.0",
+        "opcodesio/log-viewer": "^3.24",
+        "owen-it/laravel-auditing": ">=14.0.6",
+        "spatie/laravel-permission": ">=8.3"
+    },
+    "require-dev": {
+        "andreapollastri/checkpoint": "^1.0.10",
+        "clcbws/laravel-agents-debug": "^3.1.1",
+        "driftingly/rector-laravel": "^2.5.0",
+        "fakerphp/faker": "^1.24.1",
+        "fruitcake/laravel-debugbar": "^4.2.8",
+        "laradumps/laradumps": "^5.3",
+        "laramint/laravel-brain": ">=2.3",
+        "larastan/larastan": "^3.10.0",
+        "laravel/boost": "^2.4.11",
+        "laravel/pail": "^1.2.7",
+        "laravel/pao": "^1.1.2",
+        "laravel/pint": "^1.29.3",
+        "laravel/sail": "^1.61",
+        "laravel/tinker": "^3.0.2",
+        "mockery/mockery": "^1.6.12",
+        "nunomaduro/collision": "^8.9.4",
+        "pestphp/pest": "^5.0",
+        "pestphp/pest-plugin-browser": "^5.0",
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "pestphp/pest-plugin-type-coverage": "^5.0",
+        "rector/rector": "^2.5.2",
+        "roave/security-advisories": "dev-latest"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        },
+        "classmap": [
+            "app/Checkpoint/Scanner.php"
+        ],
+        "exclude-from-classmap": [
+            "vendor/andreapollastri/checkpoint/src/Scanner.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        },
+        "classmap": [
+            "tests/Stubs/App/Checkpoint/Checks/FakeNotCheck.php"
+        ]
+    },
+    "scripts": {
+        "setup": [
+            "composer install",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate",
+            "@php artisan migrate --force",
+            "bun install",
+            "bun run build"
+        ],
+        "dev": [
+            "Composer\\Config::disableProcessTimeout",
+            "bunx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"bun run dev\" --names=server,queue,logs,vite --kill-others"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ],
+        "post-update-cmd": [
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+            "@php artisan clear",
+            "@update:requirements",
+            "@php artisan checkpoint:scan"
+        ],
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "post-create-project-cmd": [
+            "@php artisan key:generate --ansi",
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
+            "@php artisan migrate --graceful --ansi"
+        ],
+        "update:requirements": [
+            "composer bump",
+            "bunx npm-check-updates -u"
+        ],
+        "lint": [
+            "rector",
+            "pint --parallel",
+            "bun run lint"
+        ],
+        "test:type-coverage": "pest --type-coverage --min=100",
+        "test:lint": [
+            "pint --parallel --test",
+            "rector --dry-run",
+            "bun run test:lint"
+        ],
+        "test:unit": "XDEBUG_MODE=\"coverage\" pest --parallel --coverage --exactly=100.0",
+        "test:types": [
+            "phpstan",
+            "bun run test:types"
+        ],
+        "test": [
+            "@test:lint",
+            "@test:types"
+        ],
+        "post-install-cmd": []
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
