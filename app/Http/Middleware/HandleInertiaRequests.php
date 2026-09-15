@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Actions\BuildMainNavigation;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -18,6 +19,11 @@ final class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    public function __construct(private BuildMainNavigation $buildMainNavigation)
+    {
+        //
+    }
 
     /**
      * @see https://inertiajs.com/asset-versioning
@@ -57,6 +63,9 @@ final class HandleInertiaRequests extends Middleware
                         'delete' => $user instanceof User && $user->can('role.delete'),
                     ],
                 ],
+            ],
+            'navigation' => [
+                'main' => $this->buildMainNavigation->handle($user instanceof User ? $user : null),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

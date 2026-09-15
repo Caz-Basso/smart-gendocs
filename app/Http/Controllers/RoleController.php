@@ -13,7 +13,9 @@ use App\Enums\RoleName;
 use App\Http\Requests\CreateRoleRequest;
 use App\Http\Requests\DeleteRoleRequest;
 use App\Http\Requests\UpdateRoleRequest;
+use App\Support\ListQuery;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,16 +23,21 @@ use Spatie\Permission\Models\Role;
 
 final readonly class RoleController
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         Gate::authorize('viewAny', Role::class);
 
+        $rolesQuery = Role::query()
+            ->with('permissions')
+            ->latest();
+
+        ListQuery::search($rolesQuery, $request->string('search')->toString(), ['name']);
+
         return Inertia::render('role/index', [
-            'roles' => Role::query()
-                ->with('permissions')
-                ->latest()
-                ->get()
-                ->map(fn (Role $role): array => $this->rolePayload($role)),
+            'roles' => $rolesQuery
+                ->paginate(ListQuery::perPage($request))
+                ->withQueryString()
+                ->through(fn (Role $role): array => $this->rolePayload($role)),
         ]);
     }
 

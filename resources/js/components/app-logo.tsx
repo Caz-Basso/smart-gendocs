@@ -1,25 +1,20 @@
-import AppLogoIcon from '@/components/app-logo-icon';
-import { cn } from '@/lib/utils';
-
-type AppLogoProps = {
-    className?: string;
-};
-
-export default function AppLogo({ className }: AppLogoProps) {
+export default function AppLogo() {
     return (
         <>
-            <div
-                className={cn(
-                    'flex items-center group-data-[collapsible=icon]:hidden',
-                    className ?? 'h-8 w-36',
-                )}
-            >
-                <AppLogoIcon className="h-full w-full" />
-            </div>
-            <AppLogoIcon
-                variant="mark"
-                className="hidden size-8 group-data-[collapsible=icon]:block"
+            <img
+                src="/unesc-logo.png"
+                alt="UNESC"
+                className="size-8 shrink-0 object-contain"
             />
+            <div className="ml-2 grid flex-1 text-left text-base leading-tight">
+                <span className="truncate font-semibold tracking-tight">
+                    <span className="font-normal">Smart</span>
+                    <span className="text-foreground">.</span>
+                    <span className="font-medium text-[#0B5E3B] dark:text-emerald-300">
+                        SAU
+                    </span>
+                </span>
+            </div>
         </>
     );
 }
