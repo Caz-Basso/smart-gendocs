@@ -127,9 +127,11 @@ return [
         'whitelist' => [
             // Runtime (require)
             'inertiajs/inertia-laravel',
+            'lab404/laravel-impersonate',
             'laravel/prompts',
             'pragmarx/google2fa',
             'ralouphie/getallheaders',
+            'spatie/laravel-permission',
             'symfony/clock',
             'symfony/string',
             'symfony/translation',

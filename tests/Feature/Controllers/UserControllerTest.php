@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 
 it('renders users index page with the user list', function (): void {
-    $authenticated = User::factory()->create();
+    $authenticated = superAdmin();
     $other = User::factory()->create();
 
     $response = $this->actingAs($authenticated)
@@ -32,6 +32,13 @@ it('requires authentication to view users index page', function (): void {
     $response = $this->get(route('users.index'));
 
     $response->assertRedirectToRoute('login');
+});
+
+it('forbids users index without permission', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('users.index'));
+
+    $response->assertForbidden();
 });
 
 it('renders registration page', function (): void {
@@ -204,7 +211,7 @@ it('requires correct password to delete account', function (): void {
 });
 
 it('may delete another user without password', function (): void {
-    $authenticated = User::factory()->create();
+    $authenticated = userWithPermissions('user.delete');
     $target = User::factory()->create();
 
     $response = $this->actingAs($authenticated)
@@ -220,7 +227,7 @@ it('may delete another user without password', function (): void {
 it('may update a user name', function (): void {
     config(['audit.console' => true]);
 
-    $authenticated = User::factory()->create();
+    $authenticated = userWithPermissions('user.update');
     $target = User::factory()->create([
         'name' => 'Old Name',
     ]);
@@ -239,7 +246,7 @@ it('may update a user name', function (): void {
 });
 
 it('requires a name when updating a user', function (): void {
-    $authenticated = User::factory()->create();
+    $authenticated = userWithPermissions('user.update');
     $target = User::factory()->create([
         'name' => 'Old Name',
     ]);

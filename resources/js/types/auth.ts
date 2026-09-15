@@ -13,6 +13,21 @@ export type User = {
 export type Auth = {
     user: User;
     impersonating: boolean;
+    can: {
+        users: {
+            viewAny: boolean;
+            update: boolean;
+            delete: boolean;
+            impersonate: boolean;
+            viewAudits: boolean;
+        };
+        roles: {
+            viewAny: boolean;
+            create: boolean;
+            update: boolean;
+            delete: boolean;
+        };
+    };
 };
 
 export type TwoFactorSetupData = {

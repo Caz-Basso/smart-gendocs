@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 
 it('lets an authenticated user impersonate another user', function (): void {
-    $impersonator = User::factory()->create();
+    $impersonator = userWithPermissions('user.impersonate');
     $target = User::factory()->create();
 
     $response = $this->actingAs($impersonator)
@@ -28,7 +28,7 @@ it('cannot impersonate yourself', function (): void {
 });
 
 it('cannot impersonate while already impersonating', function (): void {
-    $impersonator = User::factory()->create();
+    $impersonator = userWithPermissions('user.impersonate');
     $target = User::factory()->create();
 
     $response = $this->actingAs($impersonator)
@@ -46,8 +46,18 @@ it('requires authentication to impersonate', function (): void {
     $response->assertRedirectToRoute('login');
 });
 
-it('lets an impersonator stop impersonating', function (): void {
+it('forbids impersonation without permission', function (): void {
     $impersonator = User::factory()->create();
+    $target = User::factory()->create();
+
+    $response = $this->actingAs($impersonator)
+        ->post(route('users.impersonate', $target));
+
+    $response->assertForbidden();
+});
+
+it('lets an impersonator stop impersonating', function (): void {
+    $impersonator = userWithPermissions('user.impersonate');
     $target = User::factory()->create();
 
     $this->actingAs($impersonator)

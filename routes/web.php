@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\AuditableType;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserEmailResetNotificationController;
@@ -27,6 +28,8 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('user/{user}', [UserController::class, 'destroy'])->name('user.destroy');
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::get('users', [UserController::class, 'index'])->name('users.index');
+
+    Route::resource('roles', RoleController::class)->except(['show']);
 
     // User Profile...
     Route::redirect('settings', '/settings/profile');

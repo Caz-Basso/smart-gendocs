@@ -18,9 +18,10 @@ final class ImpersonateUserRequest extends FormRequest
         return $target instanceof User
             && $impersonator instanceof User
             && $impersonator->getKey() !== $target->getKey()
+            && $impersonator->can('impersonate', $target)
             && $impersonator->canImpersonate()
             && $target->canBeImpersonated()
-            && !app(ImpersonateManager::class)->isImpersonating();
+            && ! app(ImpersonateManager::class)->isImpersonating();
     }
 
     /**
