@@ -10,7 +10,7 @@ export type PermissionGroup = {
 };
 
 export type RoleRow = {
-    id: number;
+    id: string | number;
     name: string;
     is_protected: boolean;
     permissions: string[];

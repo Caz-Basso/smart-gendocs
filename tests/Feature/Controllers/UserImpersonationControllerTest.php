@@ -24,6 +24,7 @@ it('cannot impersonate yourself', function (): void {
         ->post(route('users.impersonate', $user));
 
     $response->assertForbidden();
+
     expect(session()->has('impersonated_by'))->toBeFalse();
 });
 

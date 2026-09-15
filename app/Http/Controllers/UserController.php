@@ -11,7 +11,9 @@ use App\Http\Requests\CreateUserRequest;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\UpdateUserNameRequest;
 use App\Models\User;
+use App\Support\ListQuery;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -19,15 +21,25 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         Gate::authorize('viewAny', User::class);
 
+        $usersQuery = User::query()
+            ->select(['id', 'name', 'email', 'created_at'])
+            ->latest();
+
+        ListQuery::search(
+            $usersQuery,
+            $request->string('search')->toString(),
+            ['name', 'email'],
+            null,
+        );
+
         return Inertia::render('user/index', [
-            'users' => User::query()
-                ->select(['id', 'name', 'email', 'created_at'])
-                ->latest()
-                ->get(),
+            'users' => $usersQuery
+                ->paginate(ListQuery::perPage($request))
+                ->withQueryString(),
         ]);
     }
 
@@ -57,7 +69,9 @@ final readonly class UserController
     {
         $action->handle($user, $request->validated());
 
-        return Inertia::flash('success', 'User updated successfully')->back();
+        Inertia::flash('success', 'User updated successfully');
+
+        return back();
     }
 
     public function destroy(DeleteUserRequest $request, User $user, DeleteUser $action): RedirectResponse

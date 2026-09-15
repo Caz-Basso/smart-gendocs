@@ -17,14 +17,49 @@ it('renders users index page with the user list', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('user/index')
-            ->has('users', 2)
-            ->has('users.0', fn ($user) => $user
+            ->has('users.data', 2)
+            ->has('users.data.0', fn ($user) => $user
                 ->has('id')
                 ->has('name')
                 ->has('email')
                 ->has('created_at')
                 ->etc()
             )
+        );
+});
+
+it('filters users by search term', function (): void {
+    $authenticated = superAdmin();
+    User::factory()->create([
+        'name' => 'Alice Example',
+        'email' => 'alice@example.com',
+    ]);
+    User::factory()->create([
+        'name' => 'Bob Other',
+        'email' => 'bob@example.com',
+    ]);
+
+    $this->actingAs($authenticated)
+        ->get(route('users.index', ['search' => 'Alice']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/index')
+            ->has('users.data', 1)
+            ->where('users.data.0.name', 'Alice Example')
+        );
+});
+
+it('paginates users with per_page', function (): void {
+    $authenticated = superAdmin();
+    User::factory()->count(12)->create();
+
+    $this->actingAs($authenticated)
+        ->get(route('users.index', ['per_page' => 5]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/index')
+            ->has('users.data', 5)
+            ->where('users.per_page', 5)
         );
 });
 

@@ -14,7 +14,11 @@ type RoleFormProps = {
     permissions?: string[];
     nameLocked?: boolean;
     submitLabel: string;
-    onSubmit: (form: ReturnType<typeof useForm<{ name: string; permissions: string[] }>>) => void;
+    onSubmit: (
+        form: ReturnType<
+            typeof useForm<{ name: string; permissions: string[] }>
+        >,
+    ) => void;
 };
 
 export default function RoleForm({
@@ -35,7 +39,9 @@ export default function RoleForm({
             'permissions',
             checked
                 ? [...form.data.permissions, permissionName]
-                : form.data.permissions.filter((value) => value !== permissionName),
+                : form.data.permissions.filter(
+                      (value) => value !== permissionName,
+                  ),
         );
     }
 
@@ -46,7 +52,9 @@ export default function RoleForm({
             'permissions',
             checked
                 ? [...new Set([...form.data.permissions, ...names])]
-                : form.data.permissions.filter((value) => !names.includes(value)),
+                : form.data.permissions.filter(
+                      (value) => !names.includes(value),
+                  ),
         );
     }
 
@@ -63,7 +71,9 @@ export default function RoleForm({
                 <Input
                     id="name"
                     value={form.data.name}
-                    onChange={(event) => form.setData('name', event.target.value)}
+                    onChange={(event) =>
+                        form.setData('name', event.target.value)
+                    }
                     required
                     autoFocus={!nameLocked}
                     disabled={nameLocked}
@@ -76,34 +86,49 @@ export default function RoleForm({
                 <div>
                     <h3 className="text-sm font-medium">Permissions</h3>
                     <p className="text-sm text-muted-foreground">
-                        Generated from application policies. Select the abilities this role should have.
+                        Generated from application policies. Select the
+                        abilities this role should have.
                     </p>
-                    <InputError message={form.errors.permissions} className="mt-2" />
+                    <InputError
+                        message={form.errors.permissions}
+                        className="mt-2"
+                    />
                 </div>
 
                 {permissionGroups.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                        No permissions found. Run `php artisan permissions:sync-from-policies`.
+                        No permissions found. Run `php artisan
+                        permissions:sync-from-policies`.
                     </p>
                 ) : (
                     <div className="grid gap-4 lg:grid-cols-2">
                         {permissionGroups.map((group) => {
-                            const selectedCount = group.permissions.filter((permission) =>
-                                form.data.permissions.includes(permission.name),
+                            const selectedCount = group.permissions.filter(
+                                (permission) =>
+                                    form.data.permissions.includes(
+                                        permission.name,
+                                    ),
                             ).length;
-                            const allSelected = selectedCount === group.permissions.length;
+                            const allSelected =
+                                selectedCount === group.permissions.length;
 
                             return (
                                 <Card key={group.resource}>
                                     <CardHeader className="flex flex-row items-center justify-between gap-4">
-                                        <CardTitle className="capitalize">{group.resource}</CardTitle>
+                                        <CardTitle className="capitalize">
+                                            {group.resource}
+                                        </CardTitle>
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => toggleGroup(group, !allSelected)}
+                                            onClick={() =>
+                                                toggleGroup(group, !allSelected)
+                                            }
                                         >
-                                            {allSelected ? 'Clear' : 'Select all'}
+                                            {allSelected
+                                                ? 'Clear'
+                                                : 'Select all'}
                                         </Button>
                                     </CardHeader>
                                     <CardContent className="grid gap-3">
@@ -113,13 +138,24 @@ export default function RoleForm({
                                                 className="flex items-center gap-3 text-sm"
                                             >
                                                 <Checkbox
-                                                    checked={form.data.permissions.includes(permission.name)}
-                                                    onCheckedChange={(checked) =>
-                                                        togglePermission(permission.name, checked === true)
+                                                    checked={form.data.permissions.includes(
+                                                        permission.name,
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) =>
+                                                        togglePermission(
+                                                            permission.name,
+                                                            checked === true,
+                                                        )
                                                     }
                                                 />
-                                                <span className="font-medium">{permission.ability}</span>
-                                                <span className="text-muted-foreground">{permission.name}</span>
+                                                <span className="font-medium">
+                                                    {permission.ability}
+                                                </span>
+                                                <span className="text-muted-foreground">
+                                                    {permission.name}
+                                                </span>
                                             </label>
                                         ))}
                                     </CardContent>

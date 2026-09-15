@@ -18,13 +18,43 @@ it('renders the roles index for authorized users', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('role/index')
-            ->has('roles', 1)
-            ->where('roles.0.name', 'editor')
-            ->where('roles.0.permissions', ['user.viewAny'])
-            ->where('roles.0.is_protected', false)
+            ->has('roles.data', 1)
+            ->where('roles.data.0.id', (string) $role->id)
+            ->where('roles.data.0.name', 'editor')
+            ->where('roles.data.0.permissions', ['user.viewAny'])
+            ->where('roles.data.0.is_protected', false)
         );
 
     expect($role->name)->toBe('editor');
+});
+
+it('filters roles by search term', function (): void {
+    resolve(CreateRole::class)->handle('editor', []);
+    resolve(CreateRole::class)->handle('viewer', []);
+
+    $this->actingAs(userWithPermissions('role.viewAny'))
+        ->get(route('roles.index', ['search' => 'edit']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('role/index')
+            ->has('roles.data', 1)
+            ->where('roles.data.0.name', 'editor')
+        );
+});
+
+it('paginates roles with per_page', function (): void {
+    foreach (range(1, 12) as $index) {
+        resolve(CreateRole::class)->handle("role-{$index}", []);
+    }
+
+    $this->actingAs(userWithPermissions('role.viewAny'))
+        ->get(route('roles.index', ['per_page' => 5]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('role/index')
+            ->has('roles.data', 5)
+            ->where('roles.per_page', 5)
+        );
 });
 
 it('forbids the roles index without permission', function (): void {

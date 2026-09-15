@@ -1,5 +1,4 @@
 import { Head } from '@inertiajs/react';
-
 import Heading from '@/components/heading';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
@@ -43,11 +42,21 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b text-left text-muted-foreground">
-                                        <th className="px-6 py-3 font-medium">Event</th>
-                                        <th className="px-6 py-3 font-medium">Old values</th>
-                                        <th className="px-6 py-3 font-medium">New values</th>
-                                        <th className="px-6 py-3 font-medium">Responsible</th>
-                                        <th className="px-6 py-3 font-medium">Created at</th>
+                                        <th className="px-6 py-3 font-medium">
+                                            Event
+                                        </th>
+                                        <th className="px-6 py-3 font-medium">
+                                            Old values
+                                        </th>
+                                        <th className="px-6 py-3 font-medium">
+                                            New values
+                                        </th>
+                                        <th className="px-6 py-3 font-medium">
+                                            Responsible
+                                        </th>
+                                        <th className="px-6 py-3 font-medium">
+                                            Created at
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -62,20 +71,32 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                                         </tr>
                                     ) : (
                                         audits.map((audit) => (
-                                            <tr key={audit.id} className="border-b last:border-0">
-                                                <td className="px-6 py-3 font-medium">{audit.event}</td>
-                                                <td className="px-6 py-3 font-mono text-xs text-muted-foreground">
-                                                    {JSON.stringify(audit.old_values)}
+                                            <tr
+                                                key={audit.id}
+                                                className="border-b last:border-0"
+                                            >
+                                                <td className="px-6 py-3 font-medium">
+                                                    {audit.event}
                                                 </td>
                                                 <td className="px-6 py-3 font-mono text-xs text-muted-foreground">
-                                                    {JSON.stringify(audit.new_values)}
+                                                    {JSON.stringify(
+                                                        audit.old_values,
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-3 font-mono text-xs text-muted-foreground">
+                                                    {JSON.stringify(
+                                                        audit.new_values,
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-3 text-muted-foreground">
-                                                    {audit.responsible ?? 'Unknown'}
+                                                    {audit.responsible ??
+                                                        'Unknown'}
                                                 </td>
                                                 <td className="px-6 py-3 text-muted-foreground">
                                                     {audit.created_at
-                                                        ? new Date(audit.created_at).toLocaleString()
+                                                        ? new Date(
+                                                              audit.created_at,
+                                                          ).toLocaleString()
                                                         : '?'}
                                                 </td>
                                             </tr>

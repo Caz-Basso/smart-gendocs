@@ -1,5 +1,4 @@
 import { Link, usePage } from '@inertiajs/react';
-
 import { Button } from '@/components/ui/button';
 import { stop } from '@/routes/users/impersonate';
 

@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
-import RoleForm from '@/components/role-form';
 import Heading from '@/components/heading';
+import RoleForm from '@/components/role-form';
 import AppLayout from '@/layouts/app-layout';
 import { create, index, store } from '@/routes/roles';
 import type { BreadcrumbItem } from '@/types';

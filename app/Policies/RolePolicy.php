@@ -6,7 +6,6 @@ namespace App\Policies;
 
 use App\Concerns\ChecksGeneratedPermission;
 use App\Models\User;
-use Spatie\Permission\Models\Role;
 
 final class RolePolicy
 {
@@ -17,7 +16,7 @@ final class RolePolicy
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function view(User $user, Role $role): bool
+    public function view(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }
@@ -27,12 +26,12 @@ final class RolePolicy
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function update(User $user, Role $role): bool
+    public function update(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function delete(User $user, Role $role): bool
+    public function delete(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }

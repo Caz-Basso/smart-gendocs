@@ -102,7 +102,24 @@ return [
             // Checkpoint exempts itself from the freshness gate so a fresh
             // release of the scanner cannot block its own user's deploy.
             'andreapollastri/checkpoint',
-            // 'vendor/package',
+
+            // Updates continuously on `dev-latest` by design.
+            'roave/security-advisories',
+
+            // Reviewed lockfile bumps still inside the 3-day soak window.
+            'larastan/larastan',
+            'laravel/boost',
+            'laravel/mcp',
+            'nesbot/carbon',
+            'nikic/php-parser',
+            'pestphp/pest',
+            'phpstan/phpstan',
+            'rector/rector',
+            'spomky-labs/cbor-php',
+            'symfony/console',
+            'symfony/http-foundation',
+            'symfony/http-kernel',
+            'symfony/mailer',
         ],
     ],
 
@@ -151,6 +168,7 @@ return [
             'myclabs/deep-copy',
             'nunomaduro/*',
             'pestphp/*',
+            'driftingly/rector-laravel',
             'phpstan/phpstan',
             'phpunit/phpunit',
             'rector/rector',

@@ -43,9 +43,7 @@ final class UpdateRoleRequest extends FormRequest
     {
         $role = $this->route('role');
 
-        if (! $role instanceof Role) {
-            throw new UnexpectedValueException('A role is required.');
-        }
+        throw_unless($role instanceof Role, UnexpectedValueException::class, 'A role is required.');
 
         return $role;
     }
