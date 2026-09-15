@@ -13,11 +13,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        $connection = config('audit.drivers.database.connection', config('database.default'));
-        $table = config('audit.drivers.database.table', 'audits');
+        $connectionConfig = config('audit.drivers.database.connection');
+        $connection = is_string($connectionConfig) ? $connectionConfig : config()->string('database.default');
+        $table = config()->string('audit.drivers.database.table', 'audits');
 
         Schema::connection($connection)->create($table, function (Blueprint $table): void {
-            $morphPrefix = config('audit.user.morph_prefix', 'user');
+            $morphPrefix = config()->string('audit.user.morph_prefix', 'user');
 
             $table->bigIncrements('id');
             $table->nullableUuidMorphs($morphPrefix);
@@ -38,8 +39,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        $connection = config('audit.drivers.database.connection', config('database.default'));
-        $table = config('audit.drivers.database.table', 'audits');
+        $connectionConfig = config('audit.drivers.database.connection');
+        $connection = is_string($connectionConfig) ? $connectionConfig : config()->string('database.default');
+        $table = config()->string('audit.drivers.database.table', 'audits');
 
         Schema::connection($connection)->drop($table);
     }

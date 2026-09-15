@@ -78,7 +78,7 @@ function fakeCheckpointCheck(string $name, CheckResult $result): AbstractCheck
 {
     return new class($name, $result) extends AbstractCheck
     {
-        public function __construct(private string $checkName, private CheckResult $checkResult) {}
+        public function __construct(private readonly string $checkName, private readonly CheckResult $checkResult) {}
 
         public function name(): string
         {

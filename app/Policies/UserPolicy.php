@@ -16,12 +16,12 @@ final class UserPolicy
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function view(User $user, User $model): bool
+    public function view(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function update(User $user, User $model): bool
+    public function update(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }
@@ -35,12 +35,12 @@ final class UserPolicy
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function impersonate(User $user, User $model): bool
+    public function impersonate(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }
 
-    public function viewAudits(User $user, User $model): bool
+    public function viewAudits(User $user): bool
     {
         return $this->allows($user, __FUNCTION__);
     }

@@ -25,7 +25,7 @@ pest()->extend(TestCase::class)
 
         $this->freezeTime();
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        resolve(PermissionRegistrar::class)->forgetCachedPermissions();
     })
     ->in('Browser', 'Feature', 'Unit');
 

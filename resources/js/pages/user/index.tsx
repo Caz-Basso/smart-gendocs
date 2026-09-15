@@ -1,5 +1,12 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Check, ListChecks, Pencil, Trash, VenetianMask, X } from 'lucide-react';
+import {
+    Check,
+    ListChecks,
+    Pencil,
+    Trash,
+    VenetianMask,
+    X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { SearchAndSelectListFilters } from '@/components/list-filters/search-and-select-list-filters';

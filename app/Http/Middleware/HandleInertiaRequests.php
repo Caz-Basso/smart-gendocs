@@ -20,7 +20,7 @@ final class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
-    public function __construct(private BuildMainNavigation $buildMainNavigation)
+    public function __construct(private readonly BuildMainNavigation $buildMainNavigation)
     {
         //
     }
@@ -47,7 +47,7 @@ final class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $user,
-                'impersonating' => app(ImpersonateManager::class)->isImpersonating(),
+                'impersonating' => resolve(ImpersonateManager::class)->isImpersonating(),
                 'can' => [
                     'users' => [
                         'viewAny' => $user instanceof User && $user->can('viewAny', User::class),

@@ -25,6 +25,16 @@ it('runs bun checks instead of npm checks', function (): void {
         ->not->toContain('Supply Chain Tooling');
 });
 
+it('passes package freshness for reviewed recent composer updates', function (): void {
+    $exitCode = Artisan::call('checkpoint:scan', [
+        '--only' => 'Package Freshness (Supply Chain)',
+        '--json' => true,
+    ]);
+
+    expect($exitCode)->toBe(0)
+        ->and(Artisan::output())->toContain('Package Freshness (Supply Chain)');
+});
+
 it('skips custom checks disabled in config', function (): void {
     config([
         'checkpoint.checks' => array_merge(

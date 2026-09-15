@@ -45,7 +45,7 @@ final class Scanner
 {
     private const string APPLICATION_CHECK_NAMESPACE = 'App\\Checkpoint\\Checks\\';
 
-    /** @var AbstractCheck[] */
+    /** @var list<AbstractCheck> */
     private array $checks = [];
 
     public static function withDefaultChecks(string $basePath): static

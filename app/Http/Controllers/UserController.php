@@ -69,7 +69,9 @@ final readonly class UserController
     {
         $action->handle($user, $request->validated());
 
-        return Inertia::flash('success', 'User updated successfully')->back();
+        Inertia::flash('success', 'User updated successfully');
+
+        return back();
     }
 
     public function destroy(DeleteUserRequest $request, User $user, DeleteUser $action): RedirectResponse

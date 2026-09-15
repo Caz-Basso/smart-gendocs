@@ -16,7 +16,7 @@ final readonly class BuildMainNavigation
      */
     public function handle(?User $user): array
     {
-        if ($user === null) {
+        if (! $user instanceof User) {
             return [];
         }
 

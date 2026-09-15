@@ -34,7 +34,7 @@ final readonly class SyncPermissionsFromPolicies
             ->whereNotIn('name', $names)
             ->delete();
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        resolve(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return $names;
     }

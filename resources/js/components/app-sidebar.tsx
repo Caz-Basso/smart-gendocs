@@ -13,9 +13,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import type { NavItem } from '@/types';
 import { index as rolesIndex } from '@/routes/roles';
 import users from '@/routes/users';
+import type { NavItem } from '@/types';
 
 export function AppSidebar() {
     const { auth } = usePage().props;
