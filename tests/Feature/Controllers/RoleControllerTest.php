@@ -19,6 +19,7 @@ it('renders the roles index for authorized users', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('role/index')
             ->has('roles.data', 1)
+            ->where('roles.data.0.id', (string) $role->id)
             ->where('roles.data.0.name', 'editor')
             ->where('roles.data.0.permissions', ['user.viewAny'])
             ->where('roles.data.0.is_protected', false)

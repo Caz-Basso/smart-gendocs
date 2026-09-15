@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAppliedFilters } from '@/hooks/use-applied-filters';
 import AppLayout from '@/layouts/app-layout';
+import { roleRouteId } from '@/lib/role-route-id';
 import { create, destroy, edit, index } from '@/routes/roles';
 import type { BreadcrumbItem, Paginated } from '@/types';
 import type { RoleRow } from '@/types/permissions';
@@ -141,7 +142,9 @@ export default function RolesIndex({ roles }: RolesIndexProps) {
                                                             >
                                                                 <Link
                                                                     href={edit(
-                                                                        role.id,
+                                                                        roleRouteId(
+                                                                            role.id,
+                                                                        ),
                                                                     )}
                                                                 >
                                                                     <Pencil className="mr-2 h-4 w-4" />
@@ -159,7 +162,9 @@ export default function RolesIndex({ roles }: RolesIndexProps) {
                                                                 >
                                                                     <Link
                                                                         href={destroy(
-                                                                            role.id,
+                                                                            roleRouteId(
+                                                                                role.id,
+                                                                            ),
                                                                         )}
                                                                         as="button"
                                                                         method="delete"

@@ -102,7 +102,7 @@ final readonly class RoleController
     }
 
     /**
-     * @return array{id: int, name: string, is_protected: bool, permissions: list<string>}
+     * @return array{id: string, name: string, is_protected: bool, permissions: list<string>}
      */
     private function rolePayload(Role $role): array
     {
@@ -110,7 +110,7 @@ final readonly class RoleController
         $permissions = $role->permissions->pluck('name')->values()->all();
 
         return [
-            'id' => (int) $role->id,
+            'id' => (string) $role->id,
             'name' => $role->name,
             'is_protected' => $role->name === RoleName::SuperAdmin->value,
             'permissions' => $permissions,

@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import Heading from '@/components/heading';
 import RoleForm from '@/components/role-form';
 import AppLayout from '@/layouts/app-layout';
+import { roleRouteId } from '@/lib/role-route-id';
 import { edit, index, update } from '@/routes/roles';
 import type { BreadcrumbItem } from '@/types';
 import type { PermissionGroup, RoleRow } from '@/types/permissions';
@@ -19,7 +20,7 @@ export default function RoleEdit({ role, permissionGroups }: RoleEditProps) {
         },
         {
             title: role.name,
-            href: edit(role.id),
+            href: edit(roleRouteId(role.id)),
         },
     ];
 
@@ -37,7 +38,9 @@ export default function RoleEdit({ role, permissionGroups }: RoleEditProps) {
                     permissions={role.permissions}
                     nameLocked={role.is_protected}
                     submitLabel="Save role"
-                    onSubmit={(form) => form.put(update.url(role.id))}
+                    onSubmit={(form) =>
+                        form.put(update.url(roleRouteId(role.id)))
+                    }
                 />
             </div>
         </AppLayout>
