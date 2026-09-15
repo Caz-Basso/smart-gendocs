@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react"
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -7,9 +8,12 @@ import {
 } from "lucide-react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { useAppearance } from "@/hooks/use-appearance"
+import { useFlashToast } from "@/hooks/use-flash-toast"
 
 export function Toaster(props: ToasterProps) {
   const { resolvedAppearance } = useAppearance()
+
+  useFlashToast()
 
   return (
       <Sonner
@@ -53,7 +57,7 @@ export function Toaster(props: ToasterProps) {
                   "--normal-text": "var(--popover-foreground)",
                   "--normal-border": "var(--border)",
                   "--border-radius": "calc(var(--radius) + 2px)",
-              } as React.CSSProperties
+              } as CSSProperties
           }
           {...props}
       />
