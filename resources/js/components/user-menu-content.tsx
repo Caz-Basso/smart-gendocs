@@ -1,5 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import { LogOut, Settings } from 'lucide-react';
+import AppearanceToggleTab from '@/components/appearance-tabs';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -31,6 +32,14 @@ export function UserMenuContent({ user }: Props) {
                     <UserInfo user={user} showEmail={true} />
                 </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <div
+                className="px-2 py-1.5"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+            >
+                <AppearanceToggleTab className="w-full justify-between" />
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>

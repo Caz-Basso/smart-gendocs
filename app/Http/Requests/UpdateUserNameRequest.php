@@ -6,7 +6,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-final class DeleteUserRequest extends FormRequest
+final class UpdateUserNameRequest extends FormRequest
 {
     /**
      * @return array<string, array<int, string>>
@@ -14,7 +14,7 @@ final class DeleteUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user' => ['exists:users'],
+            'name' => ['required', 'string', 'max:255'],
         ];
     }
 }

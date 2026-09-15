@@ -1,13 +1,16 @@
-import { Link, usePage } from '@inertiajs/react';
-import { Head } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
+import { Check, ListChecks, Pencil, Trash, VenetianMask, X } from 'lucide-react';
 
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
-import { impersonate, index } from '@/routes/users';
+import { show } from '@/routes/audit';
+import { destroy } from '@/routes/user';
+import { impersonate, index, update } from '@/routes/users';
 import type { BreadcrumbItem } from '@/types';
-import { VenetianMask } from 'lucide-react';
 
 type UserRow = {
     id: string;
@@ -30,6 +33,43 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function UsersIndex({ users }: UserPageProps) {
     const { auth } = usePage().props;
     const currentUserId = String(auth.user.id);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingName, setEditingName] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    function startEditing(user: UserRow): void {
+        setEditingId(user.id);
+        setEditingName(user.name);
+    }
+
+    function cancelEditing(): void {
+        setEditingId(null);
+        setEditingName('');
+    }
+
+    function saveName(user: UserRow): void {
+        const name = editingName.trim();
+
+        if (name === '' || name === user.name) {
+            cancelEditing();
+
+            return;
+        }
+
+        setSaving(true);
+
+        router.patch(
+            update.url(user),
+            { name },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setSaving(false);
+                    cancelEditing();
+                },
+            },
+        );
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -45,7 +85,7 @@ export default function UsersIndex({ users }: UserPageProps) {
                                         <th className="px-6 py-3 font-medium">Name</th>
                                         <th className="px-6 py-3 font-medium">Email</th>
                                         <th className="px-6 py-3 font-medium">Created at</th>
-                                        <th className="px-6 py-3 font-medium text-right">Actions</th>
+                                        <th className="flex justify-end px-6 py-3 font-medium">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -61,14 +101,71 @@ export default function UsersIndex({ users }: UserPageProps) {
                                     ) : (
                                         users.map((user) => (
                                             <tr key={user.id} className="border-b last:border-0">
-                                                <td className="px-6 py-3 font-medium">{user.name}</td>
+                                                <td className="px-6 py-3 font-medium">
+                                                    {editingId === user.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <Input
+                                                                value={editingName}
+                                                                onChange={(event) =>
+                                                                    setEditingName(event.target.value)
+                                                                }
+                                                                onKeyDown={(event) => {
+                                                                    if (event.key === 'Enter') {
+                                                                        event.preventDefault();
+                                                                        saveName(user);
+                                                                    }
+
+                                                                    if (event.key === 'Escape') {
+                                                                        cancelEditing();
+                                                                    }
+                                                                }}
+                                                                disabled={saving}
+                                                                autoFocus
+                                                                className="h-8 max-w-xs"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={saving}
+                                                                onClick={() => saveName(user)}
+                                                            >
+                                                                <Check className="h-4 w-4" />
+                                                                <span className="sr-only">Save</span>
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                disabled={saving}
+                                                                onClick={cancelEditing}
+                                                            >
+                                                                <X className="h-4 w-4" />
+                                                                <span className="sr-only">Cancel</span>
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{user.name}</span>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => startEditing(user)}
+                                                            >
+                                                                <Pencil className="h-3.5 w-3.5" />
+                                                                <span className="sr-only">Edit name</span>
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-3 text-muted-foreground">
                                                     {user.email}
                                                 </td>
                                                 <td className="px-6 py-3 text-muted-foreground">
                                                     {new Date(user.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td className="px-6 py-3 text-right">
+                                                <td className="flex justify-end gap-2 px-6 py-3">
                                                     {user.id !== currentUserId &&
                                                         (auth.impersonating ? (
                                                             <Button
@@ -87,6 +184,22 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                                 </Link>
                                                             </Button>
                                                         ))}
+                                                    <Button asChild variant="outline" size="sm">
+                                                        <Link href={show({ type: 'users', id: user.id })}>
+                                                            <ListChecks className="mr-2 h-4 w-4" />
+                                                            Audit
+                                                        </Link>
+                                                    </Button>
+                                                    <Button asChild variant="outline" size="sm">
+                                                        <Link
+                                                            href={destroy(user)}
+                                                            as="button"
+                                                            method="delete"
+                                                        >
+                                                            <Trash className="mr-2 h-4 w-4" />
+                                                            Delete
+                                                        </Link>
+                                                    </Button>
                                                 </td>
                                             </tr>
                                         ))

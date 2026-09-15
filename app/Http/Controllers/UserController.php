@@ -6,10 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateUser;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateUser;
 use App\Http\Requests\CreateUserRequest;
 use App\Http\Requests\DeleteUserRequest;
+use App\Http\Requests\UpdateUserNameRequest;
 use App\Models\User;
-use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -49,15 +50,17 @@ final readonly class UserController
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
-    public function destroy(DeleteUserRequest $request, #[CurrentUser] User $user, DeleteUser $action): RedirectResponse
+    public function update(UpdateUserNameRequest $request, User $user, UpdateUser $action): RedirectResponse
     {
-        Auth::logout();
+        $action->handle($user, $request->validated());
 
+        return Inertia::flash('success', 'User updated successfully')->back();
+    }
+
+    public function destroy(DeleteUserRequest $request, User $user, DeleteUser $action): RedirectResponse
+    {
         $action->handle($user);
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return to_route('home');
+        return to_route('users.index');
     }
 }
