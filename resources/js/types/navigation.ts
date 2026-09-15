@@ -12,3 +12,19 @@ export type NavItem = {
     icon?: LucideIcon | null;
     isActive?: boolean;
 };
+
+export type SharedNavItem = {
+    title: string;
+    href: string;
+    icon: string;
+};
+
+export type NavGroup = {
+    label: string;
+    icon: string;
+    items: SharedNavItem[];
+};
+
+export type Navigation = {
+    main: NavGroup[];
+};

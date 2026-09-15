@@ -30,7 +30,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('users', [UserController::class, 'index'])->name('users.index');
 
     Route::resource('roles', RoleController::class)->except(['show']);
-
+ 
     // User Profile...
     Route::redirect('settings', '/settings/profile');
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');

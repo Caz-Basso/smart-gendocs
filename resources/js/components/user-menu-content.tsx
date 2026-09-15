@@ -34,11 +34,11 @@ export function UserMenuContent({ user }: Props) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <div
-                className="px-2 py-1.5"
+                className="px-1 py-1.5"
                 onClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => event.stopPropagation()}
             >
-                <AppearanceToggleTab className="w-full justify-between" />
+                <AppearanceToggleTab />
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
