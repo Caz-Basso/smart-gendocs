@@ -28,8 +28,7 @@ it('requires the delete permission to delete another user', function (): void {
 
 it('requires impersonate permission', function (): void {
     $user = userWithPermissions('user.impersonate');
-    $target = User::factory()->create();
 
-    expect(new UserPolicy()->impersonate($user, $target))->toBeTrue()
-        ->and(new UserPolicy()->impersonate(User::factory()->create(), $target))->toBeFalse();
+    expect(new UserPolicy()->impersonate($user))->toBeTrue()
+        ->and(new UserPolicy()->impersonate(User::factory()->create()))->toBeFalse();
 });
