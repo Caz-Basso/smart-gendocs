@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\RoleName;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\DB;
 use SensitiveParameter;
+use Spatie\Permission\Models\Role;
 
 final readonly class CreateUser
 {
@@ -21,6 +23,12 @@ final readonly class CreateUser
                 ...$attributes,
                 'password' => $password,
             ]);
+
+            // Atribuir role padrão "user" para novos registros
+            $userRole = Role::where('name', RoleName::User->value)->first();
+            if ($userRole) {
+                $user->assignRole($userRole);
+            }
 
             event(new Registered($user));
 

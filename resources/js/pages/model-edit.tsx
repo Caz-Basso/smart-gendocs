@@ -60,11 +60,18 @@ interface FieldTypeOption {
 
 interface Props {
     fieldTypeOptions: FieldTypeOption[];
+    model: {
+        id: string;
+        name: string;
+        fields: any[];
+        extracted_text: string | null;
+    };
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Cadastro de Modelos',
+        title: 'Editar Modelo',
         href: model_registration()
     },
 ];
@@ -79,24 +86,28 @@ function slugify(text: string) {
         .replace(/^_+|_+$/g, '');
 }
 
-export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
+export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
-    const [extractedContent, setExtractedContent] = useState<string>('');
+    const [extractedContent, setExtractedContent] = useState<string>(model.extracted_text || '');
     const [isLoadingText, setIsLoadingText] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
     const editorRef = useRef<HTMLDivElement>(null);
 
-    const { data, setData, post, processing, errors } = useForm<{
+
+    const { data, setData, put, processing, errors } = useForm<{
         name: string;
         template: File | null;
         fields: FieldItem[];
         extracted_text: string;
     }>({
         name: '',
+        name: model.name || '',
         template: null,
         fields: [{ id: '1', name: 'Nome do Cliente', slug: 'nome_do_cliente', type: 'text' }],
         extracted_text: '',
+        fields: model.fields?.length ? model.fields : [{ id: '1', name: 'Nome do Cliente', slug: 'nome_do_cliente', type: 'text' }],
+        extracted_text: model.extracted_text || '',
     });
 
     const addField = () => {
@@ -163,7 +174,6 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
 
     useEffect(() => {
         if (!templateFile) {
-            setExtractedContent('');
             return;
         }
 
@@ -243,6 +253,7 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Cadastro de Modelos" />
+            <Head title="Editar Modelo" />
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-[1600px] mx-auto">
                 <div className="lg:col-span-4 p-6 rounded-xl border bg-card text-card-foreground shadow-sm space-y-5 flex flex-col justify-between">
@@ -498,6 +509,7 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                                 <Save className="h-4 w-4 mr-1.5" />
                             )}
                             Salvar Modelo
+                            Salvar Alterações
                         </Button>
                     </div>
                 </div>

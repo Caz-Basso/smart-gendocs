@@ -42,6 +42,10 @@ final class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
+        if ($user instanceof User) {
+            $user->load('roles');
+        }
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),

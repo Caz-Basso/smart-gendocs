@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\AuditableType;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\ModelRegistrationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
@@ -14,18 +15,37 @@ use App\Http\Controllers\UserImpersonationController;
 use App\Http\Controllers\UserPasswordController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
-use App\Http\Controllers\ModelRegistrationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', fn () => Inertia::render('welcome'))->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
-   
-    Route::get('dashboard', fn () => Inertia::render('dashboard'))->name('dashboard');
 
-    Route::get('modelos/cadastro', [ModelRegistrationController::class, 'create'])
-        ->name('model_registration');
+    Route::get('dashboard', [ModelRegistrationController::class, 'dashboard'])
+        ->middleware('role_or_permission:user|admin|super-admin')
+        ->name('dashboard');
+
+    Route::prefix('modelos')->group(function (): void {
+        Route::get('/', [ModelRegistrationController::class, 'index'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.index');
+        Route::get('/cadastro', [ModelRegistrationController::class, 'create'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('model_registration');
+        Route::get('/{model}/editar', [ModelRegistrationController::class, 'edit'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.edit');
+        Route::put('/{model}', [ModelRegistrationController::class, 'update'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.update');
+        Route::post('/', [ModelRegistrationController::class, 'store'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.store');
+        Route::post('/gerar', [ModelRegistrationController::class, 'generate'])
+            ->middleware('role_or_permission:user|admin|super-admin')
+            ->name('documents.generate');
+    });
 });
 
 Route::middleware('auth')->group(function (): void {

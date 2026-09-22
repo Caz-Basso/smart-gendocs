@@ -35,6 +35,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface DashboardProps {
     customModels?: DocumentModel[];
+    showMockModels?: boolean;
+    isAdmin?: boolean;
 }
 
 function getInitialData(model?: DocumentModel): Record<string, string> {
@@ -88,8 +90,8 @@ function formatValue(
     return value;
 }
 
-export default function Dashboard({ customModels = [] }: DashboardProps) {
-    const models = customModels.length > 0 ? customModels : MOCK_MODELS;
+export default function Dashboard({ customModels = [], showMockModels = false, isAdmin = false }: DashboardProps) {
+    const models = showMockModels ? MOCK_MODELS : customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
         models[0]?.id ?? '',
@@ -279,7 +281,42 @@ export default function Dashboard({ customModels = [] }: DashboardProps) {
     function handleDownload() {
         if (!selectedModel) return;
 
-        alert('Documento gerado e baixado com sucesso! (Modo Mock / Desenvolvimento)');
+        // Enviar dados para o backend gerar o PDF
+        const formData = new FormData();
+        formData.append('model_id', selectedModel.id);
+
+        Object.entries(data).forEach(([key, value]) => {
+            formData.append(`data[${key}]`, value);
+        });
+
+        fetch('/modelos/gerar', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                'Accept': 'application/pdf',
+            },
+            body: formData,
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao gerar documento');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${selectedModel.name.replace(/\s+/g, '_').toLowerCase()}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao gerar documento. Tente novamente.');
+            });
     }
 
     return (
@@ -307,13 +344,15 @@ export default function Dashboard({ customModels = [] }: DashboardProps) {
                                 </SelectContent>
                             </Select>
 
-                            <Link
-                                href={model_registration()}
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white transition-colors hover:bg-emerald-800"
-                                title="Cadastrar Novo Modelo"
-                            >
-                                <Plus className="h-4 w-4" />
-                            </Link>
+                            {isAdmin && (
+                                <Link
+                                    href={model_registration()}
+                                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white transition-colors hover:bg-emerald-800"
+                                    title="Cadastrar Novo Modelo"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </Link>
+                            )}
                         </div>
                     </div>
 

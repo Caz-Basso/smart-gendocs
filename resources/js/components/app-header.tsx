@@ -23,6 +23,7 @@ import { useInitials } from '@/hooks/use-initials';
 import { toNavGroups, type NavGroupWithItems } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import { dashboard, model_registration } from '@/routes';
+import models from '@/routes/models';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -133,6 +134,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     }
 
     const user = auth.user;
+    const isAdmin = user.roles?.some((role: { name: string }) => role.name === 'admin' || role.name === 'super-admin');
 
     return (
         <>
@@ -203,6 +205,22 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                     </div>
                                                 </div>
                                             ))}
+                                            {isAdmin && (
+                                                <div className="space-y-2">
+                                                    <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                        Administração
+                                                    </p>
+                                                    <div className="flex flex-col space-y-3">
+                                                        <Link
+                                                            href={models.index()}
+                                                            prefetch
+                                                            className="flex items-center space-x-2 font-medium"
+                                                        >
+                                                            <span>Modelos</span>
+                                                        </Link>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -235,6 +253,26 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                     />
                                 </li>
                             ))}
+                            {isAdmin && (
+                                <li className="flex h-full items-center">
+                                    <div className="relative flex h-full items-center">
+                                        <Link
+                                            href={models.index()}
+                                            prefetch
+                                            className={cn(
+                                                navTriggerStyles,
+                                                whenCurrentUrl(models.index.url(), activeItemStyles),
+                                                'cursor-pointer',
+                                            )}
+                                        >
+                                            Modelos
+                                        </Link>
+                                        {isCurrentUrl(models.index.url()) && (
+                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white" />
+                                        )}
+                                    </div>
+                                </li>
+                            )}
                         </ul>
                     </nav>
 

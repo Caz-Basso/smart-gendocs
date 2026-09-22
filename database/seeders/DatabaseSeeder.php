@@ -18,15 +18,35 @@ final class DatabaseSeeder extends Seeder
     {
         resolve(SyncPermissionsFromPolicies::class)->handle();
 
-        $role = Role::findOrCreate(RoleName::SuperAdmin->value, 'web');
-        $role->syncPermissions(Permission::query()->get());
+        // Criar role SuperAdmin
+        $superAdminRole = Role::findOrCreate(RoleName::SuperAdmin->value, 'web');
+        $superAdminRole->syncPermissions(Permission::query()->get());
 
-        $admin = User::factory()->withoutTwoFactor()->create([
-            'name' => 'Admin',
-            'email' => 'admin@unesc.net',
-            'password' => Hash::make('password'),
-        ]);
+        // Criar role Admin
+        Role::findOrCreate(RoleName::Admin->value, 'web');
 
-        $admin->assignRole($role);
+        // Criar role User
+        Role::findOrCreate(RoleName::User->value, 'web');
+
+        // Criar usuário SuperAdmin
+        $superAdmin = User::updateOrCreate(
+            ['email' => 'admin@unesc.net'],
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('password'),
+            ]
+        );
+        $superAdmin->assignRole($superAdminRole);
+
+        // Criar usuário Admin padrão
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@smartgendocs.com'],
+            [
+                'name' => 'Administrador',
+                'password' => Hash::make('admin123'),
+                'email_verified_at' => now(),
+            ]
+        );
+        $admin->assignRole(Role::findOrCreate(RoleName::Admin->value, 'web'));
     }
 }
