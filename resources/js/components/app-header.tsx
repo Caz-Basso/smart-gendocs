@@ -22,7 +22,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { toNavGroups, type NavGroupWithItems } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
-import { dashboard } from '@/routes';
+import { dashboard, model_registration } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {

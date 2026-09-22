@@ -14,13 +14,18 @@ use App\Http\Controllers\UserImpersonationController;
 use App\Http\Controllers\UserPasswordController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserTwoFactorAuthenticationController;
+use App\Http\Controllers\ModelRegistrationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', fn () => Inertia::render('welcome'))->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
+   
     Route::get('dashboard', fn () => Inertia::render('dashboard'))->name('dashboard');
+
+    Route::get('modelos/cadastro', [ModelRegistrationController::class, 'create'])
+        ->name('model_registration');
 });
 
 Route::middleware('auth')->group(function (): void {

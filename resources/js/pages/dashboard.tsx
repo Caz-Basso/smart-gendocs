@@ -1,34 +1,380 @@
-import { Head } from '@inertiajs/react';
-import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
+import { useEffect, useMemo, useState } from 'react';
+import { Head, useForm, Link } from '@inertiajs/react';
+import { Download, Plus } from 'lucide-react';
+
 import AppLayout from '@/layouts/app-layout';
-import { dashboard } from '@/routes';
+import { dashboard, model_registration } from "@/routes";
 import type { BreadcrumbItem } from '@/types';
+import {
+    MOCK_MODELS,
+    type DocumentModel,
+    type DynamicField,
+} from '@/types/document';
+
+
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Gerador de Documentos',
         href: dashboard(),
     },
 ];
 
-export default function Dashboard() {
+interface DashboardProps {
+    customModels?: DocumentModel[];
+}
+
+function getInitialData(model?: DocumentModel): Record<string, string> {
+    if (!model) return {};
+
+    const result: Record<string, string> = {};
+
+    model.fields.forEach((field) => {
+        result[field.slug] = field.defaultValue ?? '';
+    });
+
+    Object.assign(result, model.defaultData ?? {});
+
+    return result;
+}
+
+function formatValue(
+    field: DynamicField | undefined,
+    value: string | undefined,
+): string {
+    if (!value) return '';
+    if (!field) return value;
+
+    if (field.type === 'checkbox') {
+        return value === 'true' ? 'Sim' : 'Não';
+    }
+
+    if (field.type === 'select' || field.type === 'radio') {
+        const option = field.options?.find((item) => item.value === value);
+        return option?.label ?? value;
+    }
+
+    if (field.type === 'currency') {
+        const numericValue = Number(value.replace(/\D/g, '')) / 100;
+        if (!Number.isNaN(numericValue)) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }).format(numericValue);
+        }
+    }
+
+    if (field.type === 'date') {
+        const parts = value.split('-');
+        if (parts.length === 3) {
+            const [year, month, day] = parts;
+            return `${day}/${month}/${year}`;
+        }
+    }
+
+    return value;
+}
+
+export default function Dashboard({ customModels = [] }: DashboardProps) {
+    const models = customModels.length > 0 ? customModels : MOCK_MODELS;
+
+    const [selectedModelId, setSelectedModelId] = useState<string>(
+        models[0]?.id ?? '',
+    );
+
+    const selectedModel = useMemo(
+        () => models.find((model) => model.id === selectedModelId) ?? models[0],
+        [models, selectedModelId]
+    );
+
+    const { data, setData, post, processing } = useForm<Record<string, string>>(
+        getInitialData(selectedModel)
+    );
+
+    useEffect(() => {
+        if (selectedModel) {
+            const initial = getInitialData(selectedModel);
+            setData(initial);
+        }
+    }, [selectedModelId]);
+
+    const sections = useMemo(() => {
+        if (!selectedModel?.fields) return [];
+
+        const grouped = new Map<string, DynamicField[]>();
+
+        selectedModel.fields.forEach((field) => {
+            const section = field.section ?? 'Dados do Documento';
+
+
+            if (!grouped.has(section)) {
+                grouped.set(section, []);
+            }
+
+            grouped.get(section)!.push(field);
+        });
+
+        return Array.from(grouped.entries());
+    }, [selectedModel]);
+
+    function renderField(field: DynamicField) {
+        const value = data[field.slug] ?? '';
+
+        const label = (
+            <Label htmlFor={field.slug} className="text-xs font-medium">
+                {field.name}
+                {field.required && <span className="ml-1 text-red-500">*</span>}
+            </Label>
+        );
+
+        if (field.type === 'textarea') {
+            return (
+                <div key={field.id} className="space-y-1.5">
+                    {label}
+                    <Textarea
+                        id={field.slug}
+                        value={value}
+                        placeholder={field.placeholder}
+                        onChange={(e) => setData(field.slug, e.target.value)}
+                        className="min-h-[80px] bg-background"
+                    />
+                </div>
+            );
+        }
+
+        if (field.type === 'select') {
+            return (
+                <div key={field.id} className="space-y-1.5">
+                    {label}
+                    <Select
+                        value={value}
+                        onValueChange={(newValue) => setData(field.slug, newValue)}
+                    >
+                        <SelectTrigger id={field.slug} className="bg-background">
+                            <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {field.options?.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            );
+        }
+
+        if (field.type === 'radio') {
+            return (
+                <div key={field.id} className="space-y-2">
+                    {label}
+                    <RadioGroup
+                        value={value}
+                        onValueChange={(newValue) => setData(field.slug, newValue)}
+                        className="flex flex-wrap gap-4"
+                    >
+                        {field.options?.map((option) => (
+                            <div key={option.value} className="flex items-center gap-2">
+                                <RadioGroupItem
+                                    id={`${field.slug}-${option.value}`}
+                                    value={option.value}
+                                />
+                                <Label
+                                    htmlFor={`${field.slug}-${option.value}`}
+                                    className="text-sm font-normal cursor-pointer"
+                                >
+                                    {option.label}
+                                </Label>
+                            </div>
+                        ))}
+                    </RadioGroup>
+                </div>
+            );
+        }
+
+        if (field.type === 'checkbox') {
+            return (
+                <div key={field.id} className="flex items-center gap-2 pt-1">
+                    <Checkbox
+                        id={field.slug}
+                        checked={value === 'true'}
+                        onCheckedChange={(checked) =>
+                            setData(field.slug, checked ? 'true' : 'false')
+                        }
+                    />
+                    <Label
+                        htmlFor={field.slug}
+                        className="text-sm font-normal cursor-pointer"
+                    >
+                        {field.name}
+                    </Label>
+                </div>
+            );
+        }
+
+        let inputType: 'text' | 'number' | 'date' | 'email' = 'text';
+
+        if (field.type === 'number') inputType = 'number';
+        if (field.type === 'date') inputType = 'date';
+        if (field.type === 'email') inputType = 'email';
+
+        return (
+            <div key={field.id} className="space-y-1.5">
+                {label}
+                <Input
+                    id={field.slug}
+                    type={inputType}
+                    value={value}
+                    placeholder={field.placeholder}
+                    onChange={(e) => setData(field.slug, e.target.value)}
+                    className="bg-background"
+                />
+            </div>
+        );
+    }
+
+    function renderPreviewText(text: string) {
+        const parts = text.split(/(\{\{[^}]+\}\})/g);
+
+        return parts.map((part, index) => {
+            const match = part.match(/^\{\{(.+)\}\}$/);
+
+            if (!match) {
+                return <span key={index}>{part}</span>;
+            }
+
+            const slug = match[1];
+            const field = selectedModel?.fields.find((item) => item.slug === slug);
+            const value = formatValue(field, data[slug]);
+
+            if (!value) {
+                return (
+                    <span
+                        key={index}
+                        className="rounded bg-amber-100 px-1 py-0.5 text-amber-800 font-medium"
+                    >
+                        [{field?.name ?? slug}]
+                    </span>
+                );
+            }
+
+            return <strong key={index}>{value}</strong>;
+        });
+    }
+
+    function handleDownload() {
+        if (!selectedModel) return;
+
+        alert('Documento gerado e baixado com sucesso! (Modo Mock / Desenvolvimento)');
+    }
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Dashboard" />
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
+            <Head title="Gerador de Documentos" />
+
+            <div className="grid grid-cols-1 items-start gap-6 p-4 lg:grid-cols-12">
+                <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col space-y-6 rounded-xl border bg-card p-6 shadow-sm lg:col-span-4 overflow-hidden">
+                    <div className="space-y-1.5 shrink-0">
+                        <Label htmlFor="model-select">Modelo de Documento</Label>
+                        <div className="flex w-full min-w-0 items-center gap-2">
+                            <Select
+                                value={selectedModel?.id ?? ''}
+                                onValueChange={(value) => setSelectedModelId(value)}
+                            >
+                                <SelectTrigger id="model-select" className="flex-1 min-w-0 bg-background">
+                                    <SelectValue placeholder="Selecione o modelo" className="truncate" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {models.map((model) => (
+                                        <SelectItem key={model.id} value={model.id}>
+                                            {model.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            <Link
+                                href={model_registration()}
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white transition-colors hover:bg-emerald-800"
+                                title="Cadastrar Novo Modelo"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Link>
+                        </div>
                     </div>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
+
+                    <hr className="border-border shrink-0" />
+
+                    <div className="space-y-6 overflow-y-auto pr-2 flex-1">
+                        {sections.map(([section, fields]) => (
+                            <div key={section} className="space-y-4">
+                                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    {section}
+                                </h2>
+                                <div className="space-y-4">
+                                    {fields.map((field) => renderField(field))}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
-                <div className="relative min-h-[100vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
-                    <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
+
+                <div className="flex flex-col items-center lg:col-span-8">
+                    <div className="mb-4 flex w-full max-w-[700px] items-center justify-between gap-4">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Pré-visualização do Documento
+                        </span>
+
+                        <Button
+                            type="button"
+                            disabled={processing}
+                            className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
+                            onClick={handleDownload}
+                        >
+                            <Download className="h-4 w-4" />
+                            {processing ? 'Gerando...' : 'Baixar Documento'}
+                        </Button>
+                    </div>
+
+                    <div className="min-h-[850px] w-full max-w-[700px] rounded-sm border bg-white p-10 text-black shadow-md">
+                        {selectedModel?.preview?.map((paragraph, index) => {
+                            if (paragraph === '') {
+                                return <div key={index} className="h-4" />;
+                            }
+
+                            const isTitle = index === 0;
+                            const isClause = paragraph.startsWith('CLÁUSULA');
+
+                            return (
+                                <p
+                                    key={index}
+                                    className={
+                                        isTitle
+                                            ? 'mb-8 text-center text-base font-bold uppercase tracking-wide'
+                                            : isClause
+                                                ? 'mb-2 mt-5 text-xs font-bold uppercase tracking-wide'
+                                                : 'mb-3 text-justify text-xs leading-relaxed text-gray-800'
+                                    }
+                                >
+                                    {renderPreviewText(paragraph)}
+                                </p>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </AppLayout>
