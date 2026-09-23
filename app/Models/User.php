@@ -22,6 +22,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property-read string $id
  * @property-read string $name
  * @property-read string $email
+ * @property-read bool $is_active
  * @property-read CarbonInterface|null $email_verified_at
  * @property-read string $password
  * @property-read string|null $remember_token
@@ -59,6 +60,7 @@ final class User extends Authenticatable implements Auditable, MustVerifyEmail
             'id' => 'string',
             'name' => 'string',
             'email' => 'string',
+            'is_active' => 'boolean',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'remember_token' => 'string',

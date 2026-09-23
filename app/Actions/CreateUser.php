@@ -16,16 +16,16 @@ final readonly class CreateUser
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function handle(array $attributes, #[SensitiveParameter] string $password): User
+    public function handle(array $attributes, #[SensitiveParameter] string $password, ?string $roleName = null): User
     {
-        return DB::transaction(function () use ($attributes, $password): User {
+        return DB::transaction(function () use ($attributes, $password, $roleName): User {
             $user = User::query()->create([
                 ...$attributes,
                 'password' => $password,
             ]);
 
             // Atribuir role padrão "user" para novos registros
-            $userRole = Role::where('name', RoleName::User->value)->first();
+            $userRole = Role::where('name', $roleName ?? RoleName::User->value)->first();
             if ($userRole) {
                 $user->assignRole($userRole);
             }

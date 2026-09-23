@@ -22,8 +22,18 @@ final class DatabaseSeeder extends Seeder
         $superAdminRole = Role::findOrCreate(RoleName::SuperAdmin->value, 'web');
         $superAdminRole->syncPermissions(Permission::query()->get());
 
-        // Criar role Admin
-        Role::findOrCreate(RoleName::Admin->value, 'web');
+        // Criar role Admin e habilitar a gestão de usuários sem conceder super-admin.
+        $adminRole = Role::findOrCreate(RoleName::Admin->value, 'web');
+        $adminRole->givePermissionTo([
+            'user.viewAny',
+            'user.create',
+            'user.update',
+            'user.delete',
+            'user.manageRoles',
+            'user.changeStatus',
+            'user.impersonate',
+            'user.viewAudits',
+        ]);
 
         // Criar role User
         Role::findOrCreate(RoleName::User->value, 'web');
@@ -47,6 +57,6 @@ final class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ]
         );
-        $admin->assignRole(Role::findOrCreate(RoleName::Admin->value, 'web'));
+        $admin->assignRole($adminRole);
     }
 }

@@ -20,21 +20,27 @@ type AuditShowProps = {
     audits: AuditRow[];
 };
 
+const eventLabels: Record<string, string> = {
+    created: 'Criado',
+    updated: 'Atualizado',
+    deleted: 'Excluído',
+};
+
 export default function AuditShow({ type, id, audits }: AuditShowProps) {
     const breadcrumbs: BreadcrumbItem[] = [
         {
-            title: 'Audit',
+            title: 'Auditoria',
             href: show({ type, id }),
         },
     ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Audit" />
+            <Head title="Auditoria" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <Heading
-                    title="Audit trail"
-                    description={`Changes recorded for ${type}/${id}.`}
+                    title="Histórico de alterações"
+                    description={`Alterações registradas para ${type === 'users' ? 'o usuário' : type} ${id}.`}
                 />
                 <Card>
                     <CardContent className="p-0">
@@ -43,19 +49,19 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                                 <thead>
                                     <tr className="border-b text-left text-muted-foreground">
                                         <th className="px-6 py-3 font-medium">
-                                            Event
+                                            Ação
                                         </th>
                                         <th className="px-6 py-3 font-medium">
-                                            Old values
+                                            Valores anteriores
                                         </th>
                                         <th className="px-6 py-3 font-medium">
-                                            New values
+                                            Valores atualizados
                                         </th>
                                         <th className="px-6 py-3 font-medium">
-                                            Responsible
+                                            Responsável
                                         </th>
                                         <th className="px-6 py-3 font-medium">
-                                            Created at
+                                            Data e hora
                                         </th>
                                     </tr>
                                 </thead>
@@ -63,10 +69,10 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                                     {audits.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={4}
+                                                colSpan={5}
                                                 className="px-6 py-8 text-center text-muted-foreground"
                                             >
-                                                No audits found.
+                                                Nenhuma alteração registrada.
                                             </td>
                                         </tr>
                                     ) : (
@@ -76,7 +82,8 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                                                 className="border-b last:border-0"
                                             >
                                                 <td className="px-6 py-3 font-medium">
-                                                    {audit.event}
+                                                    {eventLabels[audit.event] ??
+                                                        audit.event}
                                                 </td>
                                                 <td className="px-6 py-3 font-mono text-xs text-muted-foreground">
                                                     {JSON.stringify(
@@ -90,13 +97,13 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                                                 </td>
                                                 <td className="px-6 py-3 text-muted-foreground">
                                                     {audit.responsible ??
-                                                        'Unknown'}
+                                                        'Não identificado'}
                                                 </td>
                                                 <td className="px-6 py-3 text-muted-foreground">
                                                     {audit.created_at
                                                         ? new Date(
                                                               audit.created_at,
-                                                          ).toLocaleString()
+                                                          ).toLocaleString('pt-BR')
                                                         : '?'}
                                                 </td>
                                             </tr>
