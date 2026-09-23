@@ -209,3 +209,44 @@
         animation: none;
     }
 }
+
+/* Estilos do conteúdo renderizado dentro do editor de documentos
+   (pré-visualização do cadastro/edição de modelos). */
+.document-editor h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 1.25rem 0.75rem;
+}
+.document-editor h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 1rem 0.6rem;
+}
+.document-editor h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0.9rem 0.5rem;
+}
+.document-editor p {
+    margin: 0.65rem;
+    text-align: justify;
+}
+.document-editor table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.75rem 0;
+}
+.document-editor td,
+.document-editor th {
+    border: 1px solid #d1d5db;
+    padding: 0.375rem 0.5rem;
+    vertical-align: top;
+}
+.document-editor ul,
+.document-editor ol {
+    margin: 0.5rem 0.75rem 1.25rem;
+    list-style: revert;
+}
+.document-editor li {
+    margin-bottom: 0.25rem;
+}

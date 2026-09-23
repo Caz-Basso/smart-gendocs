@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\ConvertPdfToWordAction;
 use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Enums\FieldType;
+use App\Http\Requests\ConvertPdfRequest;
 use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 final class ModelRegistrationController
 {
@@ -70,7 +74,7 @@ final class ModelRegistrationController
             ->get();
         $query = \App\Models\DocumentModel::with('user')->latest();
 
-        if (!Auth::user()->hasRole('admin') && !Auth::user()->hasRole('super-admin')) {
+        if (! Auth::user()->hasRole('admin') && ! Auth::user()->hasRole('super-admin')) {
             $query->where('user_id', Auth::id());
         }
 
@@ -104,7 +108,7 @@ final class ModelRegistrationController
     public function edit(string $id): Response
     {
         $model = \App\Models\DocumentModel::findOrFail($id);
-        
+
         $fieldTypeOptions = array_map(fn ($type) => [
             'value' => $type->value,
             'label' => $type->label(),
@@ -119,7 +123,7 @@ final class ModelRegistrationController
     public function update(StoreModelRequest $request, string $id): RedirectResponse
     {
         $model = \App\Models\DocumentModel::findOrFail($id);
-        
+
         // Handle update logic here if needed, for now just update basic fields
         $data = $request->validated();
         $model->update([
@@ -130,6 +134,26 @@ final class ModelRegistrationController
 
         return redirect()->route('models.index')
             ->with('success', 'Modelo atualizado com sucesso!');
+    }
+
+    /**
+     * Converte o PDF enviado pelo usuário em um DOCX via pdf2docx, preservando
+     * a estrutura do documento. Os bytes do DOCX são devolvidos na resposta para
+     * serem renderizados na pré-visualização do cadastro de modelo.
+     */
+    public function convert(ConvertPdfRequest $request, ConvertPdfToWordAction $converter): HttpResponse|JsonResponse
+    {
+        try {
+            $docxContent = $converter->handle($request->pdf());
+        } catch (RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 502);
+        }
+
+        return new HttpResponse($docxContent, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+            'Pragma' => 'public',
+        ]);
     }
 
     public function generate(GenerateDocumentRequest $request, GenerateDocumentAction $generateDocument): HttpResponse
@@ -146,7 +170,6 @@ final class ModelRegistrationController
         return new HttpResponse($pdfContent, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
-            'Content-Length' => mb_strlen($pdfContent),
             'Cache-Control' => 'private, max-age=0, must-revalidate',
             'Pragma' => 'public',
         ]);

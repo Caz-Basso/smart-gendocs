@@ -38,13 +38,6 @@ import {
 } from 'lucide-react';
 
 import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
-import { TextItem } from 'pdfjs-dist/types/src/display/api';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url
-).toString();
 
 interface FieldItem {
     id: string;
@@ -200,30 +193,57 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                     setExtractedContent(cleanedHtml);
                 }
                 else if (isPdf) {
-                    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-                    let htmlBuilder = '';
+                    // Converte o PDF no servidor (pdf2docx) preservando a estrutura
+                    // (parágrafos, títulos e tabelas) e renderiza o DOCX no editor.
+                    const formData = new FormData();
+                    formData.append('file', templateFile!);
 
+                    const response = await fetch('/modelos/converter-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Accept': 'application/json',
+                        },
+                        body: formData,
+                    });
 
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        const pageText = textContent.items
-                            .filter((item): item is TextItem => 'str' in item)
-                            .map((item) => item.str)
-                            .join(' ')
-                            .replace(/\s+/g, ' ')
-                            .trim();
-
-
-                        if (pageText) {
-                            htmlBuilder += `<p class="mb-3 text-justify leading-relaxed">${pageText}</p>`;
-                        }
+                    if (!response.ok) {
+                        const detail = await response.json().catch(() => null);
+                        const reason = detail?.error ?? `HTTP ${response.status}`;
+                        setExtractedContent(`<p class="text-red-500 font-medium">Não foi possível converter o PDF (${reason}). Verifique se o serviço de conversão está ativo.</p>`);
+                        return;
                     }
-                    setExtractedContent(htmlBuilder);
+
+                    // Respostas que não são DOCX (ex.: redirect de sessão expirada
+                    // devolve HTML com 200) não podem ir para o mammoth.
+                    const contentType = response.headers.get('Content-Type') ?? '';
+                    if (!contentType.includes('wordprocessingml')) {
+                        setExtractedContent('<p class="text-red-500 font-medium">Sua sessão expirou. Recarregue a página e tente novamente.</p>');
+                        return;
+                    }
+
+                    // O DOCX retornado (com a estrutura do PDF) segue o mesmo caminho
+                    // do upload .docx: mammoth converte para HTML estruturado.
+                    const docxBuffer = await response.arrayBuffer();
+                    const result = await mammoth.convertToHtml({
+                        arrayBuffer: docxBuffer,
+                        styleMap: [
+                            "p[style-name='Heading 1'] => h1:fresh",
+                            "p[style-name='Heading 2'] => h2:fresh",
+                            "p[style-name='Heading 3'] => h3:fresh"
+                        ]
+                    });
+                    const cleanedHtml = result.value
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .replace(/>\s+</g, '><')
+                        .trim();
+                    setExtractedContent(cleanedHtml);
                 }
             } catch (err) {
                 console.error("Erro na conversão:", err);
-                setExtractedContent('<p class="text-red-500 font-medium">Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.</p>');
+                const detail = err instanceof Error ? err.message : String(err);
+                setExtractedContent(`<p class="text-red-500 font-medium">Erro ao converter o arquivo: ${detail}</p>`);
             } finally {
                 setIsLoadingText(false);
             }

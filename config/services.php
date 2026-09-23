@@ -37,4 +37,8 @@ return [
         ],
     ],
 
+    'pdf_converter' => [
+        'endpoint' => env('PDF_CONVERTER_ENDPOINT', 'http://pdf-converter:8000'),
+    ],
+
 ];
