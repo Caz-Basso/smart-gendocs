@@ -691,16 +691,10 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                {/* =====================================================
-                    PREVIEW
-                ====================================================== */}
-
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    {/* Cabeçalho igual ao ModelRegistration */}
 
                     <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
 
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                 Pré-visualização do Documento

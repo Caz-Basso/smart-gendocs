@@ -3,6 +3,7 @@ import {
     useEffect,
     type ChangeEvent,
     type FormEvent,
+    type DragEvent,
     useRef,
 } from 'react';
 
@@ -210,6 +211,116 @@ export default function ModelEdit({
         }
     };
 
+    const getCaretRange = (
+        event: DragEvent<HTMLDivElement>,
+    ): Range | null => {
+        const { clientX, clientY } = event;
+
+        if (typeof document.caretRangeFromPoint === 'function') {
+            return document.caretRangeFromPoint(
+                clientX,
+                clientY,
+            );
+        }
+
+        if (typeof document.caretPositionFromPoint === 'function') {
+            const position = document.caretPositionFromPoint(
+                clientX,
+                clientY,
+            );
+
+            if (!position) {
+                return null;
+            }
+
+            const range = document.createRange();
+
+            range.setStart(
+                position.offsetNode,
+                position.offset,
+            );
+
+            range.collapse(true);
+
+            return range;
+        }
+
+        return null;
+    };
+
+    const handleDragStart = (
+        event: DragEvent<HTMLDivElement>,
+        slug: string,
+    ) => {
+        if (!slug) {
+            return;
+        }
+
+        event.dataTransfer.setData(
+            'text/plain',
+            `{{${slug}}}`,
+        );
+
+        event.dataTransfer.effectAllowed = 'copy';
+    };
+
+    const handleDragOver = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+
+        event.dataTransfer.dropEffect = 'copy';
+    };
+
+    const handleDrop = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+
+        const editor = editorRef.current;
+
+        const text = event.dataTransfer.getData(
+            'text/plain',
+        );
+
+        if (!editor || !text) {
+            return;
+        }
+
+        const range = getCaretRange(event);
+
+        if (
+            !range ||
+            !editor.contains(range.commonAncestorContainer)
+        ) {
+            return;
+        }
+
+        const node = document.createTextNode(text);
+
+        range.deleteContents();
+
+        range.insertNode(node);
+
+        const cursor = document.createRange();
+
+        cursor.setStartAfter(node);
+
+        cursor.collapse(true);
+
+        const selection = window.getSelection();
+
+        selection?.removeAllRanges();
+
+        selection?.addRange(cursor);
+
+        const updatedHtml = editor.innerHTML;
+
+        setExtractedContent(updatedHtml);
+
+        setData('extracted_text', updatedHtml);
+    };
+
     const handleCancel = () => {
         const confirmed = window.confirm(
             'Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.',
@@ -263,7 +374,9 @@ export default function ModelEdit({
                 const isDocx =
                     templateFile.type ===
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                    templateFile.name.toLowerCase().endsWith('.docx');
+                    templateFile.name
+                        .toLowerCase()
+                        .endsWith('.docx');
 
                 const isPdf =
                     templateFile.type === 'application/pdf' ||
@@ -281,13 +394,13 @@ export default function ModelEdit({
 
                 if (isDocx) {
                     const result = await mammoth.convertToHtml({
-                        arrayBuffer: buffer,
-                        styleMap: [
-                            "p[style-name='Heading 1'] => h1:fresh",
-                            "p[style-name='Heading 2'] => h2:fresh",
-                            "p[style-name='Heading 3'] => h3:fresh",
-                        ],
-                    });
+                            arrayBuffer: buffer,
+                            styleMap: [
+                                "p[style-name='Heading 1'] => h1:fresh",
+                                "p[style-name='Heading 2'] => h2:fresh",
+                                "p[style-name='Heading 3'] => h3:fresh",
+                            ],
+                        });
 
                     const cleanedHtml = cleanHtml(result.value);
 
@@ -299,8 +412,8 @@ export default function ModelEdit({
 
                 if (isPdf) {
                     const pdf = await pdfjsLib.getDocument({
-                        data: buffer,
-                    }).promise;
+                            data: buffer,
+                        }).promise;
 
                     let htmlBuilder = '';
 
@@ -309,14 +422,14 @@ export default function ModelEdit({
                         const textContent = await page.getTextContent();
 
                         const pageText = textContent.items
-                            .filter(
-                                (item): item is TextItem =>
-                                    'str' in item,
-                            )
-                            .map((item) => item.str)
-                            .join(' ')
-                            .replace(/\s+/g, ' ')
-                            .trim();
+                                .filter(
+                                    (item): item is TextItem =>
+                                        'str' in item,
+                                )
+                                .map((item) => item.str)
+                                .join(' ')
+                                .replace(/\s+/g, ' ')
+                                .trim();
 
                         if (pageText) {
                             htmlBuilder += `
@@ -375,7 +488,6 @@ export default function ModelEdit({
                 onSubmit={handleSubmit}
                 className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
             >
-                {/* PAINEL DE CONFIGURAÇÃO */}
                 <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-sm lg:col-span-4">
                     <div className="space-y-5">
                         <div className="flex items-center justify-between">
@@ -481,7 +593,6 @@ export default function ModelEdit({
                             </Dialog>
                         </div>
 
-                        {/* NOME */}
                         <div className="space-y-1.5">
                             <Label htmlFor="model_name">
                                 Nome do Modelo
@@ -493,7 +604,10 @@ export default function ModelEdit({
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
                                 onChange={(e) =>
-                                    setData('name', e.target.value)
+                                    setData(
+                                        'name',
+                                        e.target.value,
+                                    )
                                 }
                                 required
                             />
@@ -505,7 +619,6 @@ export default function ModelEdit({
                             )}
                         </div>
 
-                        {/* ARQUIVO */}
                         <div className="space-y-1.5">
                             <Label htmlFor="template">
                                 Arquivo Base (.docx ou .pdf)
@@ -529,7 +642,9 @@ export default function ModelEdit({
                                         name="template"
                                         accept=".docx,.pdf"
                                         className="hidden"
-                                        onChange={handleFileChange}
+                                        onChange={
+                                            handleFileChange
+                                        }
                                     />
                                 </label>
                             ) : (
@@ -548,10 +663,18 @@ export default function ModelEdit({
                                         size="sm"
                                         className="h-7 text-xs text-destructive hover:bg-destructive/10"
                                         onClick={() => {
-                                            setTemplateFile(null);
-                                            setData('template', null);
+                                            setTemplateFile(
+                                                null,
+                                            );
+
+                                            setData(
+                                                'template',
+                                                null,
+                                            );
+
                                             setExtractedContent(
-                                                model.extracted_text || '',
+                                                model.extracted_text ||
+                                                    '',
                                             );
                                         }}
                                     >
@@ -569,7 +692,6 @@ export default function ModelEdit({
 
                         <hr className="my-4 border-border" />
 
-                        {/* CAMPOS */}
                         <div className="flex items-center justify-between">
                             <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                 Campos Dinâmicos
@@ -584,133 +706,167 @@ export default function ModelEdit({
                         </div>
 
                         <div className="-mr-2 max-h-[420px] space-y-3 overflow-y-auto pr-2">
-                            {data.fields.map((field, index) => (
-                                <div
-                                    key={field.id}
-                                    className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
-                                >
-                                    <div className="flex items-center justify-between border-b border-border/40 pb-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                            Campo #{index + 1}
-                                        </span>
+                            {data.fields.map(
+                                (field, index) => (
+                                    <div
+                                        key={field.id}
+                                        className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
+                                    >
+                                        <div className="flex items-center justify-between border-b border-border/40 pb-1">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                Campo #
+                                                {index + 1}
+                                            </span>
 
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-6 w-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                            onClick={() =>
-                                                removeField(field.id)
-                                            }
-                                            disabled={
-                                                data.fields.length === 1
-                                            }
-                                            title="Excluir campo"
-                                        >
-                                            <Trash className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-medium">
-                                            Nome do Campo
-                                        </Label>
-
-                                        <Input
-                                            value={field.name}
-                                            onChange={(e) =>
-                                                updateFieldName(
-                                                    field.id,
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder="Ex: Nome do Cliente"
-                                            className="h-8 bg-background text-xs"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-12 items-start gap-3">
-                                        <div className="col-span-8 space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Tag / Slug
-                                            </Label>
-
-                                            <div className="relative flex items-center">
-                                                <Input
-                                                    value={
-                                                        field.slug
-                                                            ? `{{${field.slug}}}`
-                                                            : ''
-                                                    }
-                                                    disabled
-                                                    placeholder="{{nome_do_campo}}"
-                                                    className="h-8 w-full bg-muted/50 pr-8 font-mono text-xs text-muted-foreground"
-                                                />
-
-                                                {field.slug && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleCopyTag(
-                                                                field.slug,
-                                                            )
-                                                        }
-                                                        title="Copiar Tag"
-                                                        className="absolute right-1.5 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
-                                                    >
-                                                        {copiedSlug ===
-                                                        field.slug ? (
-                                                            <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                        ) : (
-                                                            <Copy className="h-3.5 w-3.5" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-4 min-w-0 space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Tipo
-                                            </Label>
-
-                                            <Select
-                                                value={field.type}
-                                                onValueChange={(value) =>
-                                                    updateFieldType(
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                                onClick={() =>
+                                                    removeField(
                                                         field.id,
-                                                        value,
                                                     )
                                                 }
+                                                disabled={
+                                                    data.fields
+                                                        .length ===
+                                                    1
+                                                }
+                                                title="Excluir campo"
                                             >
-                                                <SelectTrigger className="h-8 w-full overflow-hidden bg-background text-xs">
-                                                    <SelectValue
-                                                        placeholder="Selecione"
-                                                        className="truncate"
-                                                    />
-                                                </SelectTrigger>
+                                                <Trash className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
 
-                                                <SelectContent>
-                                                    {fieldTypeOptions.map(
-                                                        (option) => (
-                                                            <SelectItem
-                                                                key={
-                                                                    option.value
-                                                                }
-                                                                value={
-                                                                    option.value
-                                                                }
-                                                            >
-                                                                {option.label}
-                                                            </SelectItem>
-                                                        ),
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium">
+                                                Nome do Campo
+                                            </Label>
+
+                                            <Input
+                                                value={
+                                                    field.name
+                                                }
+                                                onChange={(
+                                                    e,
+                                                ) =>
+                                                    updateFieldName(
+                                                        field.id,
+                                                        e
+                                                            .target
+                                                            .value,
+                                                    )
+                                                }
+                                                placeholder="Ex: Nome do Cliente"
+                                                className="h-8 bg-background text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-12 items-start gap-3">
+                                            <div className="col-span-8 space-y-1.5">
+                                                <Label className="text-xs font-medium">
+                                                    Tag / Slug
+                                                </Label>
+
+                                                <div
+                                                    draggable={
+                                                        !!field.slug
+                                                    }
+                                                    onDragStart={(
+                                                        e,
+                                                    ) =>
+                                                        handleDragStart(
+                                                            e,
+                                                            field.slug,
+                                                        )
+                                                    }
+                                                    className="relative flex cursor-grab select-none items-center active:cursor-grabbing"
+                                                >
+                                                    <Input
+                                                        value={
+                                                            field.slug
+                                                                ? `{{${field.slug}}}`
+                                                                : ''
+                                                        }
+                                                        disabled
+                                                        placeholder="{{nome_do_campo}}"
+                                                        className="h-8 w-full bg-muted/50 pr-8 font-mono text-xs text-muted-foreground"
+                                                    />
+
+                                                    {field.slug && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleCopyTag(
+                                                                    field.slug,
+                                                                )
+                                                            }
+                                                            title="Copiar Tag"
+                                                            className="absolute right-1.5 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
+                                                        >
+                                                            {copiedSlug ===
+                                                            field.slug ? (
+                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                                            ) : (
+                                                                <Copy className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </button>
                                                     )}
-                                                </SelectContent>
-                                            </Select>
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-4 min-w-0 space-y-1.5">
+                                                <Label className="text-xs font-medium">
+                                                    Tipo
+                                                </Label>
+
+                                                <Select
+                                                    value={
+                                                        field.type
+                                                    }
+                                                    onValueChange={(
+                                                        value,
+                                                    ) =>
+                                                        updateFieldType(
+                                                            field.id,
+                                                            value,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="h-8 w-full overflow-hidden bg-background text-xs">
+                                                        <SelectValue
+                                                            placeholder="Selecione"
+                                                            className="truncate"
+                                                        />
+                                                    </SelectTrigger>
+
+                                                    <SelectContent>
+                                                        {fieldTypeOptions.map(
+                                                            (
+                                                                option,
+                                                            ) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        option.value
+                                                                    }
+                                                                    value={
+                                                                        option.value
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        option.label
+                                                                    }
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ),
+                            )}
                         </div>
 
                         <Button
@@ -724,7 +880,6 @@ export default function ModelEdit({
                         </Button>
                     </div>
 
-                    {/* AÇÕES */}
                     <div className="mt-6 flex items-center gap-3 border-t pt-6">
                         <Button
                             type="button"
@@ -754,7 +909,6 @@ export default function ModelEdit({
                     </div>
                 </div>
 
-                {/* PREVIEW */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
                     <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
@@ -768,7 +922,7 @@ export default function ModelEdit({
                         <div className="flex items-center gap-2">
                             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                                 <Edit3 className="h-3 w-3" />
-                                Clique na folha para editar o texto
+                                Arraste a tag para o documento
                             </span>
                         </div>
                     </div>
@@ -791,6 +945,10 @@ export default function ModelEdit({
                                         ref={editorRef}
                                         contentEditable
                                         suppressContentEditableWarning
+                                        onDragOver={
+                                            handleDragOver
+                                        }
+                                        onDrop={handleDrop}
                                         className="
                                             document-editor
                                             min-h-[750px]
