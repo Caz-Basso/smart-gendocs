@@ -475,7 +475,7 @@ export default function ModelRegistration({
     ) => {
         event.preventDefault();
 
-        if (isLoadingText) {
+        if (loading) {
             return;
         }
 

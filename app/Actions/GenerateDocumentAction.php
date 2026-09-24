@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\DocumentModel;
 use Illuminate\Support\Facades\Storage;
 use Mpdf\Mpdf;
+use RuntimeException;
 
 final readonly class GenerateDocumentAction
 {
@@ -23,7 +24,7 @@ final readonly class GenerateDocumentAction
 
         foreach ($data as $key => $value) {
             $placeholder = '{{'.$key.'}}';
-            $content = str_replace($placeholder, $value, $content);
+            $content = str_replace($placeholder, (string) $value, $content);
         }
 
         // Criar PDF com configurações básicas
@@ -50,7 +51,7 @@ final readonly class GenerateDocumentAction
         $templatePath = Storage::disk('public')->path($model->template_path);
 
         if (! is_file($templatePath)) {
-            throw new \RuntimeException('O PDF original deste modelo não foi encontrado.');
+            throw new RuntimeException('O PDF original deste modelo não foi encontrado.');
         }
 
         $structure = $model->document_structure;
@@ -66,7 +67,7 @@ final readonly class GenerateDocumentAction
         $pageCount = $mpdf->SetSourceFile($templatePath);
 
         if (count($structure['pages']) > $pageCount) {
-            throw new \RuntimeException('A estrutura salva não corresponde às páginas do PDF original.');
+            throw new RuntimeException('A estrutura salva não corresponde às páginas do PDF original.');
         }
 
         $mpdf->AddPage();

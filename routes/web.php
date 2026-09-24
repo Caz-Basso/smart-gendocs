@@ -39,6 +39,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/{model}', [ModelRegistrationController::class, 'update'])
             ->middleware('role_or_permission:admin|super-admin')
             ->name('models.update');
+        Route::delete('/{model}', [ModelRegistrationController::class, 'destroy'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.destroy');
         Route::post('/', [ModelRegistrationController::class, 'store'])
             ->middleware('role_or_permission:admin|super-admin')
             ->name('models.store');

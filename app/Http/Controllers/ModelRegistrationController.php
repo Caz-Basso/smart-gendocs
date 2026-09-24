@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
+use App\Actions\GenerateSampleDocumentAction;
 use App\Enums\FieldType;
 use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
@@ -13,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,18 +44,20 @@ final class ModelRegistrationController
                 ];
             })->toArray();
 
-            if ($model->document_structure !== null) {
-                $preview = collect($model->document_structure['pages'] ?? [])
+            $preview = $model->document_structure !== null
+                ? collect($model->document_structure['pages'] ?? [])
                     ->flatMap(fn (array $page) => collect($page['elements'] ?? [])->pluck('text'))
+                    ->filter(fn ($text) => is_string($text) && ! empty(mb_trim($text)))
+                    ->values()
+                    ->all()
+                : [];
+
+            if ($preview === [] && $model->extracted_text !== null) {
+                $preview = collect(explode('</p>', $model->extracted_text))
+                    ->map(fn ($paragraph) => strip_tags($paragraph))
+                    ->filter(fn ($paragraph) => ! empty(mb_trim($paragraph)))
                     ->values()
                     ->all();
-            } elseif ($model->extracted_text !== null) {
-                $preview = collect(explode('</p>', $model->extracted_text))
-                    ->map(fn ($p) => strip_tags($p))
-                    ->filter(fn ($p) => ! empty(mb_trim($p)))
-                    ->toArray();
-            } else {
-                $preview = [];
             }
 
             return [
@@ -155,16 +159,36 @@ final class ModelRegistrationController
             ->with('success', 'Modelo atualizado com sucesso!');
     }
 
-    public function generate(GenerateDocumentRequest $request, GenerateDocumentAction $generateDocument): HttpResponse
+    public function destroy(string $id): RedirectResponse
     {
-        $model = \App\Models\DocumentModel::findOrFail($request->input('model_id'));
-        $pdfContent = $generateDocument->handle(
-            $request->input('model_id'),
-            $request->input('data')
-        );
+        $model = \App\Models\DocumentModel::findOrFail($id);
+        $templatePath = $model->template_path;
 
-        $fileName = mb_strtolower($model->name).'.pdf';
-        $fileName = preg_replace('/[^a-z0-9]+/', '_', $fileName);
+        $model->delete();
+
+        if ($templatePath !== null) {
+            Storage::disk('public')->delete($templatePath);
+        }
+
+        return redirect()->route('models.index');
+    }
+
+    public function generate(
+        GenerateDocumentRequest $request,
+        GenerateDocumentAction $generateDocument,
+        GenerateSampleDocumentAction $generateSampleDocument,
+    ): HttpResponse {
+        $data = $request->validated();
+        $modelId = $data['model_id'];
+
+        if (Str::isUuid($modelId)) {
+            $model = \App\Models\DocumentModel::findOrFail($modelId);
+            $pdfContent = $generateDocument->handle($modelId, $data['data']);
+            $fileName = Str::slug($model->name).'.pdf';
+        } else {
+            $pdfContent = $generateSampleDocument->handle($data['preview'], $data['data']);
+            $fileName = Str::slug($modelId).'.pdf';
+        }
 
         return new HttpResponse($pdfContent, 200, [
             'Content-Type' => 'application/pdf',

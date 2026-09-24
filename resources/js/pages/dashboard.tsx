@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { toast } from "sonner";
+import { Head, Link, useForm, usePage } from "@inertiajs/react";
 import { Download, FileText, Plus, Users } from "lucide-react";
 import AppLayout from "@/layouts/app-layout";
 import { dashboard, model_registration } from "@/routes";
@@ -244,6 +245,12 @@ export default function Dashboard({
 
         formData.append("model_id", selectedModel.id);
 
+        if (showMockModels && selectedModel.preview) {
+            selectedModel.preview.forEach((paragraph, index) => {
+                formData.append(`preview[${index}]`, paragraph);
+            });
+        }
+
         Object.entries(data).forEach(([key, value]) => {
             formData.append(`data[${key}]`, value);
         });
@@ -257,14 +264,35 @@ export default function Dashboard({
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content") || "",
 
-                Accept: "application/pdf",
+                Accept: "application/json",
             },
 
             body: formData,
         })
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error("Erro ao gerar documento");
+                    const contentType = response.headers.get("content-type") ?? "";
+
+                    if (contentType.includes("application/json")) {
+                        const payload = await response.json();
+                        const firstError = Object.values(payload.errors ?? {})
+                            .flat()
+                            .find((message) => typeof message === "string");
+
+                        throw new Error(
+                            typeof firstError === "string"
+                                ? firstError
+                                : "Não foi possível gerar o documento.",
+                        );
+                    }
+
+                    throw new Error("Não foi possível gerar o documento.");
+                }
+
+                const contentType = response.headers.get("content-type") ?? "";
+
+                if (!contentType.includes("application/pdf")) {
+                    throw new Error("O servidor não retornou um arquivo PDF válido.");
                 }
 
                 return response.blob();
@@ -285,10 +313,14 @@ export default function Dashboard({
 
                 document.body.removeChild(a);
             })
-            .catch((error) => {
+            .catch((error: unknown) => {
                 console.error("Erro:", error);
 
-                alert("Erro ao gerar documento. Tente novamente.");
+                toast.error(
+                    error instanceof Error
+                        ? error.message
+                        : "Erro ao gerar documento. Tente novamente.",
+                );
             });
     }
 

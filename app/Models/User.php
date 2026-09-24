@@ -52,6 +52,16 @@ final class User extends Authenticatable implements Auditable, MustVerifyEmail
     use TwoFactorAuthenticatable;
 
     /**
+     * @var array<int, string>
+     */
+    protected array $auditExclude = [
+        'password',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ];
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array

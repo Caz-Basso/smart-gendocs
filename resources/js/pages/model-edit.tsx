@@ -11,7 +11,7 @@ import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { model_registration } from '@/routes';
-import { pdfDocumentStructureToHtml, sanitizePdfDocumentStructure } from '@/lib/pdf-document';
+import { toast } from 'sonner';
 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -54,6 +55,7 @@ import {
 import mammoth from 'mammoth';
 import {
     parsePdfBytes,
+    pdfDocumentStructureToHtml,
     sanitizePdfDocumentStructure,
     type PdfDocumentStructure,
 } from '@/lib/pdf-document';
@@ -133,6 +135,8 @@ export default function ModelEdit({
 
     const [isLoadingText, setIsLoadingText] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+    const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+    const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
     const [documentStructure, setDocumentStructure] = useState<PdfDocumentStructure | null>(
         model.document_structure
             ? sanitizePdfDocumentStructure(model.document_structure)
@@ -367,22 +371,26 @@ export default function ModelEdit({
     };
 
     const handleCancel = () => {
-        const confirmed = window.confirm(
-            'Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.',
-        );
-
-        if (confirmed) {
-            window.history.back();
-        }
+        setIsCancelDialogOpen(true);
     };
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
 
         if (!data.name.trim()) {
-            alert('Por favor, informe o nome do modelo.');
+            toast.error('Informe o nome do modelo para continuar.');
             return;
         }
+
+        setIsUpdateDialogOpen(true);
+    };
+
+    const handleUpdate = () => {
+        if (processing) {
+            return;
+        }
+
+        setIsUpdateDialogOpen(false);
 
         const updatedHtmlContent = editorRef.current
             ? editorRef.current.innerHTML
@@ -400,12 +408,15 @@ export default function ModelEdit({
 
         put(`/modelos/${model.id}`, {
             onSuccess: () => {
-                alert('Modelo atualizado com sucesso!');
+                toast.success('Modelo atualizado com sucesso!');
             },
             onError: (formErrors) => {
-                console.error(
-                    'Erros de validação:',
-                    formErrors,
+                const firstError = Object.values(formErrors).find(Boolean);
+
+                toast.error(
+                    typeof firstError === 'string'
+                        ? `Não foi possível salvar: ${firstError}`
+                        : 'Não foi possível salvar o modelo. Confira os campos e tente novamente.',
                 );
             },
         });
@@ -512,10 +523,13 @@ export default function ModelEdit({
             .then(parsePdfBytes)
             .then((parsedPdf) => {
                 if (!cancelled) {
-                    setDocumentStructure(parsedPdf.structure);
-                    setData('document_structure', parsedPdf.structure);
                     setPageImages(parsedPdf.pageImages);
                     setCurrentPage(0);
+
+                    if (!model.document_structure) {
+                        setDocumentStructure(parsedPdf.structure);
+                        setData('document_structure', parsedPdf.structure);
+                    }
                 }
             })
             .catch((error: unknown) => console.error('Erro ao carregar PDF do modelo:', error));
@@ -523,7 +537,7 @@ export default function ModelEdit({
         return () => {
             cancelled = true;
         };
-    }, [setData, templateFile, templateIsPdf, templateUrl]);
+    }, [model.document_structure, setData, templateFile, templateIsPdf, templateUrl]);
 
     const handleFileChange = (
         e: ChangeEvent<HTMLInputElement>,
@@ -541,6 +555,60 @@ export default function ModelEdit({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Editar Modelo" />
+
+            <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Descartar alterações?</DialogTitle>
+                        <DialogDescription>
+                            As alterações que você fez e ainda não salvou serão perdidas.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsCancelDialogOpen(false)}
+                        >
+                            Continuar editando
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => window.history.back()}
+                        >
+                            Descartar alterações
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Atualizar modelo?</DialogTitle>
+                        <DialogDescription>
+                            Deseja salvar as alterações feitas neste modelo?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsUpdateDialogOpen(false)}
+                        >
+                            Continuar editando
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleUpdate}
+                            disabled={processing}
+                        >
+                            Atualizar modelo
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <form
                 onSubmit={handleSubmit}

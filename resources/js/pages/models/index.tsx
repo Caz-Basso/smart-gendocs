@@ -1,8 +1,18 @@
-import { Head } from '@inertiajs/react';
-import { Plus, FileText, Pencil } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
+import { Plus, FileText, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { model_registration } from '@/routes';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
 interface Model {
     id: string;
@@ -20,9 +30,71 @@ interface Props {
 const breadcrumbs = [{ title: 'Modelos', href: '/modelos' }];
 
 export default function ModelsIndex({ models }: Props) {
+    const [modelToDelete, setModelToDelete] = useState<Model | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const deleteModel = () => {
+        if (!modelToDelete || isDeleting) {
+            return;
+        }
+
+        const modelName = modelToDelete.name;
+
+        router.delete(`/modelos/${modelToDelete.id}`, {
+            onSuccess: () => {
+                toast.success(`Modelo "${modelName}" excluído.`);
+                setModelToDelete(null);
+            },
+            onError: () => {
+                toast.error('Não foi possível excluir o modelo. Tente novamente.');
+            },
+            onFinish: () => setIsDeleting(false),
+        });
+
+        setIsDeleting(true);
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Modelos" />
+
+            <Dialog
+                open={modelToDelete !== null}
+                onOpenChange={(open) => {
+                    if (!open && !isDeleting) {
+                        setModelToDelete(null);
+                    }
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Excluir modelo?</DialogTitle>
+                        <DialogDescription>
+                            {modelToDelete
+                                ? `O modelo "${modelToDelete.name}" e o arquivo PDF/DOCX associado serão excluídos permanentemente. Essa ação não pode ser desfeita.`
+                                : ''}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isDeleting}
+                            onClick={() => setModelToDelete(null)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={isDeleting}
+                            onClick={deleteModel}
+                        >
+                            {isDeleting ? 'Excluindo...' : 'Excluir modelo'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <div className="mx-auto max-w-[1600px] p-6">
                 <div className="mb-6 flex items-center justify-between">
@@ -90,18 +162,28 @@ export default function ModelsIndex({ models }: Props) {
                                                 ).toLocaleDateString('pt-BR')}
                                             </td>
                                             <td className="p-4 text-right align-middle">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    asChild
-                                                >
-                                                    <a
-                                                        href={`/modelos/${model.id}/editar`}
+                                                <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        asChild
                                                     >
-                                                        <Pencil className="mr-2 h-4 w-4" />
-                                                        Editar
-                                                    </a>
-                                                </Button>
+                                                        <a
+                                                            href={`/modelos/${model.id}/editar`}
+                                                        >
+                                                            <Pencil className="mr-2 h-4 w-4" />
+                                                            Editar
+                                                        </a>
+                                                    </Button>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => setModelToDelete(model)}
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Excluir
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
