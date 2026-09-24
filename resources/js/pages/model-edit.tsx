@@ -18,15 +18,11 @@ import { Button } from "@/components/ui/button";
 
 import HowToUseDialog from "@/components/how-to-use-dialog";
 import DynamicField from "@/components/dynamic-field";
+import FileUpload from "@/components/file-upload";
+import DocumentPreview from "@/components/document-preview";
+import SaveAndCancelBtn from "@/components/save-and-cancel-btn";
 
-import {
-    Plus,
-    Upload,
-    FileText,
-    Loader2,
-    Save,
-    X,
-} from "lucide-react";
+import { Plus, Loader2, Save, X } from "lucide-react";
 
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -86,15 +82,17 @@ function cleanHtml(html: string) {
 
 export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
+    const editorRef = useRef<HTMLDivElement>(null);
+
+    const [loading, setIsLoadingText] = useState(false);
+    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+    const [pageImages, setPageImages] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [isPdf, setIsPdf] = useState(false);
 
     const [extractedContent, setExtractedContent] = useState<string>(
         model.extracted_text || "",
     );
-
-    const [isLoadingText, setIsLoadingText] = useState(false);
-    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-
-    const editorRef = useRef<HTMLDivElement>(null);
 
     const { data, setData, put, processing, errors } = useForm<{
         name: string;
@@ -264,6 +262,14 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         setData("extracted_text", updatedHtml);
     };
 
+    const previousPage = () => {
+        setCurrentPage((page) => Math.max(page - 1, 0));
+    };
+
+    const nextPage = () => {
+        setCurrentPage((page) => Math.min(page + 1, pageImages.length - 1));
+    };
+
     const handleCancel = () => {
         const confirmed = window.confirm(
             "Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.",
@@ -316,11 +322,15 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
                     file.name.toLowerCase().endsWith(".docx");
 
-                const isPdf =
+                const fileIsPdf =
                     file.type === "application/pdf" ||
                     file.name.toLowerCase().endsWith(".pdf");
 
-                if (!isDocx && !isPdf) {
+                setIsPdf(fileIsPdf);
+                setCurrentPage(0);
+                setPageImages([]);
+
+                if (!isDocx && !fileIsPdf) {
                     setExtractedContent(`
                         <p class="text-red-500 font-medium">
                             Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.
@@ -350,15 +360,39 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                     return;
                 }
 
-                if (isPdf) {
+                if (fileIsPdf) {
                     const pdf = await pdfjsLib.getDocument({
                         data: buffer,
                     }).promise;
 
+                    const images: string[] = [];
                     let htmlBuilder = "";
 
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
+
+                        const viewport = page.getViewport({
+                            scale: 1.5,
+                        });
+
+                        const canvas = document.createElement("canvas");
+                        const context = canvas.getContext("2d");
+
+                        if (!context) {
+                            continue;
+                        }
+
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        await page.render({
+                            canvas,
+                            canvasContext: context,
+                            viewport,
+                        }).promise;
+
+                        images.push(canvas.toDataURL("image/png"));
+
                         const textContent = await page.getTextContent();
 
                         const pageText = textContent.items
@@ -369,18 +403,18 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                             .trim();
 
                         if (pageText) {
-                            htmlBuilder += `
-                                <p>
-                                    ${pageText}
-                                </p>
-                            `;
+                            htmlBuilder += `<p>${pageText}</p>`;
                         }
                     }
+
+                    setPageImages(images);
 
                     const cleanedHtml = cleanHtml(htmlBuilder);
 
                     setExtractedContent(cleanedHtml);
                     setData("extracted_text", cleanedHtml);
+
+                    return;
                 }
             } catch (error) {
                 console.error("Erro na conversão:", error);
@@ -453,68 +487,19 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                             )}
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="template">
-                                Arquivo Base (.docx ou .pdf)
-                            </Label>
-
-                            {!templateFile ? (
-                                <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/20 p-4 text-center transition-colors hover:bg-muted/50">
-                                    <Upload className="mb-1.5 h-6 w-6 text-muted-foreground" />
-
-                                    <span className="text-xs font-medium">
-                                        Clique ou arraste seu arquivo
-                                    </span>
-
-                                    <span className="mt-0.5 text-[10px] text-muted-foreground">
-                                        Suporta DOCX e PDF
-                                    </span>
-
-                                    <input
-                                        type="file"
-                                        id="template"
-                                        name="template"
-                                        accept=".docx,.pdf"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-                                </label>
-                            ) : (
-                                <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                        <FileText className="h-5 w-5 shrink-0 text-primary" />
-
-                                        <span className="truncate text-xs font-medium">
-                                            {templateFile.name}
-                                        </span>
-                                    </div>
-
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                                        onClick={() => {
-                                            setTemplateFile(null);
-
-                                            setData("template", null);
-
-                                            setExtractedContent(
-                                                model.extracted_text || "",
-                                            );
-                                        }}
-                                    >
-                                        Trocar
-                                    </Button>
-                                </div>
-                            )}
-
-                            {errors.template && (
-                                <span className="text-xs text-destructive">
-                                    {errors.template}
-                                </span>
-                            )}
-                        </div>
+                        <FileUpload
+                            templateFile={templateFile}
+                            handleFileChange={handleFileChange}
+                            onClearFile={() => {
+                                setTemplateFile(null);
+                                setData("template", null);
+                                setExtractedContent(model.extracted_text || "");
+                                setIsPdf(false);
+                                setPageImages([]);
+                                setCurrentPage(0);
+                            }}
+                            error={errors.template}
+                        />
 
                         <hr className="my-4 border-border" />
 
@@ -540,74 +525,22 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                         </Button>
                     </div>
 
-                    <div className="mt-6 flex items-center gap-3 border-t pt-6">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleCancel}
-                            className="h-10 w-1/2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                        >
-                            <X className="mr-1.5 h-4 w-4" />
-                            Cancelar
-                        </Button>
-
-                        <Button
-                            type="submit"
-                            disabled={processing}
-                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-emerald-800"
-                        >
-                            {processing ? (
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                            ) : (
-                                <Save className="mr-1.5 h-4 w-4" />
-                            )}
-
-                            {processing ? "Salvando..." : "Salvar Alterações"}
-                        </Button>
-                    </div>
+                    <SaveAndCancelBtn processing={processing} />
                 </div>
 
-                <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                Pré-visualização
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="relative w-full max-w-[900px]">
-                        <div className="relative mx-auto w-full max-w-[850px] overflow-hidden rounded-sm border border-border/80 bg-white shadow-xl">
-                            {isLoadingText ? (
-                                <div className="flex min-h-[841px] w-full items-center justify-center">
-                                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                                        <Loader2 className="h-6 w-6 animate-spin" />
-
-                                        <span className="text-sm">
-                                            Processando documento...
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="min-h-[841px] w-full px-[48px] py-[42px] text-gray-900">
-                                    <div
-                                        ref={editorRef}
-                                        contentEditable
-                                        suppressContentEditableWarning
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        className=" document-editor min-h-[750px] w-full outline-none font-sans text-[13px] leading-[1.7] text-[#333] focus:outline-none"
-                                        dangerouslySetInnerHTML={{
-                                            __html:
-                                                extractedContent ||
-                                                "<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>",
-                                        }}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                <DocumentPreview
+                    loading={loading}
+                    isPdf={isPdf}
+                    pageImages={pageImages}
+                    currentPage={currentPage}
+                    templateFile={templateFile}
+                    documentHtml={extractedContent}
+                    editorRef={editorRef}
+                    handleDragOver={handleDragOver}
+                    handleDrop={handleDrop}
+                    previousPage={previousPage}
+                    nextPage={nextPage}
+                />
             </form>
         </AppLayout>
     );

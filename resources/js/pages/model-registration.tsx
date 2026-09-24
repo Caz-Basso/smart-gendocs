@@ -18,18 +18,16 @@ import { Button } from "@/components/ui/button";
 
 import {
     Plus,
-    Upload,
-    FileText,
     Loader2,
     Save,
     X,
-    ChevronLeft,
-    ChevronRight,
-    Edit3,
 } from "lucide-react";
 
 import HowToUseDialog from "@/components/how-to-use-dialog";
 import DynamicField from "@/components/dynamic-field";
+import FileUpload from "@/components/file-upload";
+import DocumentPreview from "@/components/document-preview";
+import SaveAndCancelBtn from "@/components/save-and-cancel-btn";
 
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -425,52 +423,15 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                             )}
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="template">
-                                Arquivo Base (.docx ou .pdf)
-                            </Label>
-
-                            {!templateFile ? (
-                                <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/20 p-4 text-center hover:bg-muted/50">
-                                    <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
-
-                                    <span className="text-xs font-medium">
-                                        Clique ou arraste seu arquivo
-                                    </span>
-
-                                    <span className="text-[10px] text-muted-foreground">
-                                        Suporta DOCX e PDF
-                                    </span>
-
-                                    <input
-                                        id="template"
-                                        type="file"
-                                        accept=".docx,.pdf"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-                                </label>
-                            ) : (
-                                <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                                    <div className="flex min-w-0 items-center gap-2">
-                                        <FileText className="h-5 w-5 text-primary" />
-
-                                        <span className="truncate text-xs font-medium">
-                                            {templateFile.name}
-                                        </span>
-                                    </div>
-
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={clearTemplate}
-                                    >
-                                        Trocar
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
+                        <FileUpload
+                            templateFile={templateFile}
+                            handleFileChange={handleFileChange}
+                            onClearFile={() => {
+                                setTemplateFile(null);
+                                setData("template", null);
+                            }}
+                            error={errors.template}
+                        />
 
                         <hr />
 
@@ -496,121 +457,22 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                         </Button>
                     </div>
 
-                    <div className="flex gap-3 border-t pt-6">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => window.history.back()}
-                            className="w-1/2"
-                        >
-                            <X className="mr-2 h-4 w-4" />
-                            Cancelar
-                        </Button>
-
-                        <Button
-                            type="submit"
-                            disabled={processing}
-                            className="w-1/2 bg-emerald-700 text-white hover:bg-emerald-800"
-                        >
-                            {processing ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <Save className="mr-2 h-4 w-4" />
-                            )}
-                            Salvar Modelo
-                        </Button>
-                    </div>
+                    <SaveAndCancelBtn processing={processing} />
                 </div>
 
-                <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Pré-visualização
-                        </span>
-
-                        {isPdf && pageImages.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={previousPage}
-                                    disabled={currentPage === 0}
-                                >
-                                    <ChevronLeft className="h-4 w-4" />
-                                </Button>
-
-                                <span className="text-xs">
-                                    {currentPage + 1} / {pageImages.length}
-                                </span>
-
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={nextPage}
-                                    disabled={
-                                        currentPage >= pageImages.length - 1
-                                    }
-                                >
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        )}
-
-                        {!isPdf && templateFile && (
-                            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <Edit3 className="h-3.5 w-3.5" />
-                                Arraste a tag para o documento
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="w-full max-w-[850px] overflow-hidden rounded-sm border bg-white shadow-xl">
-                        {loading ? (
-                            <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 text-muted-foreground">
-                                <Loader2 className="h-7 w-7 animate-spin" />
-                                <span className="text-sm">
-                                    Renderizando documento...
-                                </span>
-                            </div>
-                        ) : isPdf && pageImages.length ? (
-                            <img
-                                src={pageImages[currentPage]}
-                                alt={`Página ${currentPage + 1}`}
-                                className="block h-auto w-full select-none"
-                                draggable={false}
-                            />
-                        ) : templateFile ? (
-                            <div className="min-h-[841px] px-[48px] py-[42px]">
-                                <div
-                                    ref={editorRef}
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    onDragOver={handleDragOver}
-                                    onDrop={handleDrop}
-                                    dangerouslySetInnerHTML={{
-                                        __html: documentHtml,
-                                    }}
-                                    className="document-editor min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
-                                />
-                            </div>
-                        ) : (
-                            <div className="flex min-h-[841px] flex-col items-center justify-center text-center text-muted-foreground">
-                                <FileText className="mb-3 h-12 w-12 opacity-50" />
-
-                                <p className="text-sm font-medium">
-                                    Nenhum documento carregado
-                                </p>
-
-                                <p className="mt-1 max-w-xs text-xs">
-                                    Faça upload de um PDF ou DOCX para
-                                    visualizar o modelo.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <DocumentPreview
+                    loading={loading}
+                    isPdf={isPdf}
+                    pageImages={pageImages}
+                    currentPage={currentPage}
+                    templateFile={templateFile}
+                    documentHtml={documentHtml}
+                    editorRef={editorRef}
+                    handleDragOver={handleDragOver}
+                    handleDrop={handleDrop}
+                    previousPage={previousPage}
+                    nextPage={nextPage}
+                />
             </form>
         </AppLayout>
     );
