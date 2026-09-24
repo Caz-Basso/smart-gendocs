@@ -57,6 +57,17 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     import.meta.url,
 ).toString();
 
+/**
+ * Imagens extraídas de DOCX (ex.: logos) vêm em resolução nativa; sem limite
+ * elas estouram a largura do editor. Injetamos estilo inline limitando a largura.
+ */
+function constrainImages(html: string): string {
+    return html.replace(
+        /<img(?![^>]*\bstyle=)/g,
+        '<img style="max-width:180px;max-height:72px;width:auto;height:auto"',
+    );
+}
+
 interface FieldItem {
     id: string;
     name: string;
@@ -402,7 +413,7 @@ export default function ModelEdit({
                             ],
                         });
 
-                    const cleanedHtml = cleanHtml(result.value);
+                    const cleanedHtml = constrainImages(cleanHtml(result.value));
 
                     setExtractedContent(cleanedHtml);
                     setData('extracted_text', cleanedHtml);
