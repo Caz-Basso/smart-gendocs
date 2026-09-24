@@ -14,28 +14,60 @@ import { model_registration } from "@/routes";
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
 
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+
+import {
+    Trash,
     Plus,
+    Upload,
+    FileText,
     Loader2,
     Save,
     X,
+    HelpCircle,
+    Copy,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    Edit3,
 } from "lucide-react";
 
-import HowToUseDialog from "@/components/how-to-use-dialog";
-import DynamicField from "@/components/dynamic-field";
-import FileUpload from "@/components/file-upload";
-import DocumentPreview from "@/components/document-preview";
-import SaveAndCancelBtn from "@/components/save-and-cancel-btn";
-
 import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
+import {
+    parsePdfDocument,
+    pdfDocumentStructureToHtml,
+    sanitizePdfDocumentStructure,
+    type PdfDocumentStructure,
+} from "@/lib/pdf-document";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-).toString();
+/**
+ * Imagens extraídas de DOCX (ex.: logos) vêm em resolução nativa; sem limite
+ * elas estouram a largura do editor. Injetamos estilo inline limitando a largura.
+ */
+function constrainImages(html: string): string {
+    return html.replace(
+        /<img(?![^>]*\bstyle=)/g,
+        '<img style="max-width:180px;max-height:72px;width:auto;height:auto"',
+    );
+}
 
 interface FieldItem {
     id: string;
@@ -69,30 +101,37 @@ const slugify = (text: string) =>
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "");
 
-export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
+export default function ModelRegistration({
+    fieldTypeOptions = [],
+}: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
     const editorRef = useRef<HTMLDivElement>(null);
 
+    
     const [loading, setLoading] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
     const [pageImages, setPageImages] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
     const [isPdf, setIsPdf] = useState(false);
     const [documentHtml, setDocumentHtml] = useState("");
+    const [documentStructure, setDocumentStructure] = useState<PdfDocumentStructure | null>(null);
+    const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-    const { data, setData, post, processing, errors } = useForm({
-        name: "",
-        template: null as File | null,
-        fields: [
-            {
-                id: "1",
-                name: "Nome do Cliente",
-                slug: "nome_do_cliente",
-                type: "text",
-            },
-        ] as FieldItem[],
-        extracted_text: "",
-    });
+    const { data, setData, transform, post, processing, errors } =
+        useForm({
+            name: "",
+            template: null as File | null,
+            fields: [
+                {
+                    id: "1",
+                    name: "Nome do Cliente",
+                    slug: "nome_do_cliente",
+                    type: "text",
+                },
+            ] as FieldItem[],
+            extracted_text: "",
+            document_structure: null as PdfDocumentStructure | null,
+        });
 
     const addField = () => {
         setData("fields", [
@@ -115,55 +154,94 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
         );
     };
 
-    const updateFieldName = (id: string, name: string) => {
+    const updateField = (
+        id: string,
+        name: string,
+    ) => {
         setData(
             "fields",
             data.fields.map((field) =>
                 field.id === id
                     ? {
-                          ...field,
-                          name,
-                          slug: slugify(name),
-                      }
+                        ...field,
+                        name,
+                        slug: slugify(name),
+                    }
                     : field,
             ),
         );
     };
 
-    const updateFieldType = (id: string, type: string) => {
+    const updateType = (
+        id: string,
+        type: string,
+    ) => {
         setData(
             "fields",
             data.fields.map((field) =>
-                field.id === id ? { ...field, type } : field,
+                field.id === id
+                    ? { ...field, type }
+                    : field,
             ),
         );
     };
 
-    const handleCopyTag = async (slug: string) => {
+    const copyTag = async (slug: string) => {
         try {
-            await navigator.clipboard.writeText(`{{${slug}}}`);
+            await navigator.clipboard.writeText(
+                `{{${slug}}}`,
+            );
 
             setCopiedSlug(slug);
 
-            setTimeout(() => setCopiedSlug(null), 2000);
+            setTimeout(
+                () => setCopiedSlug(null),
+                2000,
+            );
         } catch (error) {
-            console.error("Erro ao copiar tag:", error);
+            console.error(
+                "Erro ao copiar tag:",
+                error,
+            );
         }
     };
 
-    const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
+    const getCaretRange = (
+        event: DragEvent<HTMLDivElement>,
+    ): Range | null => {
         const { clientX, clientY } = event;
 
-        if (typeof document.caretPositionFromPoint === "function") {
-            const position = document.caretPositionFromPoint(clientX, clientY);
+        if (
+            typeof document.caretRangeFromPoint ===
+            "function"
+        ) {
+            return document.caretRangeFromPoint(
+                clientX,
+                clientY,
+            );
+        }
 
-            if (!position || !position.offsetNode) {
-                return null;
-            }
+        if (
+            typeof document.caretPositionFromPoint ===
+            "function"
+        ) {
+            const position =
+                document.caretPositionFromPoint(
+                    clientX,
+                    clientY,
+                );
+
+            if (!position) return null;
 
             const range = document.createRange();
-            range.setStart(position.offsetNode, position.offset);
+
+            range.setStart(
+                position.offsetNode,
+                position.offset,
+            );
+
             range.collapse(true);
+
             return range;
         }
 
@@ -176,27 +254,38 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
     ) => {
         if (!slug) return;
 
-        event.dataTransfer.setData("text/plain", `{{${slug}}}`);
+        event.dataTransfer.setData(
+            "text/plain",
+            `{{${slug}}}`,
+        );
 
         event.dataTransfer.effectAllowed = "copy";
     };
 
-    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    const handleDragOver = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
     };
 
-    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    const handleDrop = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
         event.preventDefault();
 
         const editor = editorRef.current;
-        const text = event.dataTransfer.getData("text/plain");
+        const text =
+            event.dataTransfer.getData("text/plain");
 
-        if (!editor || !text || isPdf) return;
+        if (!editor || !text) return;
 
         const range = getCaretRange(event);
 
-        if (!range || !editor.contains(range.commonAncestorContainer)) {
+        if (
+            !range ||
+            !editor.contains(range.commonAncestorContainer)
+        ) {
             return;
         }
 
@@ -213,9 +302,34 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
 
         selection?.removeAllRanges();
         selection?.addRange(cursor);
+
+        if (isPdf && documentStructure) {
+            const textBlock = node.parentElement?.closest<HTMLElement>("[data-element-index]");
+            const elementIndex = Number(textBlock?.dataset.elementIndex);
+
+            if (textBlock && Number.isInteger(elementIndex)) {
+                const updatedStructure = structuredClone(documentStructure);
+                updatedStructure.pages[currentPage].elements[elementIndex].text = textBlock.textContent ?? "";
+                setDocumentStructure(updatedStructure);
+                setData("document_structure", updatedStructure);
+            }
+        } else if (editorRef.current) {
+            setData("extracted_text", editorRef.current.innerHTML);
+        }
     };
 
-    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const updatePdfText = (elementIndex: number, text: string) => {
+        if (!documentStructure) return;
+
+        const updatedStructure = structuredClone(documentStructure);
+        updatedStructure.pages[currentPage].elements[elementIndex].text = text;
+        setDocumentStructure(updatedStructure);
+        setData("document_structure", updatedStructure);
+    };
+
+    const handleFileChange = (
+        event: ChangeEvent<HTMLInputElement>,
+    ) => {
         const file = event.target.files?.[0];
 
         if (!file) return;
@@ -231,6 +345,8 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
         setCurrentPage(0);
         setIsPdf(false);
         setDocumentHtml("");
+        setDocumentStructure(null);
+        setData("document_structure", null);
 
         if (editorRef.current) {
             editorRef.current.innerHTML = "";
@@ -255,15 +371,19 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
             setLoading(true);
 
             try {
-                const buffer = await templateFile.arrayBuffer();
+                const buffer =
+                    await templateFile.arrayBuffer();
 
-                const fileName = templateFile.name.toLowerCase();
+                const fileName =
+                    templateFile.name.toLowerCase();
 
-                const isDocx = fileName.endsWith(".docx");
+                const isDocx =
+                    fileName.endsWith(".docx");
 
                 const pdf =
                     fileName.endsWith(".pdf") ||
-                    templateFile.type === "application/pdf";
+                    templateFile.type ===
+                    "application/pdf";
 
                 if (isDocx) {
                     const result = await mammoth.convertToHtml({
@@ -272,7 +392,11 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
 
                     if (cancelled) return;
 
-                    setDocumentHtml(result.value || "<p>Documento vazio.</p>");
+                    setDocumentHtml(
+                        constrainImages(
+                            result.value || "<p>Documento vazio.</p>",
+                        ),
+                    );
 
                     setIsPdf(false);
                     setPageImages([]);
@@ -282,44 +406,14 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                 }
 
                 if (pdf) {
-                    const pdfDocument = await pdfjsLib.getDocument({
-                        data: buffer,
-                    }).promise;
-
-                    const images: string[] = [];
-
-                    for (let i = 1; i <= pdfDocument.numPages; i++) {
-                        if (cancelled) return;
-
-                        const page = await pdfDocument.getPage(i);
-
-                        const viewport = page.getViewport({
-                            scale: 1.5,
-                        });
-
-                        const canvas = window.document.createElement("canvas");
-                        const context = canvas.getContext("2d");
-
-                        if (!context) {
-                            throw new Error(
-                                "Não foi possível criar o contexto do canvas.",
-                            );
-                        }
-
-                        canvas.width = Math.ceil(viewport.width);
-                        canvas.height = Math.ceil(viewport.height);
-
-                        await page.render({
-                            canvas,
-                            viewport,
-                        }).promise;
-
-                        images.push(canvas.toDataURL("image/png"));
-                    }
+                    const parsedPdf = await parsePdfDocument(templateFile);
 
                     if (cancelled) return;
 
-                    setPageImages(images);
+                    setPageImages(parsedPdf.pageImages);
+                    setDocumentStructure(parsedPdf.structure);
+                    setData("document_structure", parsedPdf.structure);
+                    setData("extracted_text", pdfDocumentStructureToHtml(parsedPdf.structure));
                     setCurrentPage(0);
                     setIsPdf(true);
 
@@ -327,15 +421,23 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                 }
 
                 if (editorRef.current) {
-                    editorRef.current.innerHTML = `<p class="text-red-500 font-medium">
+                    editorRef.current.innerHTML =
+                        `<p class="text-red-500 font-medium">
                             Tipo de arquivo não suportado.
                         </p>`;
                 }
             } catch (error) {
-                console.error("Erro ao carregar documento:", error);
+                console.error(
+                    "Erro ao carregar documento:",
+                    error,
+                );
 
-                if (!cancelled && editorRef.current) {
-                    editorRef.current.innerHTML = `<p class="text-red-500 font-medium">
+                if (
+                    !cancelled &&
+                    editorRef.current
+                ) {
+                    editorRef.current.innerHTML =
+                        `<p class="text-red-500 font-medium">
                             Não foi possível carregar o documento.
                         </p>`;
                 }
@@ -354,33 +456,76 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
     }, [templateFile]);
 
     const previousPage = () => {
-        setCurrentPage((page) => Math.max(0, page - 1));
+        setCurrentPage((page) =>
+            Math.max(0, page - 1),
+        );
     };
 
     const nextPage = () => {
-        setCurrentPage((page) => Math.min(pageImages.length - 1, page + 1));
+        setCurrentPage((page) =>
+            Math.min(
+                pageImages.length - 1,
+                page + 1,
+            ),
+        );
     };
 
-    const handleSubmit = (event: FormEvent) => {
+    const handleSubmit = (
+        event: FormEvent,
+    ) => {
         event.preventDefault();
 
+        if (isLoadingText) {
+            return;
+        }
+
         if (!data.name.trim()) {
-            alert("Por favor, informe o nome do modelo.");
+            alert(
+                "Por favor, informe o nome do modelo.",
+            );
             return;
         }
 
         if (!data.template) {
-            alert("Selecione um arquivo para o modelo.");
+            alert(
+                "Selecione um arquivo para o modelo.",
+            );
             return;
         }
 
-        const html = editorRef.current?.innerHTML ?? "";
+        const sanitizedStructure = isPdf && documentStructure
+            ? sanitizePdfDocumentStructure(documentStructure)
+            : null;
 
-        setData("extracted_text", html);
+        transform((formData) => ({
+            ...formData,
+            extracted_text: sanitizedStructure
+                ? pdfDocumentStructureToHtml(sanitizedStructure)
+                : editorRef.current?.innerHTML ?? documentHtml,
+            document_structure: sanitizedStructure,
+        }));
 
+        setSubmissionError(null);
         post("/modelos", {
             onSuccess: () => {
-                alert("Modelo salvo com sucesso!");
+                setSubmissionError(null);
+                alert(
+                    "Modelo salvo com sucesso!",
+                );
+            },
+            onError: (formErrors) => {
+                const firstError = Object.values(formErrors).find(Boolean);
+                setSubmissionError(
+                    typeof firstError === "string"
+                        ? `Não foi possível salvar: ${firstError}`
+                        : "Não foi possível salvar. Confira os campos do formulário.",
+                );
+            },
+            onHttpException: (response) => {
+                setSubmissionError(`O servidor respondeu com erro HTTP ${response.status} ao salvar o modelo.`);
+            },
+            onNetworkError: () => {
+                setSubmissionError("Não foi possível conectar ao servidor. Verifique a conexão e tente salvar novamente.");
             },
         });
     };
@@ -400,17 +545,53 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                                 Configuração do Modelo
                             </h2>
 
-                            <HowToUseDialog />
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-1.5 text-xs"
+                                    >
+                                        <HelpCircle className="h-3.5 w-3.5" />
+                                        Como usar
+                                    </Button>
+                                </DialogTrigger>
+
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>
+                                            Como criar e utilizar modelos
+                                        </DialogTitle>
+
+                                        <DialogDescription>
+                                            Crie os campos e arraste as tags diretamente para o documento.
+                                        </DialogDescription>
+                                    </DialogHeader>
+
+                                    <div className="rounded-lg border bg-muted/50 p-4 font-mono text-sm">
+                                        Contratante:{" "}
+                                        <span className="rounded bg-primary/10 px-1 text-primary">
+                                            {"{{nome_do_cliente}}"}
+                                        </span>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="model_name">Nome do Modelo</Label>
+                            <Label htmlFor="model_name">
+                                Nome do Modelo
+                            </Label>
 
                             <Input
                                 id="model_name"
                                 value={data.name}
                                 onChange={(e) =>
-                                    setData("name", e.target.value)
+                                    setData(
+                                        "name",
+                                        e.target.value,
+                                    )
                                 }
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 required
@@ -423,28 +604,231 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                             )}
                         </div>
 
-                        <FileUpload
-                            templateFile={templateFile}
-                            handleFileChange={handleFileChange}
-                            onClearFile={() => {
-                                setTemplateFile(null);
-                                setData("template", null);
-                            }}
-                            error={errors.template}
-                        />
+                        <div className="space-y-1.5">
+                            <Label htmlFor="template">
+                                Arquivo Base (.docx ou .pdf)
+                            </Label>
+
+                            {!templateFile ? (
+                                <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/20 p-4 text-center hover:bg-muted/50">
+                                    <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
+
+                                    <span className="text-xs font-medium">
+                                        Clique ou arraste seu arquivo
+                                    </span>
+
+                                    <span className="text-[10px] text-muted-foreground">
+                                        Suporta DOCX e PDF
+                                    </span>
+
+                                    <input
+                                        id="template"
+                                        type="file"
+                                        accept=".docx,.pdf"
+                                        className="hidden"
+                                        onChange={
+                                            handleFileChange
+                                        }
+                                    />
+                                </label>
+                            ) : (
+                                <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+
+                                        <span className="truncate text-xs font-medium">
+                                            {
+                                                templateFile.name
+                                            }
+                                        </span>
+                                    </div>
+
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={
+                                            clearTemplate
+                                        }
+                                    >
+                                        Trocar
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
 
                         <hr />
 
-                        <DynamicField
-                            fields={data.fields}
-                            fieldTypeOptions={fieldTypeOptions}
-                            copiedSlug={copiedSlug}
-                            removeField={removeField}
-                            updateFieldName={updateFieldName}
-                            updateFieldType={updateFieldType}
-                            handleDragStart={handleDragStart}
-                            handleCopyTag={handleCopyTag}
-                        />
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Campos Dinâmicos
+                            </h2>
+
+                            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+                                {data.fields.length}
+                            </span>
+                        </div>
+
+                        <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
+                            {data.fields.map(
+                                (
+                                    field,
+                                    index,
+                                ) => (
+                                    <div
+                                        key={
+                                            field.id
+                                        }
+                                        className="space-y-3 rounded-xl border bg-card/60 p-3.5"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold uppercase text-muted-foreground">
+                                                Campo #
+                                                {index +
+                                                    1}
+                                            </span>
+
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6 text-destructive"
+                                                onClick={() =>
+                                                    removeField(
+                                                        field.id,
+                                                    )
+                                                }
+                                                disabled={
+                                                    data
+                                                        .fields
+                                                        .length ===
+                                                    1
+                                                }
+                                            >
+                                                <Trash className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">
+                                                Nome do Campo
+                                            </Label>
+
+                                            <Input
+                                                value={
+                                                    field.name
+                                                }
+                                                onChange={(
+                                                    e,
+                                                ) =>
+                                                    updateField(
+                                                        field.id,
+                                                        e
+                                                            .target
+                                                            .value,
+                                                    )
+                                                }
+                                                placeholder="Ex: Nome do Cliente"
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-12 gap-3">
+                                            <div className="col-span-8 space-y-1.5">
+                                                <Label className="text-xs">
+                                                    Tag / Slug
+                                                </Label>
+
+                                                <div
+                                                    draggable={
+                                                        !!field.slug
+                                                    }
+                                                    onDragStart={(
+                                                        e,
+                                                    ) =>
+                                                        handleDragStart(
+                                                            e,
+                                                            field.slug,
+                                                        )
+                                                    }
+                                                    className="relative cursor-grab select-none active:cursor-grabbing"
+                                                >
+                                                    <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 pr-8 font-mono text-xs text-muted-foreground">
+                                                        {field.slug
+                                                            ? `{{${field.slug}}}`
+                                                            : "{{nome_do_campo}}"}
+                                                    </div>
+
+                                                    {field.slug && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                copyTag(
+                                                                    field.slug,
+                                                                )
+                                                            }
+                                                            className="absolute right-1.5 top-1 rounded p-1 hover:bg-background"
+                                                        >
+                                                            {copiedSlug ===
+                                                                field.slug ? (
+                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                                            ) : (
+                                                                <Copy className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-4 space-y-1.5">
+                                                <Label className="text-xs">
+                                                    Tipo
+                                                </Label>
+
+                                                <Select
+                                                    value={
+                                                        field.type
+                                                    }
+                                                    onValueChange={(
+                                                        value,
+                                                    ) =>
+                                                        updateType(
+                                                            field.id,
+                                                            value,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="h-8 text-xs">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+
+                                                    <SelectContent>
+                                                        {fieldTypeOptions.map(
+                                                            (
+                                                                option,
+                                                            ) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        option.value
+                                                                    }
+                                                                    value={
+                                                                        option.value
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        option.label
+                                                                    }
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ),
+                            )}
+                        </div>
 
                         <Button
                             type="button"
@@ -457,22 +841,176 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                         </Button>
                     </div>
 
-                    <SaveAndCancelBtn processing={processing} />
+                        <div className="flex gap-3 border-t pt-6">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                                window.history.back()
+                            }
+                            className="w-1/2"
+                        >
+                            <X className="mr-2 h-4 w-4" />
+                            Cancelar
+                        </Button>
+
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="w-1/2 bg-emerald-700 text-white hover:bg-emerald-800"
+                        >
+                            {processing ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Save className="mr-2 h-4 w-4" />
+                            )}
+
+                            Salvar Modelo
+                        </Button>
+                    </div>
+                    {!submissionError && Object.values(errors).some(Boolean) && (
+                        <p role="alert" className="text-sm text-destructive">
+                            Não foi possível salvar: {Object.values(errors).find(Boolean)}
+                        </p>
+                    )}
+                    {submissionError && (
+                        <p role="alert" className="text-sm text-destructive">
+                            {submissionError}
+                        </p>
+                    )}
                 </div>
 
-                <DocumentPreview
-                    loading={loading}
-                    isPdf={isPdf}
-                    pageImages={pageImages}
-                    currentPage={currentPage}
-                    templateFile={templateFile}
-                    documentHtml={documentHtml}
-                    editorRef={editorRef}
-                    handleDragOver={handleDragOver}
-                    handleDrop={handleDrop}
-                    previousPage={previousPage}
-                    nextPage={nextPage}
-                />
+                <div className="flex min-w-0 flex-col items-center lg:col-span-8">
+                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Pré-visualização
+                        </span>
+
+                        {isPdf &&
+                            pageImages.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={
+                                            previousPage
+                                        }
+                                        disabled={
+                                            currentPage ===
+                                            0
+                                        }
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+
+                                    <span className="text-xs">
+                                        {currentPage +
+                                            1}{" "}
+                                        /{" "}
+                                        {
+                                            pageImages.length
+                                        }
+                                    </span>
+
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={
+                                            nextPage
+                                        }
+                                        disabled={
+                                            currentPage >=
+                                            pageImages.length -
+                                            1
+                                        }
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+
+                        {!isPdf &&
+                            templateFile && (
+                                <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                    Arraste a tag para o documento
+                                </span>
+                            )}
+                    </div>
+
+                    <div className="w-full max-w-[850px] overflow-hidden rounded-sm border bg-white shadow-xl">
+                        {loading ? (
+                            <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 text-muted-foreground">
+                                <Loader2 className="h-7 w-7 animate-spin" />
+                                <span className="text-sm">
+                                    Renderizando documento...
+                                </span>
+                            </div>
+                        ) : isPdf &&
+                            pageImages.length && documentStructure ? (
+                            <div ref={editorRef} className="relative w-full [container-type:inline-size]">
+                                <img
+                                    src={pageImages[currentPage]}
+                                    alt={`Página ${currentPage + 1}`}
+                                    className="block h-auto w-full select-none"
+                                    draggable={false}
+                                />
+                                <div className="absolute inset-0" onDragOver={handleDragOver} onDrop={handleDrop}>
+                                    {documentStructure.pages[currentPage]?.elements.map((element, index) => (
+                                        <div
+                                            key={`${currentPage}-${index}`}
+                                            data-element-index={index}
+                                            contentEditable
+                                            suppressContentEditableWarning
+                                            onBlur={(event) => updatePdfText(index, event.currentTarget.textContent ?? "")}
+                                            className="absolute overflow-hidden bg-white text-black outline-none focus:ring-1 focus:ring-blue-500"
+                                            style={{
+                                                left: `${element.x * 100}%`,
+                                                top: `${element.y * 100}%`,
+                                                width: `${Math.min(1 - element.x, Math.max(element.width, 0.04)) * 100}%`,
+                                                height: `${Math.max(element.height * 1.5, 0.015) * 100}%`,
+                                                fontSize: `${(element.fontSize / documentStructure.pages[currentPage].width) * 100}cqw`,
+                                                lineHeight: 1,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {element.text}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : templateFile ? (
+                            <div className="min-h-[841px] px-[48px] py-[42px]">
+                                <div
+                                    ref={editorRef}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                    onInput={(event) => setData("extracted_text", event.currentTarget.innerHTML)}
+                                    dangerouslySetInnerHTML={{
+                                        __html: documentHtml,
+                                    }}
+                                    className="document-editor min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex min-h-[841px] flex-col items-center justify-center text-center text-muted-foreground">
+                                <FileText className="mb-3 h-12 w-12 opacity-50" />
+
+                                <p className="text-sm font-medium">
+                                    Nenhum documento carregado
+                                </p>
+
+                                <p className="mt-1 max-w-xs text-xs">
+                                    Faça upload de um PDF ou DOCX para visualizar o modelo.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </form>
         </AppLayout>
     );

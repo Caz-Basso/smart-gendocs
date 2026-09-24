@@ -13,12 +13,10 @@ export type FieldType =
     | 'radio'
     | 'checkbox';
 
-
 export interface FieldOption {
     value: string;
     label: string;
 }
-
 
 export interface DynamicField {
     id: string;
@@ -33,7 +31,6 @@ export interface DynamicField {
     options?: FieldOption[];
 }
 
-
 export interface DocumentModel {
     id: string;
     name: string;
@@ -44,23 +41,18 @@ export interface DocumentModel {
     preview?: string[];
 }
 
-
-const option = (
-    value: string,
-    label: string,
-): FieldOption => ({
+const option = (value: string, label: string): FieldOption => ({
     value,
     label,
 });
-
 
 export const MOCK_MODELS: DocumentModel[] = [
     {
         id: 'proposta-comercial',
         name: 'Proposta Comercial',
-        description: 'Proposta comercial para prestação de serviços de tecnologia e desenvolvimento.',
+        description:
+            'Proposta comercial para prestação de serviços de tecnologia e desenvolvimento.',
         fileName: 'proposta_comercial.docx',
-
 
         fields: [
             {
@@ -156,7 +148,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 ],
             },
 
-
             {
                 id: 'pc-08',
                 name: 'Nome do Cliente / Razão Social',
@@ -185,7 +176,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 placeholder: '(00) 00000-0000',
             },
 
-
             {
                 id: 'pc-11',
                 name: 'Descrição detalhada do Serviço',
@@ -193,7 +183,8 @@ export const MOCK_MODELS: DocumentModel[] = [
                 type: 'textarea',
                 section: 'Dados da Proposta',
                 required: true,
-                placeholder: 'Descreva os escopos, entregáveis e etapas da execução...',
+                placeholder:
+                    'Descreva os escopos, entregáveis e etapas da execução...',
             },
             {
                 id: 'pc-12',
@@ -238,7 +229,6 @@ export const MOCK_MODELS: DocumentModel[] = [
             },
         ],
 
-
         preview: [
             'PROPOSTA COMERCIAL',
             '',
@@ -257,13 +247,12 @@ export const MOCK_MODELS: DocumentModel[] = [
         ],
     },
 
-
     {
         id: 'contrato-estagio',
         name: 'Termo de Compromisso de Estágio',
-        description: 'Termo para formalização de estágio curricular supervisionado obrigatório ou não obrigatório.',
+        description:
+            'Termo para formalização de estágio curricular supervisionado obrigatório ou não obrigatório.',
         fileName: 'contrato_estagio.docx',
-
 
         fields: [
             {
@@ -322,7 +311,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 placeholder: 'Ex.: 5',
             },
 
-
             {
                 id: 'ce-06',
                 name: 'Razão Social da Concedente',
@@ -350,7 +338,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 required: true,
                 placeholder: 'Nome e cargo do responsável técnico',
             },
-
 
             {
                 id: 'ce-09',
@@ -406,10 +393,10 @@ export const MOCK_MODELS: DocumentModel[] = [
                 slug: 'auxilio_transporte',
                 type: 'checkbox',
                 section: 'Condições do Estágio',
-                helpText: 'Marque caso o estagiário receba reembolso ou vale-transporte.',
+                helpText:
+                    'Marque caso o estagiário receba reembolso ou vale-transporte.',
             },
         ],
-
 
         preview: [
             'TERMO DE COMPROMISSO DE ESTÁGIO',
@@ -425,13 +412,12 @@ export const MOCK_MODELS: DocumentModel[] = [
         ],
     },
 
-
     {
         id: 'declaracao-matricula',
         name: 'Declaração de Matrícula Acadêmica',
-        description: 'Documento oficial para comprovação de vínculo ativo com a instituição de ensino.',
+        description:
+            'Documento oficial para comprovação de vínculo ativo com a instituição de ensino.',
         fileName: 'declaracao_matricula.docx',
-
 
         fields: [
             {
@@ -461,7 +447,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 required: true,
                 placeholder: 'Ex.: 2026100892',
             },
-
 
             {
                 id: 'dm-04',
@@ -524,7 +509,6 @@ export const MOCK_MODELS: DocumentModel[] = [
             },
         ],
 
-
         preview: [
             'DECLARAÇÃO DE MATRÍCULA',
             '',
@@ -542,13 +526,12 @@ export const MOCK_MODELS: DocumentModel[] = [
         ],
     },
 
-
     {
         id: 'contrato-servicos',
         name: 'Contrato de Prestação de Serviços Genérico',
-        description: 'Instrumento contratual bilateral padrão para formalização de serviços contínuos ou pontuais.',
+        description:
+            'Instrumento contratual bilateral padrão para formalização de serviços contínuos ou pontuais.',
         fileName: 'contrato_servicos.docx',
-
 
         fields: [
             {
@@ -579,7 +562,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 placeholder: 'contato@contratante.com',
             },
 
-
             {
                 id: 'cs-04',
                 name: 'Razão Social da Contratada',
@@ -599,7 +581,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 placeholder: '00.000.000/0000-00',
             },
 
-
             {
                 id: 'cs-06',
                 name: 'Objeto Resumido do Contrato',
@@ -607,7 +588,8 @@ export const MOCK_MODELS: DocumentModel[] = [
                 type: 'textarea',
                 section: 'Objeto do Contrato',
                 required: true,
-                placeholder: 'Descreva detalhadamente o serviço que será contratado e prestado...',
+                placeholder:
+                    'Descreva detalhadamente o serviço que será contratado e prestado...',
             },
             {
                 id: 'cs-07',
@@ -633,7 +615,6 @@ export const MOCK_MODELS: DocumentModel[] = [
                 ],
             },
 
-
             {
                 id: 'cs-09',
                 name: 'Data de Início da Vigência',
@@ -656,10 +637,10 @@ export const MOCK_MODELS: DocumentModel[] = [
                 slug: 'renovacao_automatica',
                 type: 'checkbox',
                 section: 'Vigência Contratual',
-                helpText: 'Indica se o contrato se renova por iguais períodos caso não haja denúncia formal.',
+                helpText:
+                    'Indica se o contrato se renova por iguais períodos caso não haja denúncia formal.',
             },
         ],
-
 
         preview: [
             'CONTRATO DE PRESTAÇÃO DE SERVIÇOS',
