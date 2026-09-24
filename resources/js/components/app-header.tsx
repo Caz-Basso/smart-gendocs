@@ -134,7 +134,10 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     }
 
     const user = auth.user;
-    const isAdmin = user.roles?.some((role: { name: string }) => role.name === 'admin' || role.name === 'super-admin');
+    const isAdmin = user.roles?.some(
+        (role: { name: string }) =>
+            role.name === 'admin' || role.name === 'super-admin',
+    );
 
     return (
         <>
@@ -261,7 +264,10 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                             prefetch
                                             className={cn(
                                                 navTriggerStyles,
-                                                whenCurrentUrl(models.index.url(), activeItemStyles),
+                                                whenCurrentUrl(
+                                                    models.index.url(),
+                                                    activeItemStyles,
+                                                ),
                                                 'cursor-pointer',
                                             )}
                                         >

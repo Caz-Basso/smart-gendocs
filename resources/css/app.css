@@ -231,6 +231,16 @@
     margin: 0.65rem;
     text-align: justify;
 }
+/* Imagens extraídas de PDFs/DOCX (ex.: logos) vêm em resolução da página
+   original; sem limite elas estouram a largura do editor. */
+.document-editor img {
+    display: block;
+    max-width: 100%;
+    max-height: 320px;
+    width: auto;
+    height: auto;
+    margin: 0.5rem 0;
+}
 .document-editor table {
     border-collapse: collapse;
     width: 100%;

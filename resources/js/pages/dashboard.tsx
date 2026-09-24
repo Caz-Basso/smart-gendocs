@@ -1,17 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import { Download, Plus } from 'lucide-react';
-
-import AppLayout from '@/layouts/app-layout';
-import { dashboard, model_registration } from "@/routes";
-import type { BreadcrumbItem } from '@/types';
-import {
-    MOCK_MODELS,
-    type DocumentModel,
-    type DynamicField,
-} from '@/types/document';
-
-
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -25,6 +14,14 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import AppLayout from '@/layouts/app-layout';
+import { dashboard, model_registration } from '@/routes';
+import type { BreadcrumbItem } from '@/types';
+import {
+    MOCK_MODELS,
+    type DocumentModel,
+    type DynamicField,
+} from '@/types/document';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -90,7 +87,11 @@ function formatValue(
     return value;
 }
 
-export default function Dashboard({ customModels = [], showMockModels = false, isAdmin = false }: DashboardProps) {
+export default function Dashboard({
+    customModels = [],
+    showMockModels = false,
+    isAdmin = false,
+}: DashboardProps) {
     const models = showMockModels ? MOCK_MODELS : customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
@@ -99,11 +100,11 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
 
     const selectedModel = useMemo(
         () => models.find((model) => model.id === selectedModelId) ?? models[0],
-        [models, selectedModelId]
+        [models, selectedModelId],
     );
 
     const { data, setData, post, processing } = useForm<Record<string, string>>(
-        getInitialData(selectedModel)
+        getInitialData(selectedModel),
     );
 
     useEffect(() => {
@@ -120,7 +121,6 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
 
         selectedModel.fields.forEach((field) => {
             const section = field.section ?? 'Dados do Documento';
-
 
             if (!grouped.has(section)) {
                 grouped.set(section, []);
@@ -163,14 +163,22 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                     {label}
                     <Select
                         value={value}
-                        onValueChange={(newValue) => setData(field.slug, newValue)}
+                        onValueChange={(newValue) =>
+                            setData(field.slug, newValue)
+                        }
                     >
-                        <SelectTrigger id={field.slug} className="bg-background">
+                        <SelectTrigger
+                            id={field.slug}
+                            className="bg-background"
+                        >
                             <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
                             {field.options?.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
+                                <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                >
                                     {option.label}
                                 </SelectItem>
                             ))}
@@ -186,18 +194,23 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                     {label}
                     <RadioGroup
                         value={value}
-                        onValueChange={(newValue) => setData(field.slug, newValue)}
+                        onValueChange={(newValue) =>
+                            setData(field.slug, newValue)
+                        }
                         className="flex flex-wrap gap-4"
                     >
                         {field.options?.map((option) => (
-                            <div key={option.value} className="flex items-center gap-2">
+                            <div
+                                key={option.value}
+                                className="flex items-center gap-2"
+                            >
                                 <RadioGroupItem
                                     id={`${field.slug}-${option.value}`}
                                     value={option.value}
                                 />
                                 <Label
                                     htmlFor={`${field.slug}-${option.value}`}
-                                    className="text-sm font-normal cursor-pointer"
+                                    className="cursor-pointer text-sm font-normal"
                                 >
                                     {option.label}
                                 </Label>
@@ -220,7 +233,7 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                     />
                     <Label
                         htmlFor={field.slug}
-                        className="text-sm font-normal cursor-pointer"
+                        className="cursor-pointer text-sm font-normal"
                     >
                         {field.name}
                     </Label>
@@ -260,14 +273,16 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             }
 
             const slug = match[1];
-            const field = selectedModel?.fields.find((item) => item.slug === slug);
+            const field = selectedModel?.fields.find(
+                (item) => item.slug === slug,
+            );
             const value = formatValue(field, data[slug]);
 
             if (!value) {
                 return (
                     <span
                         key={index}
-                        className="rounded bg-amber-100 px-1 py-0.5 text-amber-800 font-medium"
+                        className="rounded bg-amber-100 px-1 py-0.5 font-medium text-amber-800"
                     >
                         [{field?.name ?? slug}]
                     </span>
@@ -292,18 +307,21 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
         fetch('/modelos/gerar', {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                'Accept': 'application/pdf',
+                'X-CSRF-TOKEN':
+                    document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute('content') || '',
+                Accept: 'application/pdf',
             },
             body: formData,
         })
-            .then(response => {
+            .then((response) => {
                 if (!response.ok) {
                     throw new Error('Erro ao gerar documento');
                 }
                 return response.blob();
             })
-            .then(blob => {
+            .then((blob) => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -313,7 +331,7 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
             })
-            .catch(error => {
+            .catch((error) => {
                 console.error('Erro:', error);
                 alert('Erro ao gerar documento. Tente novamente.');
             });
@@ -324,20 +342,33 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             <Head title="Gerador de Documentos" />
 
             <div className="grid grid-cols-1 items-start gap-6 p-4 lg:grid-cols-12">
-                <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col space-y-6 rounded-xl border bg-card p-6 shadow-sm lg:col-span-4 overflow-hidden">
-                    <div className="space-y-1.5 shrink-0">
-                        <Label htmlFor="model-select">Modelo de Documento</Label>
+                <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col space-y-6 overflow-hidden rounded-xl border bg-card p-6 shadow-sm lg:col-span-4">
+                    <div className="shrink-0 space-y-1.5">
+                        <Label htmlFor="model-select">
+                            Modelo de Documento
+                        </Label>
                         <div className="flex w-full min-w-0 items-center gap-2">
                             <Select
                                 value={selectedModel?.id ?? ''}
-                                onValueChange={(value) => setSelectedModelId(value)}
+                                onValueChange={(value) =>
+                                    setSelectedModelId(value)
+                                }
                             >
-                                <SelectTrigger id="model-select" className="flex-1 min-w-0 bg-background">
-                                    <SelectValue placeholder="Selecione o modelo" className="truncate" />
+                                <SelectTrigger
+                                    id="model-select"
+                                    className="min-w-0 flex-1 bg-background"
+                                >
+                                    <SelectValue
+                                        placeholder="Selecione o modelo"
+                                        className="truncate"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {models.map((model) => (
-                                        <SelectItem key={model.id} value={model.id}>
+                                        <SelectItem
+                                            key={model.id}
+                                            value={model.id}
+                                        >
                                             {model.name}
                                         </SelectItem>
                                     ))}
@@ -356,12 +387,12 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                         </div>
                     </div>
 
-                    <hr className="border-border shrink-0" />
+                    <hr className="shrink-0 border-border" />
 
-                    <div className="space-y-6 overflow-y-auto pr-2 flex-1">
+                    <div className="flex-1 space-y-6 overflow-y-auto pr-2">
                         {sections.map(([section, fields]) => (
                             <div key={section} className="space-y-4">
-                                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                <h2 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                     {section}
                                 </h2>
                                 <div className="space-y-4">
@@ -374,14 +405,14 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
 
                 <div className="flex flex-col items-center lg:col-span-8">
                     <div className="mb-4 flex w-full max-w-[700px] items-center justify-between gap-4">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                             Pré-visualização do Documento
                         </span>
 
                         <Button
                             type="button"
                             disabled={processing}
-                            className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
+                            className="gap-2 bg-emerald-700 text-white hover:bg-emerald-800"
                             onClick={handleDownload}
                         >
                             <Download className="h-4 w-4" />
@@ -403,10 +434,10 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                                     key={index}
                                     className={
                                         isTitle
-                                            ? 'mb-8 text-center text-base font-bold uppercase tracking-wide'
+                                            ? 'mb-8 text-center text-base font-bold tracking-wide uppercase'
                                             : isClause
-                                                ? 'mb-2 mt-5 text-xs font-bold uppercase tracking-wide'
-                                                : 'mb-3 text-justify text-xs leading-relaxed text-gray-800'
+                                              ? 'mt-5 mb-2 text-xs font-bold tracking-wide uppercase'
+                                              : 'mb-3 text-justify text-xs leading-relaxed text-gray-800'
                                     }
                                 >
                                     {renderPreviewText(paragraph)}
