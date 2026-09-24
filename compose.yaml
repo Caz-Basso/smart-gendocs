@@ -25,22 +25,6 @@ services:
             - pgsql
             - redis
             - mailpit
-            - pdf-converter
-    pdf-converter:
-        build:
-            context: './pdf-converter'
-            dockerfile: Dockerfile
-        image: 'sail-pdf-converter/app'
-        ports:
-            - '${FORWARD_PDF_CONVERTER_PORT:-8001}:8000'
-        networks:
-            - sail
-        healthcheck:
-            test:
-                - CMD-SHELL
-                - "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")'"
-            retries: 3
-            timeout: 5s
     pgsql:
         image: 'postgres:18-alpine'
         ports:

@@ -11,6 +11,7 @@ import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import { model_registration } from '@/routes';
+import { sanitizePdfDocumentStructure } from '@/lib/pdf-document';
 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -46,16 +47,12 @@ import {
     Copy,
     Check,
     Edit3,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
 
 import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
-import type { TextItem } from 'pdfjs-dist/types/src/display/api';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-).toString();
+import { parsePdfBytes, type PdfDocumentStructure } from '@/lib/pdf-document';
 
 /**
  * Imagens extraídas de DOCX (ex.: logos) vêm em resolução nativa; sem limite
@@ -87,7 +84,10 @@ interface Props {
         name: string;
         fields: FieldItem[];
         extracted_text: string | null;
+        document_structure: PdfDocumentStructure | null;
     };
+    templateUrl: string | null;
+    templateIsPdf: boolean;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -118,6 +118,8 @@ function cleanHtml(html: string) {
 export default function ModelEdit({
     fieldTypeOptions = [],
     model,
+    templateUrl,
+    templateIsPdf,
 }: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
 
@@ -127,14 +129,18 @@ export default function ModelEdit({
 
     const [isLoadingText, setIsLoadingText] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+    const [documentStructure, setDocumentStructure] = useState<PdfDocumentStructure | null>(model.document_structure);
+    const [pageImages, setPageImages] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(0);
 
     const editorRef = useRef<HTMLDivElement>(null);
 
-    const { data, setData, put, processing, errors } = useForm<{
+    const { data, setData, transform, put, processing, errors } = useForm<{
         name: string;
         template: File | null;
         fields: FieldItem[];
         extracted_text: string;
+        document_structure: PdfDocumentStructure | null;
     }>({
         name: model.name || '',
         template: null,
@@ -150,6 +156,7 @@ export default function ModelEdit({
                       },
                   ],
         extracted_text: model.extracted_text || '',
+        document_structure: model.document_structure,
     });
 
     const addField = () => {
@@ -283,6 +290,17 @@ export default function ModelEdit({
         event.dataTransfer.dropEffect = 'copy';
     };
 
+    const updatePdfText = (elementIndex: number, text: string) => {
+        if (!documentStructure) {
+            return;
+        }
+
+        const updatedStructure = structuredClone(documentStructure);
+        updatedStructure.pages[currentPage].elements[elementIndex].text = text;
+        setDocumentStructure(updatedStructure);
+        setData('document_structure', updatedStructure);
+    };
+
     const handleDrop = (
         event: DragEvent<HTMLDivElement>,
     ) => {
@@ -325,6 +343,14 @@ export default function ModelEdit({
 
         selection?.addRange(cursor);
 
+        const textBlock = node.parentElement?.closest<HTMLElement>('[data-element-index]');
+        const elementIndex = Number(textBlock?.dataset.elementIndex);
+
+        if (textBlock && Number.isInteger(elementIndex) && documentStructure) {
+            updatePdfText(elementIndex, textBlock.textContent ?? '');
+            return;
+        }
+
         const updatedHtml = editor.innerHTML;
 
         setExtractedContent(updatedHtml);
@@ -356,9 +382,15 @@ export default function ModelEdit({
 
         const cleanedHtml = cleanHtml(updatedHtmlContent);
 
+        transform((formData) => ({
+            ...formData,
+            extracted_text: documentStructure ? '' : cleanedHtml,
+            document_structure: documentStructure
+                ? sanitizePdfDocumentStructure(documentStructure)
+                : null,
+        }));
+
         put(`/modelos/${model.id}`, {
-            ...data,
-            extracted_text: cleanedHtml,
             onSuccess: () => {
                 alert('Modelo atualizado com sucesso!');
             },
@@ -404,6 +436,8 @@ export default function ModelEdit({
                 }
 
                 if (isDocx) {
+                    setDocumentStructure(null);
+                    setPageImages([]);
                     const result = await mammoth.convertToHtml({
                             arrayBuffer: buffer,
                             styleMap: [
@@ -417,44 +451,18 @@ export default function ModelEdit({
 
                     setExtractedContent(cleanedHtml);
                     setData('extracted_text', cleanedHtml);
+                    setData('document_structure', null);
 
                     return;
                 }
 
                 if (isPdf) {
-                    const pdf = await pdfjsLib.getDocument({
-                            data: buffer,
-                        }).promise;
-
-                    let htmlBuilder = '';
-
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-
-                        const pageText = textContent.items
-                                .filter(
-                                    (item): item is TextItem =>
-                                        'str' in item,
-                                )
-                                .map((item) => item.str)
-                                .join(' ')
-                                .replace(/\s+/g, ' ')
-                                .trim();
-
-                        if (pageText) {
-                            htmlBuilder += `
-                                <p>
-                                    ${pageText}
-                                </p>
-                            `;
-                        }
-                    }
-
-                    const cleanedHtml = cleanHtml(htmlBuilder);
-
-                    setExtractedContent(cleanedHtml);
-                    setData('extracted_text', cleanedHtml);
+                    const parsedPdf = await parsePdfBytes(buffer);
+                    setDocumentStructure(parsedPdf.structure);
+                    setPageImages(parsedPdf.pageImages);
+                    setCurrentPage(0);
+                    setData('document_structure', parsedPdf.structure);
+                    setData('extracted_text', '');
                 }
             } catch (error) {
                 console.error(
@@ -464,7 +472,7 @@ export default function ModelEdit({
 
                 const errorHtml = `
                     <p class="text-red-500 font-medium">
-                        Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.
+                        Não foi possível ler o documento. Confira se o arquivo PDF ou DOCX é válido.
                     </p>
                 `;
 
@@ -477,6 +485,37 @@ export default function ModelEdit({
 
         processDocument();
     }, [templateFile]);
+
+    useEffect(() => {
+        if (templateFile || !templateUrl || !templateIsPdf) {
+            return;
+        }
+
+        let cancelled = false;
+
+        fetch(templateUrl)
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o PDF original.');
+                }
+
+                return response.arrayBuffer();
+            })
+            .then(parsePdfBytes)
+            .then((parsedPdf) => {
+                if (!cancelled) {
+                    setDocumentStructure(parsedPdf.structure);
+                    setData('document_structure', parsedPdf.structure);
+                    setPageImages(parsedPdf.pageImages);
+                    setCurrentPage(0);
+                }
+            })
+            .catch((error: unknown) => console.error('Erro ao carregar PDF do modelo:', error));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [setData, templateFile, templateIsPdf, templateUrl]);
 
     const handleFileChange = (
         e: ChangeEvent<HTMLInputElement>,
@@ -918,6 +957,11 @@ export default function ModelEdit({
                                 : 'Salvar Alterações'}
                         </Button>
                     </div>
+                    {Object.values(errors).some(Boolean) && (
+                        <p role="alert" className="text-sm text-destructive">
+                            Não foi possível salvar: {Object.values(errors).find(Boolean)}
+                        </p>
+                    )}
                 </div>
 
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
@@ -931,10 +975,22 @@ export default function ModelEdit({
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Edit3 className="h-3 w-3" />
-                                Arraste a tag para o documento
-                            </span>
+                            {documentStructure && pageImages.length > 0 ? (
+                                <div className="flex items-center gap-2">
+                                    <Button type="button" variant="ghost" size="icon" aria-label="Página anterior" disabled={currentPage === 0} onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}>
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+                                    <span className="text-xs text-muted-foreground">{currentPage + 1} / {pageImages.length}</span>
+                                    <Button type="button" variant="ghost" size="icon" aria-label="Próxima página" disabled={currentPage >= pageImages.length - 1} onClick={() => setCurrentPage((page) => Math.min(pageImages.length - 1, page + 1))}>
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                    <Edit3 className="h-3 w-3" />
+                                    Arraste a tag para o documento
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -950,12 +1006,40 @@ export default function ModelEdit({
                                         </span>
                                     </div>
                                 </div>
+                            ) : documentStructure && pageImages[currentPage] ? (
+                                <div ref={editorRef} className="relative w-full [container-type:inline-size]">
+                                    <img src={pageImages[currentPage]} alt={`Página ${currentPage + 1}`} className="block h-auto w-full select-none" draggable={false} />
+                                    <div className="absolute inset-0" onDragOver={handleDragOver} onDrop={handleDrop}>
+                                        {documentStructure.pages[currentPage]?.elements.map((element, index) => (
+                                            <div
+                                                key={`${currentPage}-${index}`}
+                                                data-element-index={index}
+                                                contentEditable
+                                                suppressContentEditableWarning
+                                                onBlur={(event) => updatePdfText(index, event.currentTarget.textContent ?? '')}
+                                                className="absolute overflow-hidden bg-white text-black outline-none focus:ring-1 focus:ring-blue-500"
+                                                style={{
+                                                    left: `${element.x * 100}%`,
+                                                    top: `${element.y * 100}%`,
+                                                    width: `${Math.min(1 - element.x, Math.max(element.width, 0.04)) * 100}%`,
+                                                    height: `${Math.max(element.height * 1.5, 0.015) * 100}%`,
+                                                    fontSize: `${(element.fontSize / documentStructure.pages[currentPage].width) * 100}cqw`,
+                                                    lineHeight: 1,
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {element.text}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="min-h-[841px] w-full px-[48px] py-[42px] text-gray-900">
                                     <div
                                         ref={editorRef}
                                         contentEditable
                                         suppressContentEditableWarning
+                                        onInput={(event) => setData('extracted_text', event.currentTarget.innerHTML)}
                                         onDragOver={
                                             handleDragOver
                                         }

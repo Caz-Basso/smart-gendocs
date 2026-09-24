@@ -51,12 +51,11 @@ import {
 } from "lucide-react";
 
 import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-).toString();
+import {
+    parsePdfDocument,
+    sanitizePdfDocumentStructure,
+    type PdfDocumentStructure,
+} from "@/lib/pdf-document";
 
 /**
  * Imagens extraídas de DOCX (ex.: logos) vêm em resolução nativa; sem limite
@@ -114,8 +113,10 @@ export default function ModelRegistration({
     const [currentPage, setCurrentPage] = useState(0);
     const [isPdf, setIsPdf] = useState(false);
     const [documentHtml, setDocumentHtml] = useState("");
+    const [documentStructure, setDocumentStructure] = useState<PdfDocumentStructure | null>(null);
+    const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-    const { data, setData, post, processing, errors } =
+    const { data, setData, transform, post, processing, errors } =
         useForm({
             name: "",
             template: null as File | null,
@@ -128,6 +129,7 @@ export default function ModelRegistration({
                 },
             ] as FieldItem[],
             extracted_text: "",
+            document_structure: null as PdfDocumentStructure | null,
         });
 
     const addField = () => {
@@ -275,7 +277,7 @@ export default function ModelRegistration({
         const text =
             event.dataTransfer.getData("text/plain");
 
-        if (!editor || !text || isPdf) return;
+        if (!editor || !text) return;
 
         const range = getCaretRange(event);
 
@@ -299,6 +301,29 @@ export default function ModelRegistration({
 
         selection?.removeAllRanges();
         selection?.addRange(cursor);
+
+        if (isPdf && documentStructure) {
+            const textBlock = node.parentElement?.closest<HTMLElement>("[data-element-index]");
+            const elementIndex = Number(textBlock?.dataset.elementIndex);
+
+            if (textBlock && Number.isInteger(elementIndex)) {
+                const updatedStructure = structuredClone(documentStructure);
+                updatedStructure.pages[currentPage].elements[elementIndex].text = textBlock.textContent ?? "";
+                setDocumentStructure(updatedStructure);
+                setData("document_structure", updatedStructure);
+            }
+        } else if (editorRef.current) {
+            setData("extracted_text", editorRef.current.innerHTML);
+        }
+    };
+
+    const updatePdfText = (elementIndex: number, text: string) => {
+        if (!documentStructure) return;
+
+        const updatedStructure = structuredClone(documentStructure);
+        updatedStructure.pages[currentPage].elements[elementIndex].text = text;
+        setDocumentStructure(updatedStructure);
+        setData("document_structure", updatedStructure);
     };
 
     const handleFileChange = (
@@ -319,6 +344,8 @@ export default function ModelRegistration({
         setCurrentPage(0);
         setIsPdf(false);
         setDocumentHtml("");
+        setDocumentStructure(null);
+        setData("document_structure", null);
 
         if (editorRef.current) {
             editorRef.current.innerHTML = "";
@@ -378,46 +405,14 @@ export default function ModelRegistration({
                 }
 
                 if (pdf) {
-                    const pdfDocument = await pdfjsLib
-                        .getDocument({
-                            data: buffer,
-                        })
-                        .promise;
-
-                    const images: string[] = [];
-
-                    for (let i = 1; i <= pdfDocument.numPages; i++) {
-                        if (cancelled) return;
-
-                        const page = await pdfDocument.getPage(i);
-
-                        const viewport = page.getViewport({
-                            scale: 1.5,
-                        });
-
-                        const canvas = window.document.createElement("canvas");
-                        const context = canvas.getContext("2d");
-
-                        if (!context) {
-                            throw new Error(
-                                "Não foi possível criar o contexto do canvas.",
-                            );
-                        }
-
-                        canvas.width = Math.ceil(viewport.width);
-                        canvas.height = Math.ceil(viewport.height);
-
-                        await page.render({
-                            canvas,
-                            viewport,
-                        }).promise;
-
-                        images.push(canvas.toDataURL("image/png"));
-                    }
+                    const parsedPdf = await parsePdfDocument(templateFile);
 
                     if (cancelled) return;
 
-                    setPageImages(images);
+                    setPageImages(parsedPdf.pageImages);
+                    setDocumentStructure(parsedPdf.structure);
+                    setData("document_structure", parsedPdf.structure);
+                    setData("extracted_text", "");
                     setCurrentPage(0);
                     setIsPdf(true);
 
@@ -493,16 +488,35 @@ export default function ModelRegistration({
             return;
         }
 
-        const html =
-            editorRef.current?.innerHTML ?? "";
+        transform((formData) => ({
+            ...formData,
+            extracted_text: isPdf ? "" : editorRef.current?.innerHTML ?? documentHtml,
+            document_structure: isPdf && documentStructure
+                ? sanitizePdfDocumentStructure(documentStructure)
+                : null,
+        }));
 
-        setData("extracted_text", html);
-
+        setSubmissionError(null);
         post("/modelos", {
             onSuccess: () => {
+                setSubmissionError(null);
                 alert(
                     "Modelo salvo com sucesso!",
                 );
+            },
+            onError: (formErrors) => {
+                const firstError = Object.values(formErrors).find(Boolean);
+                setSubmissionError(
+                    typeof firstError === "string"
+                        ? `Não foi possível salvar: ${firstError}`
+                        : "Não foi possível salvar. Confira os campos do formulário.",
+                );
+            },
+            onHttpException: (response) => {
+                setSubmissionError(`O servidor respondeu com erro HTTP ${response.status} ao salvar o modelo.`);
+            },
+            onNetworkError: () => {
+                setSubmissionError("Não foi possível conectar ao servidor. Verifique a conexão e tente salvar novamente.");
             },
         });
     };
@@ -818,7 +832,7 @@ export default function ModelRegistration({
                         </Button>
                     </div>
 
-                    <div className="flex gap-3 border-t pt-6">
+                        <div className="flex gap-3 border-t pt-6">
                         <Button
                             type="button"
                             variant="outline"
@@ -845,6 +859,16 @@ export default function ModelRegistration({
                             Salvar Modelo
                         </Button>
                     </div>
+                    {!submissionError && Object.values(errors).some(Boolean) && (
+                        <p role="alert" className="text-sm text-destructive">
+                            Não foi possível salvar: {Object.values(errors).find(Boolean)}
+                        </p>
+                    )}
+                    {submissionError && (
+                        <p role="alert" className="text-sm text-destructive">
+                            {submissionError}
+                        </p>
+                    )}
                 </div>
 
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
@@ -916,18 +940,38 @@ export default function ModelRegistration({
                                 </span>
                             </div>
                         ) : isPdf &&
-                            pageImages.length ? (
-                            <img
-                                src={
-                                    pageImages[
-                                    currentPage
-                                    ]
-                                }
-                                alt={`Página ${currentPage + 1
-                                    }`}
-                                className="block h-auto w-full select-none"
-                                draggable={false}
-                            />
+                            pageImages.length && documentStructure ? (
+                            <div ref={editorRef} className="relative w-full [container-type:inline-size]">
+                                <img
+                                    src={pageImages[currentPage]}
+                                    alt={`Página ${currentPage + 1}`}
+                                    className="block h-auto w-full select-none"
+                                    draggable={false}
+                                />
+                                <div className="absolute inset-0" onDragOver={handleDragOver} onDrop={handleDrop}>
+                                    {documentStructure.pages[currentPage]?.elements.map((element, index) => (
+                                        <div
+                                            key={`${currentPage}-${index}`}
+                                            data-element-index={index}
+                                            contentEditable
+                                            suppressContentEditableWarning
+                                            onBlur={(event) => updatePdfText(index, event.currentTarget.textContent ?? "")}
+                                            className="absolute overflow-hidden bg-white text-black outline-none focus:ring-1 focus:ring-blue-500"
+                                            style={{
+                                                left: `${element.x * 100}%`,
+                                                top: `${element.y * 100}%`,
+                                                width: `${Math.min(1 - element.x, Math.max(element.width, 0.04)) * 100}%`,
+                                                height: `${Math.max(element.height * 1.5, 0.015) * 100}%`,
+                                                fontSize: `${(element.fontSize / documentStructure.pages[currentPage].width) * 100}cqw`,
+                                                lineHeight: 1,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {element.text}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         ) : templateFile ? (
                             <div className="min-h-[841px] px-[48px] py-[42px]">
                                 <div
@@ -936,6 +980,7 @@ export default function ModelRegistration({
                                     suppressContentEditableWarning
                                     onDragOver={handleDragOver}
                                     onDrop={handleDrop}
+                                    onInput={(event) => setData("extracted_text", event.currentTarget.innerHTML)}
                                     dangerouslySetInnerHTML={{
                                         __html: documentHtml,
                                     }}

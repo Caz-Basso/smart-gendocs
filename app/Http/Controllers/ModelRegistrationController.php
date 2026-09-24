@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\ConvertPdfToWordAction;
 use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Enums\FieldType;
-use App\Http\Requests\ConvertPdfRequest;
 use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use RuntimeException;
 
 final class ModelRegistrationController
 {
@@ -45,12 +42,19 @@ final class ModelRegistrationController
                 ];
             })->toArray();
 
-            $preview = $model->extracted_text
-                ? collect(explode('</p>', $model->extracted_text))
+            if ($model->document_structure !== null) {
+                $preview = collect($model->document_structure['pages'] ?? [])
+                    ->flatMap(fn (array $page) => collect($page['elements'] ?? [])->pluck('text'))
+                    ->values()
+                    ->all();
+            } elseif ($model->extracted_text !== null) {
+                $preview = collect(explode('</p>', $model->extracted_text))
                     ->map(fn ($p) => strip_tags($p))
                     ->filter(fn ($p) => ! empty(mb_trim($p)))
-                    ->toArray()
-                : [];
+                    ->toArray();
+            } else {
+                $preview = [];
+            }
 
             return [
                 'id' => $model->id,
@@ -116,6 +120,11 @@ final class ModelRegistrationController
 
         return Inertia::render('model-edit', [
             'model' => $model,
+            'templateUrl' => $model->template_path !== null
+                ? Storage::disk('public')->url($model->template_path)
+                : null,
+            'templateIsPdf' => $model->template_path !== null
+                && str_ends_with(mb_strtolower($model->template_path), '.pdf'),
             'fieldTypeOptions' => $fieldTypeOptions,
         ]);
     }
@@ -126,34 +135,24 @@ final class ModelRegistrationController
 
         // Handle update logic here if needed, for now just update basic fields
         $data = $request->validated();
+        $templatePath = $model->template_path;
+
+        if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
+            $templatePath = $data['template']->store('templates', 'public');
+        }
+
         $model->update([
             'name' => $data['name'],
+            'template_path' => $templatePath,
             'extracted_text' => $data['extracted_text'] ?? $model->extracted_text,
+            'document_structure' => array_key_exists('document_structure', $data)
+                ? $data['document_structure']
+                : $model->document_structure,
             'fields' => $data['fields'],
         ]);
 
         return redirect()->route('models.index')
             ->with('success', 'Modelo atualizado com sucesso!');
-    }
-
-    /**
-     * Converte o PDF enviado pelo usuário em um DOCX via pdf2docx, preservando
-     * a estrutura do documento. Os bytes do DOCX são devolvidos na resposta para
-     * serem renderizados na pré-visualização do cadastro de modelo.
-     */
-    public function convert(ConvertPdfRequest $request, ConvertPdfToWordAction $converter): HttpResponse|JsonResponse
-    {
-        try {
-            $docxContent = $converter->handle($request->pdf());
-        } catch (RuntimeException $exception) {
-            return response()->json(['error' => $exception->getMessage()], 502);
-        }
-
-        return new HttpResponse($docxContent, 200, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'Cache-Control' => 'private, max-age=0, must-revalidate',
-            'Pragma' => 'public',
-        ]);
     }
 
     public function generate(GenerateDocumentRequest $request, GenerateDocumentAction $generateDocument): HttpResponse

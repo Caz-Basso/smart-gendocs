@@ -24,6 +24,7 @@ final readonly class CreateModelAction
                 'name' => $data['name'],
                 'template_path' => $templatePath,
                 'extracted_text' => $data['extracted_text'] ?? null,
+                'document_structure' => $data['document_structure'] ?? null,
                 'fields' => $data['fields'],
                 'user_id' => $userId,
             ]);

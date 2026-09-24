@@ -45,8 +45,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/gerar', [ModelRegistrationController::class, 'generate'])
             ->middleware('role_or_permission:user|admin|super-admin')
             ->name('documents.generate');
-        Route::post('/converter-pdf', [ModelRegistrationController::class, 'convert'])
-            ->name('models.convert');
     });
 });
 
