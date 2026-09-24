@@ -85,6 +85,7 @@ final class StoreModelRequest extends FormRequest
             'document_structure.pages.*.elements.*.height' => 'required|numeric|min:0|max:1',
             'document_structure.pages.*.elements.*.fontSize' => 'required|numeric|min:1|max:200',
             'document_structure.pages.*.elements.*.text' => 'nullable|string|max:10000',
+            'document_structure.pages.*.elements.*.originalText' => 'nullable|string|max:10000',
         ];
     }
 

@@ -85,12 +85,17 @@ final readonly class GenerateDocumentAction
                 $width = max(1.0, (float) $element['width'] * $size['width']);
                 $height = max(1.0, (float) $element['height'] * $size['height']);
                 $text = (string) ($element['text'] ?? '');
-                $templateTextLength = max(1, mb_strlen($text));
+                $originalText = (string) ($element['originalText'] ?? $text);
+                $templateTextLength = max(1, mb_strlen($originalText));
 
                 foreach ($data as $key => $value) {
                     if (is_scalar($value)) {
                         $text = str_replace('{{'.$key.'}}', (string) $value, $text);
                     }
+                }
+
+                if ($text === $originalText) {
+                    continue;
                 }
 
                 $mpdf->SetFillColor(255, 255, 255);

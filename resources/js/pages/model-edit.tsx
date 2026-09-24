@@ -52,7 +52,11 @@ import {
 } from 'lucide-react';
 
 import mammoth from 'mammoth';
-import { parsePdfBytes, type PdfDocumentStructure } from '@/lib/pdf-document';
+import {
+    parsePdfBytes,
+    sanitizePdfDocumentStructure,
+    type PdfDocumentStructure,
+} from '@/lib/pdf-document';
 
 /**
  * Imagens extraídas de DOCX (ex.: logos) vêm em resolução nativa; sem limite
@@ -129,7 +133,11 @@ export default function ModelEdit({
 
     const [isLoadingText, setIsLoadingText] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-    const [documentStructure, setDocumentStructure] = useState<PdfDocumentStructure | null>(model.document_structure);
+    const [documentStructure, setDocumentStructure] = useState<PdfDocumentStructure | null>(
+        model.document_structure
+            ? sanitizePdfDocumentStructure(model.document_structure)
+            : null,
+    );
     const [pageImages, setPageImages] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
 

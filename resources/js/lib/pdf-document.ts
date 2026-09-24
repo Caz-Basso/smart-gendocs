@@ -12,6 +12,7 @@ export interface PdfTextElement {
     height: number;
     fontSize: number;
     text: string;
+    originalText?: string;
 }
 
 export interface PdfDocumentStructure {
@@ -52,6 +53,9 @@ export function sanitizePdfDocumentStructure(
                     height: clamp(element.height, 0, 1),
                     fontSize: clamp(element.fontSize, 1, 200),
                     text: typeof element.text === 'string' ? element.text : '',
+                    originalText: typeof element.originalText === 'string'
+                        ? element.originalText
+                        : element.text,
                 })),
         })),
     };
@@ -103,6 +107,7 @@ export async function parsePdfBytes(data: ArrayBuffer): Promise<ParsedPdfDocumen
                 height: Math.min(1, Math.max(0.008, height / viewport.height)),
                 fontSize: Math.min(200, fontSize),
                 text: item.str,
+                originalText: item.str,
             };
 
             const line = elements.find((candidate) =>
@@ -120,6 +125,9 @@ export async function parsePdfBytes(data: ArrayBuffer): Promise<ParsedPdfDocumen
                 line.text = element.x >= previousLineX
                     ? `${line.text} ${element.text}`
                     : `${element.text} ${line.text}`;
+                line.originalText = element.x >= previousLineX
+                    ? `${line.originalText ?? line.text} ${element.originalText}`
+                    : `${element.originalText} ${line.originalText ?? line.text}`;
             } else {
                 elements.push(element);
             }
