@@ -1,49 +1,36 @@
-import { useState, useEffect, ChangeEvent, FormEvent, useRef } from 'react';
+import {
+    useState,
+    useEffect,
+    type ChangeEvent,
+    type FormEvent,
+    type DragEvent,
+    useRef,
+} from "react";
+
 import AppLayout from "@/layouts/app-layout";
-import { BreadcrumbItem } from "@/types";
+import type { BreadcrumbItem } from "@/types";
 import { Head, useForm } from "@inertiajs/react";
 import { model_registration } from "@/routes";
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
 
-import {
-    Trash,
-    Plus,
-    Upload,
-    FileText,
-    Loader2,
-    Save,
-    X,
-    HelpCircle,
-    Copy,
-    Check,
-    Edit3
-} from 'lucide-react';
+import HowToUseDialog from "@/components/how-to-use-dialog";
+import DynamicField from "@/components/dynamic-field";
+import FileUpload from "@/components/file-upload";
+import DocumentPreview from "@/components/document-preview";
+import SaveAndCancelBtn from "@/components/save-and-cancel-btn";
 
-import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
-import { TextItem } from 'pdfjs-dist/types/src/display/api';
+import { Plus, Loader2, Save, X } from "lucide-react";
+
+import mammoth from "mammoth";
+import * as pdfjsLib from "pdfjs-dist";
+import type { TextItem } from "pdfjs-dist/types/src/display/api";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url,
 ).toString();
 
 interface FieldItem {
@@ -63,37 +50,49 @@ interface Props {
     model: {
         id: string;
         name: string;
-        fields: any[];
+        fields: FieldItem[];
         extracted_text: string | null;
     };
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Cadastro de Modelos',
-        title: 'Editar Modelo',
-        href: model_registration()
+        title: "Editar Modelo",
+        href: model_registration(),
     },
 ];
 
 function slugify(text: string) {
     return text
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+}
+
+function cleanHtml(html: string) {
+    return html
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/>\s+</g, "><")
+        .trim();
 }
 
 export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
-    const [extractedContent, setExtractedContent] = useState<string>(model.extracted_text || '');
-    const [isLoadingText, setIsLoadingText] = useState(false);
-    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-
     const editorRef = useRef<HTMLDivElement>(null);
 
+    const [loading, setIsLoadingText] = useState(false);
+    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+    const [pageImages, setPageImages] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [isPdf, setIsPdf] = useState(false);
+
+    const [extractedContent, setExtractedContent] = useState<string>(
+        model.extracted_text || "",
+    );
 
     const { data, setData, put, processing, errors } = useForm<{
         name: string;
@@ -101,42 +100,182 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         fields: FieldItem[];
         extracted_text: string;
     }>({
-        name: '',
-        name: model.name || '',
+        name: model.name || "",
         template: null,
-        fields: [{ id: '1', name: 'Nome do Cliente', slug: 'nome_do_cliente', type: 'text' }],
-        extracted_text: '',
-        fields: model.fields?.length ? model.fields : [{ id: '1', name: 'Nome do Cliente', slug: 'nome_do_cliente', type: 'text' }],
-        extracted_text: model.extracted_text || '',
+        fields:
+            model.fields?.length > 0
+                ? model.fields
+                : [
+                      {
+                          id: "1",
+                          name: "Nome do Cliente",
+                          slug: "nome_do_cliente",
+                          type: "text",
+                      },
+                  ],
+        extracted_text: model.extracted_text || "",
     });
 
     const addField = () => {
         const newId = String(Date.now());
-        setData('fields', [...data.fields, { id: newId, name: '', slug: '', type: 'text' }]);
+
+        setData("fields", [
+            ...data.fields,
+            {
+                id: newId,
+                name: "",
+                slug: "",
+                type: "text",
+            },
+        ]);
     };
 
     const removeField = (id: string) => {
-        if (data.fields.length === 1) return;
-        setData('fields', data.fields.filter(f => f.id !== id));
+        if (data.fields.length === 1) {
+            return;
+        }
+
+        setData(
+            "fields",
+            data.fields.filter((field) => field.id !== id),
+        );
     };
 
     const updateFieldName = (id: string, name: string) => {
-        setData('fields', data.fields.map(f => f.id === id ? { ...f, name, slug: slugify(name) } : f));
+        setData(
+            "fields",
+            data.fields.map((field) =>
+                field.id === id
+                    ? {
+                          ...field,
+                          name,
+                          slug: slugify(name),
+                      }
+                    : field,
+            ),
+        );
     };
 
     const updateFieldType = (id: string, type: string) => {
-        setData('fields', data.fields.map(f => f.id === id ? { ...f, type } : f));
+        setData(
+            "fields",
+            data.fields.map((field) =>
+                field.id === id
+                    ? {
+                          ...field,
+                          type,
+                      }
+                    : field,
+            ),
+        );
     };
 
-    const handleCopyTag = (slug: string) => {
+    const handleCopyTag = async (slug: string) => {
         const tag = `{{${slug}}}`;
-        navigator.clipboard.writeText(tag);
-        setCopiedSlug(slug);
-        setTimeout(() => setCopiedSlug(null), 2000);
+
+        try {
+            await navigator.clipboard.writeText(tag);
+
+            setCopiedSlug(slug);
+
+            setTimeout(() => {
+                setCopiedSlug(null);
+            }, 2000);
+        } catch (error) {
+            console.error("Erro ao copiar tag:", error);
+        }
+    };
+
+    const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
+        const { clientX, clientY } = event;
+
+        if (typeof document.caretPositionFromPoint === "function") {
+            const position = document.caretPositionFromPoint(clientX, clientY);
+
+            if (!position || !position.offsetNode) {
+                return null;
+            }
+
+            const range = document.createRange();
+            range.setStart(position.offsetNode, position.offset);
+            range.collapse(true);
+            return range;
+        }
+
+        return null;
+    };
+
+    const handleDragStart = (
+        event: DragEvent<HTMLDivElement>,
+        slug: string,
+    ) => {
+        if (!slug) {
+            return;
+        }
+
+        event.dataTransfer.setData("text/plain", `{{${slug}}}`);
+
+        event.dataTransfer.effectAllowed = "copy";
+    };
+
+    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+
+        event.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+
+        const editor = editorRef.current;
+
+        const text = event.dataTransfer.getData("text/plain");
+
+        if (!editor || !text) {
+            return;
+        }
+
+        const range = getCaretRange(event);
+
+        if (!range || !editor.contains(range.commonAncestorContainer)) {
+            return;
+        }
+
+        const node = document.createTextNode(text);
+
+        range.deleteContents();
+        range.insertNode(node);
+
+        const cursor = document.createRange();
+
+        cursor.setStartAfter(node);
+        cursor.collapse(true);
+
+        const selection = window.getSelection();
+
+        selection?.removeAllRanges();
+        selection?.addRange(cursor);
+
+        const updatedHtml = editor.innerHTML;
+
+        setExtractedContent(updatedHtml);
+        setData("extracted_text", updatedHtml);
+    };
+
+    const previousPage = () => {
+        setCurrentPage((page) => Math.max(page - 1, 0));
+    };
+
+    const nextPage = () => {
+        setCurrentPage((page) => Math.min(page + 1, pageImages.length - 1));
     };
 
     const handleCancel = () => {
-        if (window.confirm('Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.')) {
+        const confirmed = window.confirm(
+            "Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.",
+        );
+
+        if (confirmed) {
             window.history.back();
         }
     };
@@ -145,7 +284,7 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         e.preventDefault();
 
         if (!data.name.trim()) {
-            alert('Por favor, informe o nome do modelo.');
+            alert("Por favor, informe o nome do modelo.");
             return;
         }
 
@@ -153,22 +292,15 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
             ? editorRef.current.innerHTML
             : extractedContent;
 
-        // Limpar o HTML antes de salvar
-        const cleanedHtml = updatedHtmlContent
-            .replace(/&nbsp;/g, ' ')
-            .replace(/\s+/g, ' ')
-            .replace(/>\s+</g, '><')
-            .trim();
+        const cleanedHtml = cleanHtml(updatedHtmlContent);
 
-        setData('extracted_text', cleanedHtml);
-
-        post('/modelos', {
+        put(`/modelos/${model.id}`, {
             onSuccess: () => {
-                alert('Modelo salvo com sucesso!');
+                alert("Modelo atualizado com sucesso!");
             },
-            onError: (errors) => {
-                console.error('Erros de validação:', errors);
-            }
+            onError: (formErrors) => {
+                console.error("Erros de validação:", formErrors);
+            },
         });
     };
 
@@ -177,63 +309,124 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
             return;
         }
 
+        const file = templateFile;
+
         async function processDocument() {
             setIsLoadingText(true);
+
             try {
-                const buffer = await templateFile!.arrayBuffer();
+                const buffer = await file.arrayBuffer();
 
-                const isDocx = templateFile!.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                              templateFile!.name.endsWith('.docx');
-                const isPdf = templateFile!.type === 'application/pdf' ||
-                             templateFile!.name.endsWith('.pdf');
+                const isDocx =
+                    file.type ===
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                    file.name.toLowerCase().endsWith(".docx");
 
-                if (!isDocx && !isPdf) {
-                    setExtractedContent('<p class="text-red-500 font-medium">Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.</p>');
+                const fileIsPdf =
+                    file.type === "application/pdf" ||
+                    file.name.toLowerCase().endsWith(".pdf");
+
+                setIsPdf(fileIsPdf);
+                setCurrentPage(0);
+                setPageImages([]);
+
+                if (!isDocx && !fileIsPdf) {
+                    setExtractedContent(`
+                        <p class="text-red-500 font-medium">
+                            Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.
+                        </p>
+                    `);
+
                     return;
                 }
 
                 if (isDocx) {
-                    const result = await mammoth.convertToHtml({
-                        arrayBuffer: buffer,
-                        styleMap: [
-                            "p[style-name='Heading 1'] => h1:fresh",
-                            "p[style-name='Heading 2'] => h2:fresh",
-                            "p[style-name='Heading 3'] => h3:fresh"
-                        ]
-                    });
-                    // Limpar o HTML extraído
-                    const cleanedHtml = result.value
-                        .replace(/&nbsp;/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .replace(/>\s+</g, '><')
-                        .trim();
-                    setExtractedContent(cleanedHtml);
-                }
-                else if (isPdf) {
-                    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-                    let htmlBuilder = '';
+                    const result = await mammoth.convertToHtml(
+                        { arrayBuffer: buffer },
+                        {
+                            styleMap: [
+                                "p[style-name='Heading 1'] => h1:fresh",
+                                "p[style-name='Heading 2'] => h2:fresh",
+                                "p[style-name='Heading 3'] => h3:fresh",
+                            ],
+                        },
+                    );
 
+                    const cleanedHtml = cleanHtml(result.value);
+
+                    setExtractedContent(cleanedHtml);
+                    setData("extracted_text", cleanedHtml);
+
+                    return;
+                }
+
+                if (fileIsPdf) {
+                    const pdf = await pdfjsLib.getDocument({
+                        data: buffer,
+                    }).promise;
+
+                    const images: string[] = [];
+                    let htmlBuilder = "";
 
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
+
+                        const viewport = page.getViewport({
+                            scale: 1.5,
+                        });
+
+                        const canvas = document.createElement("canvas");
+                        const context = canvas.getContext("2d");
+
+                        if (!context) {
+                            continue;
+                        }
+
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        await page.render({
+                            canvas,
+                            canvasContext: context,
+                            viewport,
+                        }).promise;
+
+                        images.push(canvas.toDataURL("image/png"));
+
                         const textContent = await page.getTextContent();
+
                         const pageText = textContent.items
-                            .filter((item): item is TextItem => 'str' in item)
+                            .filter((item): item is TextItem => "str" in item)
                             .map((item) => item.str)
-                            .join(' ')
-                            .replace(/\s+/g, ' ')
+                            .join(" ")
+                            .replace(/\s+/g, " ")
                             .trim();
 
-
                         if (pageText) {
-                            htmlBuilder += `<p class="mb-3 text-justify leading-relaxed">${pageText}</p>`;
+                            htmlBuilder += `<p>${pageText}</p>`;
                         }
                     }
-                    setExtractedContent(htmlBuilder);
+
+                    setPageImages(images);
+
+                    const cleanedHtml = cleanHtml(htmlBuilder);
+
+                    setExtractedContent(cleanedHtml);
+                    setData("extracted_text", cleanedHtml);
+
+                    return;
                 }
-            } catch (err) {
-                console.error("Erro na conversão:", err);
-                setExtractedContent('<p class="text-red-500 font-medium">Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.</p>');
+            } catch (error) {
+                console.error("Erro na conversão:", error);
+
+                const errorHtml = `
+                    <p class="text-red-500 font-medium">
+                        Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.
+                    </p>
+                `;
+
+                setExtractedContent(errorHtml);
+                setData("extracted_text", errorHtml);
             } finally {
                 setIsLoadingText(false);
             }
@@ -243,338 +436,111 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
     }, [templateFile]);
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setTemplateFile(file);
-            setData('template', file);
+        const file = e.target.files?.[0];
+
+        if (!file) {
+            return;
         }
+
+        setTemplateFile(file);
+        setData("template", file);
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Cadastro de Modelos" />
             <Head title="Editar Modelo" />
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-[1600px] mx-auto">
-                <div className="lg:col-span-4 p-6 rounded-xl border bg-card text-card-foreground shadow-sm space-y-5 flex flex-col justify-between">
+            <form
+                onSubmit={handleSubmit}
+                className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
+            >
+                <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-sm lg:col-span-4">
                     <div className="space-y-5">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h2 className="text-base font-semibold">Configuração do Modelo</h2>
+                                <h2 className="text-base font-semibold">
+                                    Configuração do Modelo
+                                </h2>
                             </div>
 
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                                        Como usar
-                                    </Button>
-                                </DialogTrigger>
-
-                                <DialogContent className="w-[92vw] md:max-w-3xl p-4 sm:p-6 max-h-[85vh] overflow-y-auto rounded-xl">
-                                    <DialogHeader className="pb-2">
-                                        <DialogTitle className="text-base sm:text-xl font-bold">
-                                            Como criar e utilizar modelos
-                                        </DialogTitle>
-                                        <DialogDescription className="text-xs sm:text-sm text-muted-foreground">
-                                            Siga os passos abaixo para automatizar o preenchimento dos seus documentos.
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="space-y-4 pt-2">
-                                        <div className="rounded-lg bg-muted/60 p-3 sm:p-4 border font-mono text-xs space-y-1">
-                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider block">
-                                                Exemplo de uso no texto
-                                            </span>
-                                            <p className="font-semibold text-primary break-all">
-                                                Contratante: <span className="bg-primary/10 px-1 py-0.5 rounded text-primary">&#123;&#123;nome_do_cliente&#125;&#125;</span>
-                                            </p>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <div className="p-3 rounded-lg border bg-card space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
-                                                    <h4 className="text-xs font-semibold">Crie os Campos</h4>
-                                                </div>
-                                                <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
-                                                    Adicione os campos dinâmicos na lista ao lado definindo nome e tipo.
-                                                </p>
-                                            </div>
-
-                                            <div className="p-3 rounded-lg border bg-card space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">2</span>
-                                                    <h4 className="text-xs font-semibold">Copie a Tag</h4>
-                                                </div>
-                                                <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
-                                                    Copie a chave gerada automaticamente (ex: <code className="text-primary font-mono">&#123;&#123;slug&#125;&#125;</code>).
-                                                </p>
-                                            </div>
-
-                                            <div className="p-3 rounded-lg border bg-card space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">3</span>
-                                                    <h4 className="text-xs font-semibold">Insira no Texto</h4>
-                                                </div>
-                                                <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
-                                                    Cole no painel de preview ou direto no seu arquivo Word/PDF antes de enviar.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
+                            <HowToUseDialog />
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="model_name">Nome do Modelo</Label>
+
                             <Input
                                 id="model_name"
                                 name="model_name"
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
+                                onChange={(e) =>
+                                    setData("name", e.target.value)
+                                }
                                 required
                             />
-                            {errors.name && <span className="text-xs text-destructive">{errors.name}</span>}
-                        </div>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="template">Arquivo Base (.docx ou .pdf)</Label>
-
-                            {!templateFile ? (
-                                <label className="flex flex-col items-center justify-center min-h-[110px] border-2 border-dashed border-input rounded-lg cursor-pointer bg-muted/20 hover:bg-muted/50 transition-colors p-4 text-center">
-                                    <Upload className="h-6 w-6 text-muted-foreground mb-1.5" />
-                                    <span className="text-xs font-medium">Clique ou arraste seu arquivo</span>
-                                    <span className="text-[10px] text-muted-foreground mt-0.5">Suporta DOCX e PDF</span>
-                                    <input
-                                        type="file"
-                                        id="template"
-                                        name="template"
-                                        accept=".docx,.pdf"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-                                </label>
-                            ) : (
-                                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/30">
-                                    <div className="flex items-center gap-2.5 overflow-hidden">
-                                        <FileText className="h-5 w-5 text-primary shrink-0" />
-                                        <span className="text-xs font-medium truncate">{templateFile.name}</span>
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                                        onClick={() => {
-                                            setTemplateFile(null);
-                                            setData('template', null);
-                                            setExtractedContent('');
-                                        }}
-                                    >
-                                        Trocar
-                                    </Button>
-                                </div>
+                            {errors.name && (
+                                <span className="text-xs text-destructive">
+                                    {errors.name}
+                                </span>
                             )}
-                            {errors.template && <span className="text-xs text-destructive">{errors.template}</span>}
                         </div>
+
+                        <FileUpload
+                            templateFile={templateFile}
+                            handleFileChange={handleFileChange}
+                            onClearFile={() => {
+                                setTemplateFile(null);
+                                setData("template", null);
+                                setExtractedContent(model.extracted_text || "");
+                                setIsPdf(false);
+                                setPageImages([]);
+                                setCurrentPage(0);
+                            }}
+                            error={errors.template}
+                        />
 
                         <hr className="my-4 border-border" />
 
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold text-muted-foreground tracking-wider uppercase">
-                                Campos Dinâmicos
-                            </h2>
-                            <span className="text-[11px] bg-secondary px-2 py-0.5 rounded-full font-medium">
-                                {data.fields.length} {data.fields.length === 1 ? 'campo' : 'campos'}
-                            </span>
-                        </div>
+                        <DynamicField
+                            fields={data.fields}
+                            fieldTypeOptions={fieldTypeOptions}
+                            copiedSlug={copiedSlug}
+                            removeField={removeField}
+                            updateFieldName={updateFieldName}
+                            updateFieldType={updateFieldType}
+                            handleDragStart={handleDragStart}
+                            handleCopyTag={handleCopyTag}
+                        />
 
-                        <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2 -mr-2">
-                            {data.fields.map((field, index) => (
-                                <div
-                                    key={field.id}
-                                    className="p-3.5 rounded-xl border bg-card/60 hover:bg-card transition-colors shadow-xs space-y-3 relative group"
-                                >
-                                    <div className="flex justify-between items-center pb-1 border-b border-border/40">
-                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                            Campo #{index + 1}
-                                        </span>
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
-                                            onClick={() => removeField(field.id)}
-                                            disabled={data.fields.length === 1}
-                                            title="Excluir campo"
-                                        >
-                                            <Trash className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-medium">Nome do Campo</Label>
-                                        <Input
-                                            value={field.name}
-                                            onChange={(e) => updateFieldName(field.id, e.target.value)}
-                                            placeholder="Ex: Nome do Cliente"
-                                            className="h-8 text-xs bg-background"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-12 gap-3 items-start">
-                                        <div className="col-span-8 space-y-1.5">
-                                            <Label className="text-xs font-medium">Tag / Slug</Label>
-
-                                            <div className="relative flex items-center">
-                                                <Input
-                                                    value={field.slug ? `{{${field.slug}}}` : ''}
-                                                    disabled
-                                                    placeholder="{{nome_do_campo}}"
-                                                    className="h-8 text-xs font-mono bg-muted/50 text-muted-foreground pr-8 w-full"
-                                                />
-                                                {field.slug && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleCopyTag(field.slug)}
-                                                        title="Copiar Tag"
-                                                        className="absolute right-1.5 p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors"
-                                                    >
-                                                        {copiedSlug === field.slug ? (
-                                                            <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                        ) : (
-                                                            <Copy className="h-3.5 w-3.5" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-4 space-y-1.5 min-w-0">
-                                            <Label className="text-xs font-medium">Tipo</Label>
-                                            <Select
-                                                value={field.type}
-                                                onValueChange={(val) => updateFieldType(field.id, val)}
-                                            >
-                                                <SelectTrigger className="h-8 text-xs bg-background w-full overflow-hidden">
-                                                    <SelectValue placeholder="Selecione" className="truncate" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {fieldTypeOptions.map((option) => (
-                                                        <SelectItem key={option.value} value={option.value}>
-                                                            {option.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div>
-                            <Button
-                                type="button"
-                                onClick={addField}
-                                variant="outline"
-                                className="w-full border-dashed font-medium text-xs tracking-wide uppercase h-9"
-                            >
-                                <Plus className="h-4 w-4 mr-1.5" /> Adicionar novo campo
-                            </Button>
-                        </div>
-                    </div>
-
-                    <div className="pt-6 mt-6 border-t flex items-center gap-3">
                         <Button
                             type="button"
+                            onClick={addField}
                             variant="outline"
-                            onClick={handleCancel}
-                            className="w-1/2 h-10 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                            className="h-9 w-full border-dashed text-xs font-medium uppercase tracking-wide"
                         >
-                            <X className="h-4 w-4 mr-1.5" /> Cancelar
-                        </Button>
-
-                        <Button
-                            type="submit"
-                            disabled={processing}
-                            className="w-1/2 h-10 text-xs font-semibold uppercase tracking-wider bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm"
-                        >
-                            {processing ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                            ) : (
-                                <Save className="h-4 w-4 mr-1.5" />
-                            )}
-                            Salvar Modelo
-                            Salvar Alterações
+                            <Plus className="mr-1.5 h-4 w-4" />
+                            Adicionar novo campo
                         </Button>
                     </div>
+
+                    <SaveAndCancelBtn processing={processing} />
                 </div>
 
-                <div className="lg:col-span-8 flex flex-col items-center">
-                    <div className="mb-4 flex w-full max-w-[700px] items-center justify-between gap-4">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Pré-visualização e Edição
-                        </span>
-
-                        <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                <Edit3 className="h-3 w-3" /> Clique na folha para editar o texto
-                            </span>
-                        </div>
-                    </div>
-
-                    <div
-                        className="
-                            w-full
-                            min-h-[850px] max-w-[700px]
-                            bg-white
-                            border
-                            border-border/80
-                            shadow-lg
-                            rounded-sm
-                            px-[48px]
-                            py-[42px]
-                            text-gray-900
-                        "
-                    >
-                        {isLoadingText ? (
-                            <div className="flex min-h-[700px] items-center justify-center">
-                                <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                    <span className="text-sm">
-                                        Processando documento...
-                                    </span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div
-                                ref={editorRef}
-                                contentEditable
-                                suppressContentEditableWarning
-                                className="
-                                    document-editor
-                                    min-h-[800px]
-                                    w-full
-                                    outline-none
-                                    text-[13px]
-                                    leading-[1.7]
-                                    font-sans
-                                    text-[#333]
-                                    focus:outline-none
-                                "
-                                dangerouslySetInnerHTML={{
-                                    __html:
-                                        extractedContent ||
-                                        `<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>`,
-                                }}
-                            />
-                        )}
-                    </div>
-                </div>
+                <DocumentPreview
+                    loading={loading}
+                    isPdf={isPdf}
+                    pageImages={pageImages}
+                    currentPage={currentPage}
+                    templateFile={templateFile}
+                    documentHtml={extractedContent}
+                    editorRef={editorRef}
+                    handleDragOver={handleDragOver}
+                    handleDrop={handleDrop}
+                    previousPage={previousPage}
+                    nextPage={nextPage}
+                />
             </form>
         </AppLayout>
     );
