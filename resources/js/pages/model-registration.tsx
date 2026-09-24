@@ -14,41 +14,22 @@ import { model_registration } from "@/routes";
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-
 import { Button } from "@/components/ui/button";
 
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
-
-import {
-    Trash,
     Plus,
     Upload,
     FileText,
     Loader2,
     Save,
     X,
-    HelpCircle,
-    Copy,
-    Check,
     ChevronLeft,
     ChevronRight,
     Edit3,
 } from "lucide-react";
+
+import HowToUseDialog from "@/components/how-to-use-dialog";
+import DynamicField from "@/components/dynamic-field";
 
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -90,13 +71,10 @@ const slugify = (text: string) =>
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "");
 
-export default function ModelRegistration({
-    fieldTypeOptions = [],
-}: Props) {
+export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
     const editorRef = useRef<HTMLDivElement>(null);
 
-    
     const [loading, setLoading] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
     const [pageImages, setPageImages] = useState<string[]>([]);
@@ -104,20 +82,19 @@ export default function ModelRegistration({
     const [isPdf, setIsPdf] = useState(false);
     const [documentHtml, setDocumentHtml] = useState("");
 
-    const { data, setData, post, processing, errors } =
-        useForm({
-            name: "",
-            template: null as File | null,
-            fields: [
-                {
-                    id: "1",
-                    name: "Nome do Cliente",
-                    slug: "nome_do_cliente",
-                    type: "text",
-                },
-            ] as FieldItem[],
-            extracted_text: "",
-        });
+    const { data, setData, post, processing, errors } = useForm({
+        name: "",
+        template: null as File | null,
+        fields: [
+            {
+                id: "1",
+                name: "Nome do Cliente",
+                slug: "nome_do_cliente",
+                type: "text",
+            },
+        ] as FieldItem[],
+        extracted_text: "",
+    });
 
     const addField = () => {
         setData("fields", [
@@ -140,94 +117,55 @@ export default function ModelRegistration({
         );
     };
 
-    const updateField = (
-        id: string,
-        name: string,
-    ) => {
+    const updateFieldName = (id: string, name: string) => {
         setData(
             "fields",
             data.fields.map((field) =>
                 field.id === id
                     ? {
-                        ...field,
-                        name,
-                        slug: slugify(name),
-                    }
+                          ...field,
+                          name,
+                          slug: slugify(name),
+                      }
                     : field,
             ),
         );
     };
 
-    const updateType = (
-        id: string,
-        type: string,
-    ) => {
+    const updateFieldType = (id: string, type: string) => {
         setData(
             "fields",
             data.fields.map((field) =>
-                field.id === id
-                    ? { ...field, type }
-                    : field,
+                field.id === id ? { ...field, type } : field,
             ),
         );
     };
 
-    const copyTag = async (slug: string) => {
+    const handleCopyTag = async (slug: string) => {
         try {
-            await navigator.clipboard.writeText(
-                `{{${slug}}}`,
-            );
+            await navigator.clipboard.writeText(`{{${slug}}}`);
 
             setCopiedSlug(slug);
 
-            setTimeout(
-                () => setCopiedSlug(null),
-                2000,
-            );
+            setTimeout(() => setCopiedSlug(null), 2000);
         } catch (error) {
-            console.error(
-                "Erro ao copiar tag:",
-                error,
-            );
+            console.error("Erro ao copiar tag:", error);
         }
     };
 
-    const getCaretRange = (
-        event: DragEvent<HTMLDivElement>,
-    ): Range | null => {
+    const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
         const { clientX, clientY } = event;
 
-        if (
-            typeof document.caretRangeFromPoint ===
-            "function"
-        ) {
-            return document.caretRangeFromPoint(
-                clientX,
-                clientY,
-            );
-        }
+        if (typeof document.caretPositionFromPoint === "function") {
+            const position = document.caretPositionFromPoint(clientX, clientY);
 
-        if (
-            typeof document.caretPositionFromPoint ===
-            "function"
-        ) {
-            const position =
-                document.caretPositionFromPoint(
-                    clientX,
-                    clientY,
-                );
-
-            if (!position) return null;
+            if (!position || !position.offsetNode) {
+                return null;
+            }
 
             const range = document.createRange();
-
-            range.setStart(
-                position.offsetNode,
-                position.offset,
-            );
-
+            range.setStart(position.offsetNode, position.offset);
             range.collapse(true);
-
             return range;
         }
 
@@ -240,38 +178,27 @@ export default function ModelRegistration({
     ) => {
         if (!slug) return;
 
-        event.dataTransfer.setData(
-            "text/plain",
-            `{{${slug}}}`,
-        );
+        event.dataTransfer.setData("text/plain", `{{${slug}}}`);
 
         event.dataTransfer.effectAllowed = "copy";
     };
 
-    const handleDragOver = (
-        event: DragEvent<HTMLDivElement>,
-    ) => {
+    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
     };
 
-    const handleDrop = (
-        event: DragEvent<HTMLDivElement>,
-    ) => {
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
 
         const editor = editorRef.current;
-        const text =
-            event.dataTransfer.getData("text/plain");
+        const text = event.dataTransfer.getData("text/plain");
 
         if (!editor || !text || isPdf) return;
 
         const range = getCaretRange(event);
 
-        if (
-            !range ||
-            !editor.contains(range.commonAncestorContainer)
-        ) {
+        if (!range || !editor.contains(range.commonAncestorContainer)) {
             return;
         }
 
@@ -290,9 +217,7 @@ export default function ModelRegistration({
         selection?.addRange(cursor);
     };
 
-    const handleFileChange = (
-        event: ChangeEvent<HTMLInputElement>,
-    ) => {
+    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
 
         if (!file) return;
@@ -332,19 +257,15 @@ export default function ModelRegistration({
             setLoading(true);
 
             try {
-                const buffer =
-                    await templateFile.arrayBuffer();
+                const buffer = await templateFile.arrayBuffer();
 
-                const fileName =
-                    templateFile.name.toLowerCase();
+                const fileName = templateFile.name.toLowerCase();
 
-                const isDocx =
-                    fileName.endsWith(".docx");
+                const isDocx = fileName.endsWith(".docx");
 
                 const pdf =
                     fileName.endsWith(".pdf") ||
-                    templateFile.type ===
-                    "application/pdf";
+                    templateFile.type === "application/pdf";
 
                 if (isDocx) {
                     const result = await mammoth.convertToHtml({
@@ -353,9 +274,7 @@ export default function ModelRegistration({
 
                     if (cancelled) return;
 
-                    setDocumentHtml(
-                        result.value || "<p>Documento vazio.</p>",
-                    );
+                    setDocumentHtml(result.value || "<p>Documento vazio.</p>");
 
                     setIsPdf(false);
                     setPageImages([]);
@@ -365,11 +284,9 @@ export default function ModelRegistration({
                 }
 
                 if (pdf) {
-                    const pdfDocument = await pdfjsLib
-                        .getDocument({
-                            data: buffer,
-                        })
-                        .promise;
+                    const pdfDocument = await pdfjsLib.getDocument({
+                        data: buffer,
+                    }).promise;
 
                     const images: string[] = [];
 
@@ -412,23 +329,15 @@ export default function ModelRegistration({
                 }
 
                 if (editorRef.current) {
-                    editorRef.current.innerHTML =
-                        `<p class="text-red-500 font-medium">
+                    editorRef.current.innerHTML = `<p class="text-red-500 font-medium">
                             Tipo de arquivo não suportado.
                         </p>`;
                 }
             } catch (error) {
-                console.error(
-                    "Erro ao carregar documento:",
-                    error,
-                );
+                console.error("Erro ao carregar documento:", error);
 
-                if (
-                    !cancelled &&
-                    editorRef.current
-                ) {
-                    editorRef.current.innerHTML =
-                        `<p class="text-red-500 font-medium">
+                if (!cancelled && editorRef.current) {
+                    editorRef.current.innerHTML = `<p class="text-red-500 font-medium">
                             Não foi possível carregar o documento.
                         </p>`;
                 }
@@ -447,49 +356,33 @@ export default function ModelRegistration({
     }, [templateFile]);
 
     const previousPage = () => {
-        setCurrentPage((page) =>
-            Math.max(0, page - 1),
-        );
+        setCurrentPage((page) => Math.max(0, page - 1));
     };
 
     const nextPage = () => {
-        setCurrentPage((page) =>
-            Math.min(
-                pageImages.length - 1,
-                page + 1,
-            ),
-        );
+        setCurrentPage((page) => Math.min(pageImages.length - 1, page + 1));
     };
 
-    const handleSubmit = (
-        event: FormEvent,
-    ) => {
+    const handleSubmit = (event: FormEvent) => {
         event.preventDefault();
 
         if (!data.name.trim()) {
-            alert(
-                "Por favor, informe o nome do modelo.",
-            );
+            alert("Por favor, informe o nome do modelo.");
             return;
         }
 
         if (!data.template) {
-            alert(
-                "Selecione um arquivo para o modelo.",
-            );
+            alert("Selecione um arquivo para o modelo.");
             return;
         }
 
-        const html =
-            editorRef.current?.innerHTML ?? "";
+        const html = editorRef.current?.innerHTML ?? "";
 
         setData("extracted_text", html);
 
         post("/modelos", {
             onSuccess: () => {
-                alert(
-                    "Modelo salvo com sucesso!",
-                );
+                alert("Modelo salvo com sucesso!");
             },
         });
     };
@@ -509,53 +402,17 @@ export default function ModelRegistration({
                                 Configuração do Modelo
                             </h2>
 
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 gap-1.5 text-xs"
-                                    >
-                                        <HelpCircle className="h-3.5 w-3.5" />
-                                        Como usar
-                                    </Button>
-                                </DialogTrigger>
-
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>
-                                            Como criar e utilizar modelos
-                                        </DialogTitle>
-
-                                        <DialogDescription>
-                                            Crie os campos e arraste as tags diretamente para o documento.
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="rounded-lg border bg-muted/50 p-4 font-mono text-sm">
-                                        Contratante:{" "}
-                                        <span className="rounded bg-primary/10 px-1 text-primary">
-                                            {"{{nome_do_cliente}}"}
-                                        </span>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
+                            <HowToUseDialog />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="model_name">
-                                Nome do Modelo
-                            </Label>
+                            <Label htmlFor="model_name">Nome do Modelo</Label>
 
                             <Input
                                 id="model_name"
                                 value={data.name}
                                 onChange={(e) =>
-                                    setData(
-                                        "name",
-                                        e.target.value,
-                                    )
+                                    setData("name", e.target.value)
                                 }
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 required
@@ -590,9 +447,7 @@ export default function ModelRegistration({
                                         type="file"
                                         accept=".docx,.pdf"
                                         className="hidden"
-                                        onChange={
-                                            handleFileChange
-                                        }
+                                        onChange={handleFileChange}
                                     />
                                 </label>
                             ) : (
@@ -601,9 +456,7 @@ export default function ModelRegistration({
                                         <FileText className="h-5 w-5 text-primary" />
 
                                         <span className="truncate text-xs font-medium">
-                                            {
-                                                templateFile.name
-                                            }
+                                            {templateFile.name}
                                         </span>
                                     </div>
 
@@ -611,9 +464,7 @@ export default function ModelRegistration({
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={
-                                            clearTemplate
-                                        }
+                                        onClick={clearTemplate}
                                     >
                                         Trocar
                                     </Button>
@@ -623,176 +474,16 @@ export default function ModelRegistration({
 
                         <hr />
 
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                Campos Dinâmicos
-                            </h2>
-
-                            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
-                                {data.fields.length}
-                            </span>
-                        </div>
-
-                        <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
-                            {data.fields.map(
-                                (
-                                    field,
-                                    index,
-                                ) => (
-                                    <div
-                                        key={
-                                            field.id
-                                        }
-                                        className="space-y-3 rounded-xl border bg-card/60 p-3.5"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold uppercase text-muted-foreground">
-                                                Campo #
-                                                {index +
-                                                    1}
-                                            </span>
-
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-6 w-6 text-destructive"
-                                                onClick={() =>
-                                                    removeField(
-                                                        field.id,
-                                                    )
-                                                }
-                                                disabled={
-                                                    data
-                                                        .fields
-                                                        .length ===
-                                                    1
-                                                }
-                                            >
-                                                <Trash className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs">
-                                                Nome do Campo
-                                            </Label>
-
-                                            <Input
-                                                value={
-                                                    field.name
-                                                }
-                                                onChange={(
-                                                    e,
-                                                ) =>
-                                                    updateField(
-                                                        field.id,
-                                                        e
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                placeholder="Ex: Nome do Cliente"
-                                                className="h-8 text-xs"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-12 gap-3">
-                                            <div className="col-span-8 space-y-1.5">
-                                                <Label className="text-xs">
-                                                    Tag / Slug
-                                                </Label>
-
-                                                <div
-                                                    draggable={
-                                                        !!field.slug
-                                                    }
-                                                    onDragStart={(
-                                                        e,
-                                                    ) =>
-                                                        handleDragStart(
-                                                            e,
-                                                            field.slug,
-                                                        )
-                                                    }
-                                                    className="relative cursor-grab select-none active:cursor-grabbing"
-                                                >
-                                                    <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 pr-8 font-mono text-xs text-muted-foreground">
-                                                        {field.slug
-                                                            ? `{{${field.slug}}}`
-                                                            : "{{nome_do_campo}}"}
-                                                    </div>
-
-                                                    {field.slug && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                copyTag(
-                                                                    field.slug,
-                                                                )
-                                                            }
-                                                            className="absolute right-1.5 top-1 rounded p-1 hover:bg-background"
-                                                        >
-                                                            {copiedSlug ===
-                                                                field.slug ? (
-                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                            ) : (
-                                                                <Copy className="h-3.5 w-3.5" />
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="col-span-4 space-y-1.5">
-                                                <Label className="text-xs">
-                                                    Tipo
-                                                </Label>
-
-                                                <Select
-                                                    value={
-                                                        field.type
-                                                    }
-                                                    onValueChange={(
-                                                        value,
-                                                    ) =>
-                                                        updateType(
-                                                            field.id,
-                                                            value,
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                        {fieldTypeOptions.map(
-                                                            (
-                                                                option,
-                                                            ) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        option.value
-                                                                    }
-                                                                    value={
-                                                                        option.value
-                                                                    }
-                                                                >
-                                                                    {
-                                                                        option.label
-                                                                    }
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ),
-                            )}
-                        </div>
+                        <DynamicField
+                            fields={data.fields}
+                            fieldTypeOptions={fieldTypeOptions}
+                            copiedSlug={copiedSlug}
+                            removeField={removeField}
+                            updateFieldName={updateFieldName}
+                            updateFieldType={updateFieldType}
+                            handleDragStart={handleDragStart}
+                            handleCopyTag={handleCopyTag}
+                        />
 
                         <Button
                             type="button"
@@ -809,9 +500,7 @@ export default function ModelRegistration({
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() =>
-                                window.history.back()
-                            }
+                            onClick={() => window.history.back()}
                             className="w-1/2"
                         >
                             <X className="mr-2 h-4 w-4" />
@@ -828,7 +517,6 @@ export default function ModelRegistration({
                             ) : (
                                 <Save className="mr-2 h-4 w-4" />
                             )}
-
                             Salvar Modelo
                         </Button>
                     </div>
@@ -840,58 +528,42 @@ export default function ModelRegistration({
                             Pré-visualização
                         </span>
 
-                        {isPdf &&
-                            pageImages.length > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={
-                                            previousPage
-                                        }
-                                        disabled={
-                                            currentPage ===
-                                            0
-                                        }
-                                    >
-                                        <ChevronLeft className="h-4 w-4" />
-                                    </Button>
+                        {isPdf && pageImages.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={previousPage}
+                                    disabled={currentPage === 0}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
 
-                                    <span className="text-xs">
-                                        {currentPage +
-                                            1}{" "}
-                                        /{" "}
-                                        {
-                                            pageImages.length
-                                        }
-                                    </span>
-
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={
-                                            nextPage
-                                        }
-                                        disabled={
-                                            currentPage >=
-                                            pageImages.length -
-                                            1
-                                        }
-                                    >
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
-
-                        {!isPdf &&
-                            templateFile && (
-                                <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                    <Edit3 className="h-3.5 w-3.5" />
-                                    Arraste a tag para o documento
+                                <span className="text-xs">
+                                    {currentPage + 1} / {pageImages.length}
                                 </span>
-                            )}
+
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={nextPage}
+                                    disabled={
+                                        currentPage >= pageImages.length - 1
+                                    }
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+
+                        {!isPdf && templateFile && (
+                            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                <Edit3 className="h-3.5 w-3.5" />
+                                Arraste a tag para o documento
+                            </span>
+                        )}
                     </div>
 
                     <div className="w-full max-w-[850px] overflow-hidden rounded-sm border bg-white shadow-xl">
@@ -902,16 +574,10 @@ export default function ModelRegistration({
                                     Renderizando documento...
                                 </span>
                             </div>
-                        ) : isPdf &&
-                            pageImages.length ? (
+                        ) : isPdf && pageImages.length ? (
                             <img
-                                src={
-                                    pageImages[
-                                    currentPage
-                                    ]
-                                }
-                                alt={`Página ${currentPage + 1
-                                    }`}
+                                src={pageImages[currentPage]}
+                                alt={`Página ${currentPage + 1}`}
                                 className="block h-auto w-full select-none"
                                 draggable={false}
                             />
@@ -938,7 +604,8 @@ export default function ModelRegistration({
                                 </p>
 
                                 <p className="mt-1 max-w-xs text-xs">
-                                    Faça upload de um PDF ou DOCX para visualizar o modelo.
+                                    Faça upload de um PDF ou DOCX para
+                                    visualizar o modelo.
                                 </p>
                             </div>
                         )}

@@ -14,7 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -44,7 +50,10 @@ function getInitialData(model?: DocumentModel): Record<string, string> {
     return result;
 }
 
-function formatValue(field: DynamicField | undefined, value: string | undefined,): string {
+function formatValue(
+    field: DynamicField | undefined,
+    value: string | undefined,
+): string {
     if (!value) return "";
     if (!field) return value;
 
@@ -82,16 +91,25 @@ function formatValue(field: DynamicField | undefined, value: string | undefined,
     return value;
 }
 
-export default function Dashboard({ customModels = [], showMockModels = false, isAdmin = false }: DashboardProps) {
-    const models = showMockModels
-        ? MOCK_MODELS
-        : customModels;
+export default function Dashboard({
+    customModels = [],
+    showMockModels = false,
+    isAdmin = false,
+}: DashboardProps) {
+    const models = showMockModels ? MOCK_MODELS : customModels;
 
-    const [selectedModelId, setSelectedModelId] = useState<string>(models[0]?.id ?? "");
+    const [selectedModelId, setSelectedModelId] = useState<string>(
+        models[0]?.id ?? "",
+    );
 
-    const selectedModel = useMemo(() => models.find((model) => model.id === selectedModelId) ?? models[0], [models, selectedModelId]);
+    const selectedModel = useMemo(
+        () => models.find((model) => model.id === selectedModelId) ?? models[0],
+        [models, selectedModelId],
+    );
 
-    const { data, setData, processing, } = useForm<Record<string, string>>(getInitialData(selectedModel));
+    const { data, setData, processing } = useForm<Record<string, string>>(
+        getInitialData(selectedModel),
+    );
 
     useEffect(() => {
         if (selectedModel) {
@@ -114,9 +132,7 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             grouped.get(section)!.push(field);
         });
 
-        return Array.from(
-            grouped.entries(),
-        );
+        return Array.from(grouped.entries());
     }, [selectedModel]);
 
     function renderField(field: DynamicField) {
@@ -126,11 +142,7 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             <Label htmlFor={field.slug} className="text-xs font-medium">
                 {field.name}
 
-                {field.required && (
-                    <span className="ml-1 text-red-500">
-                        *
-                    </span>
-                )}
+                {field.required && <span className="ml-1 text-red-500">*</span>}
             </Label>
         );
 
@@ -149,7 +161,15 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                 <div key={field.id} className="space-y-1.5">
                     {label}
 
-                    <Textarea id={field.slug} value={value} placeholder={field.placeholder} onChange={(event) => setData(field.slug, event.target.value)} className="min-h-[90px] resize-y bg-background" />
+                    <Textarea
+                        id={field.slug}
+                        value={value}
+                        placeholder={field.placeholder}
+                        onChange={(event) =>
+                            setData(field.slug, event.target.value)
+                        }
+                        className="min-h-[90px] resize-y bg-background"
+                    />
                 </div>
             );
         }
@@ -170,7 +190,16 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             <div key={field.id} className="space-y-1.5">
                 {label}
 
-                <Input id={field.slug} type={inputType} value={value} placeholder={field.placeholder} onChange={(event) => setData(field.slug, event.target.value)} className="bg-background" />
+                <Input
+                    id={field.slug}
+                    type={inputType}
+                    value={value}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                        setData(field.slug, event.target.value)
+                    }
+                    className="bg-background"
+                />
             </div>
         );
     }
@@ -182,32 +211,28 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             const match = part.match(/^\{\{(.+)\}\}$/);
 
             if (!match) {
-                return (
-                    <span key={index}>
-                        {part}
-                    </span>
-                );
+                return <span key={index}>{part}</span>;
             }
 
             const slug = match[1];
-            const field = selectedModel?.fields.find((item) => item.slug === slug);
+            const field = selectedModel?.fields.find(
+                (item) => item.slug === slug,
+            );
             const value = formatValue(field, data[slug]);
 
             if (!value) {
                 return (
-                    <span key={index} className="rounded bg-amber-100 px-1 py-0.5 font-medium text-amber-800">
+                    <span
+                        key={index}
+                        className="rounded bg-amber-100 px-1 py-0.5 font-medium text-amber-800"
+                    >
                         [{field?.name ?? slug}]
                     </span>
                 );
             }
 
-            return (
-                <strong key={index}>
-                    {value}
-                </strong>
-            );
-        },
-        );
+            return <strong key={index}>{value}</strong>;
+        });
     }
 
     function handleDownload() {
@@ -217,11 +242,9 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
 
         formData.append("model_id", selectedModel.id);
 
-        Object.entries(data).forEach(
-            ([key, value]) => {
-                formData.append(`data[${key}]`, value);
-            },
-        );
+        Object.entries(data).forEach(([key, value]) => {
+            formData.append(`data[${key}]`, value);
+        });
 
         fetch("/modelos/gerar", {
             method: "POST",
@@ -229,24 +252,17 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
             headers: {
                 "X-CSRF-TOKEN":
                     document
-                        .querySelector(
-                            'meta[name="csrf-token"]',
-                        )
-                        ?.getAttribute(
-                            "content",
-                        ) || "",
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content") || "",
 
-                Accept:
-                    "application/pdf",
+                Accept: "application/pdf",
             },
 
             body: formData,
         })
             .then((response) => {
                 if (!response.ok) {
-                    throw new Error(
-                        "Erro ao gerar documento",
-                    );
+                    throw new Error("Erro ao gerar documento");
                 }
 
                 return response.blob();
@@ -288,26 +304,49 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="model-select" className="text-xs font-medium">
+                            <Label
+                                htmlFor="model-select"
+                                className="text-xs font-medium"
+                            >
                                 Modelo de Documento
                             </Label>
 
                             <div className="flex w-full min-w-0 items-center gap-2">
-                                <Select value={selectedModel?.id ?? ""} onValueChange={(value) => setSelectedModelId(value)}>
-                                    <SelectTrigger id="model-select" className="min-w-0 flex-1 bg-background">
-                                        <SelectValue placeholder="Selecione o modelo" className="truncate" />
+                                <Select
+                                    value={selectedModel?.id ?? ""}
+                                    onValueChange={(value) =>
+                                        setSelectedModelId(value)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="model-select"
+                                        className="min-w-0 flex-1 bg-background"
+                                    >
+                                        <SelectValue
+                                            placeholder="Selecione o modelo"
+                                            className="truncate"
+                                        />
                                     </SelectTrigger>
 
-                                    <SelectContent> {models.map((model) => (
-                                        <SelectItem key={model.id} value={model.id}>
-                                            {model.name}
-                                        </SelectItem>),
-                                    )}
+                                    <SelectContent>
+                                        {" "}
+                                        {models.map((model) => (
+                                            <SelectItem
+                                                key={model.id}
+                                                value={model.id}
+                                            >
+                                                {model.name}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
 
                                 {isAdmin && (
-                                    <Link href={model_registration()} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white transition-colors hover:bg-emerald-800" title="Cadastrar Novo Modelo">
+                                    <Link
+                                        href={model_registration()}
+                                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white transition-colors hover:bg-emerald-800"
+                                        title="Cadastrar Novo Modelo"
+                                    >
                                         <Plus className="h-4 w-4" />
                                     </Link>
                                 )}
@@ -336,11 +375,12 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                                     </div>
 
                                     <div className="space-y-4">
-                                        {fields.map((field) => renderField(field))}
+                                        {fields.map((field) =>
+                                            renderField(field),
+                                        )}
                                     </div>
                                 </div>
-                            ),
-                            )
+                            ))
                         )}
                     </div>
                 </div>
@@ -353,9 +393,12 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                             </span>
                         </div>
 
-                        <Button type="button" className="shrink-0 gap-2 bg-emerald-700 text-white hover:bg-emerald-800" onClick={handleDownload}>
+                        <Button
+                            type="button"
+                            className="shrink-0 gap-2 bg-emerald-700 text-white hover:bg-emerald-800"
+                            onClick={handleDownload}
+                        >
                             <Download className="h-4 w-4" />
-
                             Baixar Documento
                         </Button>
                     </div>
@@ -363,24 +406,43 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                     <div className="relative w-full max-w-[900px]">
                         <div className="relative mx-auto w-full max-w-[850px] overflow-hidden rounded-sm border border-border/80 bg-white shadow-xl">
                             <div className="min-h-[841px] w-full px-[48px] py-[42px] text-gray-900">
-                                {selectedModel?.preview?.length ? (selectedModel.preview.map((paragraph, index) => {
-                                    if (paragraph === "") {
-                                        return (
-                                            <div key={index} className="h-4" />
-                                        );
-                                    }
+                                {selectedModel?.preview?.length ? (
+                                    selectedModel.preview.map(
+                                        (paragraph, index) => {
+                                            if (paragraph === "") {
+                                                return (
+                                                    <div
+                                                        key={index}
+                                                        className="h-4"
+                                                    />
+                                                );
+                                            }
 
-                                    const isTitle = index === 0;
+                                            const isTitle = index === 0;
 
-                                    const isClause = paragraph.trim().toUpperCase().startsWith("CLÁUSULA");
+                                            const isClause = paragraph
+                                                .trim()
+                                                .toUpperCase()
+                                                .startsWith("CLÁUSULA");
 
-                                    return (
-                                        <p key={index} className={isTitle ? "mb-8 text-center text-base font-bold uppercase tracking-wide" : isClause ? "mb-2 mt-5 text-xs font-bold uppercase tracking-wide" : "mb-3 text-justify text-[13px] leading-[1.7] font-sans text-[#333]"}>
-                                            {renderPreviewText(paragraph)}
-                                        </p>
-                                    );
-                                },
-                                )
+                                            return (
+                                                <p
+                                                    key={index}
+                                                    className={
+                                                        isTitle
+                                                            ? "mb-8 text-center text-base font-bold uppercase tracking-wide"
+                                                            : isClause
+                                                              ? "mb-2 mt-5 text-xs font-bold uppercase tracking-wide"
+                                                              : "mb-3 text-justify text-[13px] leading-[1.7] font-sans text-[#333]"
+                                                    }
+                                                >
+                                                    {renderPreviewText(
+                                                        paragraph,
+                                                    )}
+                                                </p>
+                                            );
+                                        },
+                                    )
                                 ) : (
                                     <div className="flex min-h-[750px] items-center justify-center text-center">
                                         <div className="max-w-sm">
@@ -391,7 +453,9 @@ export default function Dashboard({ customModels = [], showMockModels = false, i
                                             </p>
 
                                             <p className="mt-1 text-xs leading-relaxed text-muted-foreground/70">
-                                                Selecione um modelo para visualizar o conteúdo do documento.
+                                                Selecione um modelo para
+                                                visualizar o conteúdo do
+                                                documento.
                                             </p>
                                         </div>
                                     </div>

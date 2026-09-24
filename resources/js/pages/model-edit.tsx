@@ -5,55 +5,35 @@ import {
     type FormEvent,
     type DragEvent,
     useRef,
-} from 'react';
+} from "react";
 
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
-import { model_registration } from '@/routes';
+import AppLayout from "@/layouts/app-layout";
+import type { BreadcrumbItem } from "@/types";
+import { Head, useForm } from "@inertiajs/react";
+import { model_registration } from "@/routes";
 
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-
-import { Button } from '@/components/ui/button';
+import HowToUseDialog from "@/components/how-to-use-dialog";
+import DynamicField from "@/components/dynamic-field";
 
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-
-import {
-    Trash,
     Plus,
     Upload,
     FileText,
     Loader2,
     Save,
     X,
-    HelpCircle,
-    Copy,
-    Check,
-    Edit3,
-} from 'lucide-react';
+} from "lucide-react";
 
-import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
-import type { TextItem } from 'pdfjs-dist/types/src/display/api';
+import mammoth from "mammoth";
+import * as pdfjsLib from "pdfjs-dist";
+import type { TextItem } from "pdfjs-dist/types/src/display/api";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
+    "pdfjs-dist/build/pdf.worker.min.mjs",
     import.meta.url,
 ).toString();
 
@@ -81,37 +61,34 @@ interface Props {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Editar Modelo',
+        title: "Editar Modelo",
         href: model_registration(),
     },
 ];
 
 function slugify(text: string) {
     return text
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
 }
 
 function cleanHtml(html: string) {
     return html
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/>\s+</g, '><')
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/>\s+</g, "><")
         .trim();
 }
 
-export default function ModelEdit({
-    fieldTypeOptions = [],
-    model,
-}: Props) {
+export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
 
     const [extractedContent, setExtractedContent] = useState<string>(
-        model.extracted_text || '',
+        model.extracted_text || "",
     );
 
     const [isLoadingText, setIsLoadingText] = useState(false);
@@ -125,32 +102,32 @@ export default function ModelEdit({
         fields: FieldItem[];
         extracted_text: string;
     }>({
-        name: model.name || '',
+        name: model.name || "",
         template: null,
         fields:
             model.fields?.length > 0
                 ? model.fields
                 : [
                       {
-                          id: '1',
-                          name: 'Nome do Cliente',
-                          slug: 'nome_do_cliente',
-                          type: 'text',
+                          id: "1",
+                          name: "Nome do Cliente",
+                          slug: "nome_do_cliente",
+                          type: "text",
                       },
                   ],
-        extracted_text: model.extracted_text || '',
+        extracted_text: model.extracted_text || "",
     });
 
     const addField = () => {
         const newId = String(Date.now());
 
-        setData('fields', [
+        setData("fields", [
             ...data.fields,
             {
                 id: newId,
-                name: '',
-                slug: '',
-                type: 'text',
+                name: "",
+                slug: "",
+                type: "text",
             },
         ]);
     };
@@ -161,14 +138,14 @@ export default function ModelEdit({
         }
 
         setData(
-            'fields',
+            "fields",
             data.fields.filter((field) => field.id !== id),
         );
     };
 
     const updateFieldName = (id: string, name: string) => {
         setData(
-            'fields',
+            "fields",
             data.fields.map((field) =>
                 field.id === id
                     ? {
@@ -183,7 +160,7 @@ export default function ModelEdit({
 
     const updateFieldType = (id: string, type: string) => {
         setData(
-            'fields',
+            "fields",
             data.fields.map((field) =>
                 field.id === id
                     ? {
@@ -207,41 +184,23 @@ export default function ModelEdit({
                 setCopiedSlug(null);
             }, 2000);
         } catch (error) {
-            console.error('Erro ao copiar tag:', error);
+            console.error("Erro ao copiar tag:", error);
         }
     };
 
-    const getCaretRange = (
-        event: DragEvent<HTMLDivElement>,
-    ): Range | null => {
+    const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
         const { clientX, clientY } = event;
 
-        if (typeof document.caretRangeFromPoint === 'function') {
-            return document.caretRangeFromPoint(
-                clientX,
-                clientY,
-            );
-        }
+        if (typeof document.caretPositionFromPoint === "function") {
+            const position = document.caretPositionFromPoint(clientX, clientY);
 
-        if (typeof document.caretPositionFromPoint === 'function') {
-            const position = document.caretPositionFromPoint(
-                clientX,
-                clientY,
-            );
-
-            if (!position) {
+            if (!position || !position.offsetNode) {
                 return null;
             }
 
             const range = document.createRange();
-
-            range.setStart(
-                position.offsetNode,
-                position.offset,
-            );
-
+            range.setStart(position.offsetNode, position.offset);
             range.collapse(true);
-
             return range;
         }
 
@@ -256,32 +215,23 @@ export default function ModelEdit({
             return;
         }
 
-        event.dataTransfer.setData(
-            'text/plain',
-            `{{${slug}}}`,
-        );
+        event.dataTransfer.setData("text/plain", `{{${slug}}}`);
 
-        event.dataTransfer.effectAllowed = 'copy';
+        event.dataTransfer.effectAllowed = "copy";
     };
 
-    const handleDragOver = (
-        event: DragEvent<HTMLDivElement>,
-    ) => {
+    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
 
-        event.dataTransfer.dropEffect = 'copy';
+        event.dataTransfer.dropEffect = "copy";
     };
 
-    const handleDrop = (
-        event: DragEvent<HTMLDivElement>,
-    ) => {
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
 
         const editor = editorRef.current;
 
-        const text = event.dataTransfer.getData(
-            'text/plain',
-        );
+        const text = event.dataTransfer.getData("text/plain");
 
         if (!editor || !text) {
             return;
@@ -289,41 +239,34 @@ export default function ModelEdit({
 
         const range = getCaretRange(event);
 
-        if (
-            !range ||
-            !editor.contains(range.commonAncestorContainer)
-        ) {
+        if (!range || !editor.contains(range.commonAncestorContainer)) {
             return;
         }
 
         const node = document.createTextNode(text);
 
         range.deleteContents();
-
         range.insertNode(node);
 
         const cursor = document.createRange();
 
         cursor.setStartAfter(node);
-
         cursor.collapse(true);
 
         const selection = window.getSelection();
 
         selection?.removeAllRanges();
-
         selection?.addRange(cursor);
 
         const updatedHtml = editor.innerHTML;
 
         setExtractedContent(updatedHtml);
-
-        setData('extracted_text', updatedHtml);
+        setData("extracted_text", updatedHtml);
     };
 
     const handleCancel = () => {
         const confirmed = window.confirm(
-            'Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.',
+            "Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.",
         );
 
         if (confirmed) {
@@ -335,7 +278,7 @@ export default function ModelEdit({
         e.preventDefault();
 
         if (!data.name.trim()) {
-            alert('Por favor, informe o nome do modelo.');
+            alert("Por favor, informe o nome do modelo.");
             return;
         }
 
@@ -346,16 +289,11 @@ export default function ModelEdit({
         const cleanedHtml = cleanHtml(updatedHtmlContent);
 
         put(`/modelos/${model.id}`, {
-            ...data,
-            extracted_text: cleanedHtml,
             onSuccess: () => {
-                alert('Modelo atualizado com sucesso!');
+                alert("Modelo atualizado com sucesso!");
             },
             onError: (formErrors) => {
-                console.error(
-                    'Erros de validação:',
-                    formErrors,
-                );
+                console.error("Erros de validação:", formErrors);
             },
         });
     };
@@ -365,22 +303,22 @@ export default function ModelEdit({
             return;
         }
 
+        const file = templateFile;
+
         async function processDocument() {
             setIsLoadingText(true);
 
             try {
-                const buffer = await templateFile.arrayBuffer();
+                const buffer = await file.arrayBuffer();
 
                 const isDocx =
-                    templateFile.type ===
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                    templateFile.name
-                        .toLowerCase()
-                        .endsWith('.docx');
+                    file.type ===
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                    file.name.toLowerCase().endsWith(".docx");
 
                 const isPdf =
-                    templateFile.type === 'application/pdf' ||
-                    templateFile.name.toLowerCase().endsWith('.pdf');
+                    file.type === "application/pdf" ||
+                    file.name.toLowerCase().endsWith(".pdf");
 
                 if (!isDocx && !isPdf) {
                     setExtractedContent(`
@@ -393,43 +331,42 @@ export default function ModelEdit({
                 }
 
                 if (isDocx) {
-                    const result = await mammoth.convertToHtml({
-                            arrayBuffer: buffer,
+                    const result = await mammoth.convertToHtml(
+                        { arrayBuffer: buffer },
+                        {
                             styleMap: [
                                 "p[style-name='Heading 1'] => h1:fresh",
                                 "p[style-name='Heading 2'] => h2:fresh",
                                 "p[style-name='Heading 3'] => h3:fresh",
                             ],
-                        });
+                        },
+                    );
 
                     const cleanedHtml = cleanHtml(result.value);
 
                     setExtractedContent(cleanedHtml);
-                    setData('extracted_text', cleanedHtml);
+                    setData("extracted_text", cleanedHtml);
 
                     return;
                 }
 
                 if (isPdf) {
                     const pdf = await pdfjsLib.getDocument({
-                            data: buffer,
-                        }).promise;
+                        data: buffer,
+                    }).promise;
 
-                    let htmlBuilder = '';
+                    let htmlBuilder = "";
 
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
 
                         const pageText = textContent.items
-                                .filter(
-                                    (item): item is TextItem =>
-                                        'str' in item,
-                                )
-                                .map((item) => item.str)
-                                .join(' ')
-                                .replace(/\s+/g, ' ')
-                                .trim();
+                            .filter((item): item is TextItem => "str" in item)
+                            .map((item) => item.str)
+                            .join(" ")
+                            .replace(/\s+/g, " ")
+                            .trim();
 
                         if (pageText) {
                             htmlBuilder += `
@@ -443,13 +380,10 @@ export default function ModelEdit({
                     const cleanedHtml = cleanHtml(htmlBuilder);
 
                     setExtractedContent(cleanedHtml);
-                    setData('extracted_text', cleanedHtml);
+                    setData("extracted_text", cleanedHtml);
                 }
             } catch (error) {
-                console.error(
-                    'Erro na conversão:',
-                    error,
-                );
+                console.error("Erro na conversão:", error);
 
                 const errorHtml = `
                     <p class="text-red-500 font-medium">
@@ -458,7 +392,7 @@ export default function ModelEdit({
                 `;
 
                 setExtractedContent(errorHtml);
-                setData('extracted_text', errorHtml);
+                setData("extracted_text", errorHtml);
             } finally {
                 setIsLoadingText(false);
             }
@@ -467,9 +401,7 @@ export default function ModelEdit({
         processDocument();
     }, [templateFile]);
 
-    const handleFileChange = (
-        e: ChangeEvent<HTMLInputElement>,
-    ) => {
+    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
 
         if (!file) {
@@ -477,7 +409,7 @@ export default function ModelEdit({
         }
 
         setTemplateFile(file);
-        setData('template', file);
+        setData("template", file);
     };
 
     return (
@@ -497,106 +429,11 @@ export default function ModelEdit({
                                 </h2>
                             </div>
 
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 gap-1.5 text-xs"
-                                    >
-                                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                                        Como usar
-                                    </Button>
-                                </DialogTrigger>
-
-                                <DialogContent className="max-h-[85vh] w-[92vw] overflow-y-auto rounded-xl p-4 sm:p-6 md:max-w-3xl">
-                                    <DialogHeader className="pb-2">
-                                        <DialogTitle className="text-base font-bold sm:text-xl">
-                                            Como criar e utilizar modelos
-                                        </DialogTitle>
-
-                                        <DialogDescription className="text-xs text-muted-foreground sm:text-sm">
-                                            Siga os passos abaixo para automatizar o preenchimento dos seus documentos.
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="space-y-4 pt-2">
-                                        <div className="space-y-1 rounded-lg border bg-muted/60 p-3 font-mono text-xs sm:p-4">
-                                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                                Exemplo de uso no texto
-                                            </span>
-
-                                            <p className="break-all font-semibold text-primary">
-                                                Contratante:{' '}
-                                                <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">
-                                                    {'{{nome_do_cliente}}'}
-                                                </span>
-                                            </p>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                                            <div className="space-y-1 rounded-lg border bg-card p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        1
-                                                    </span>
-
-                                                    <h4 className="text-xs font-semibold">
-                                                        Crie os Campos
-                                                    </h4>
-                                                </div>
-
-                                                <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Adicione os campos dinâmicos na lista ao lado definindo nome e tipo.
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-1 rounded-lg border bg-card p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        2
-                                                    </span>
-
-                                                    <h4 className="text-xs font-semibold">
-                                                        Copie a Tag
-                                                    </h4>
-                                                </div>
-
-                                                <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Copie a chave gerada automaticamente, como{' '}
-                                                    <code className="font-mono text-primary">
-                                                        {'{{slug}}'}
-                                                    </code>
-                                                    .
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-1 rounded-lg border bg-card p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        3
-                                                    </span>
-
-                                                    <h4 className="text-xs font-semibold">
-                                                        Insira no Texto
-                                                    </h4>
-                                                </div>
-
-                                                <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Cole no painel de preview ou diretamente no arquivo Word/PDF.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
+                            <HowToUseDialog />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="model_name">
-                                Nome do Modelo
-                            </Label>
+                            <Label htmlFor="model_name">Nome do Modelo</Label>
 
                             <Input
                                 id="model_name"
@@ -604,10 +441,7 @@ export default function ModelEdit({
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
                                 onChange={(e) =>
-                                    setData(
-                                        'name',
-                                        e.target.value,
-                                    )
+                                    setData("name", e.target.value)
                                 }
                                 required
                             />
@@ -642,9 +476,7 @@ export default function ModelEdit({
                                         name="template"
                                         accept=".docx,.pdf"
                                         className="hidden"
-                                        onChange={
-                                            handleFileChange
-                                        }
+                                        onChange={handleFileChange}
                                     />
                                 </label>
                             ) : (
@@ -663,18 +495,12 @@ export default function ModelEdit({
                                         size="sm"
                                         className="h-7 text-xs text-destructive hover:bg-destructive/10"
                                         onClick={() => {
-                                            setTemplateFile(
-                                                null,
-                                            );
+                                            setTemplateFile(null);
 
-                                            setData(
-                                                'template',
-                                                null,
-                                            );
+                                            setData("template", null);
 
                                             setExtractedContent(
-                                                model.extracted_text ||
-                                                    '',
+                                                model.extracted_text || "",
                                             );
                                         }}
                                     >
@@ -692,182 +518,16 @@ export default function ModelEdit({
 
                         <hr className="my-4 border-border" />
 
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                Campos Dinâmicos
-                            </h2>
-
-                            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
-                                {data.fields.length}{' '}
-                                {data.fields.length === 1
-                                    ? 'campo'
-                                    : 'campos'}
-                            </span>
-                        </div>
-
-                        <div className="-mr-2 max-h-[420px] space-y-3 overflow-y-auto pr-2">
-                            {data.fields.map(
-                                (field, index) => (
-                                    <div
-                                        key={field.id}
-                                        className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
-                                    >
-                                        <div className="flex items-center justify-between border-b border-border/40 pb-1">
-                                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                                Campo #
-                                                {index + 1}
-                                            </span>
-
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-6 w-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                                onClick={() =>
-                                                    removeField(
-                                                        field.id,
-                                                    )
-                                                }
-                                                disabled={
-                                                    data.fields
-                                                        .length ===
-                                                    1
-                                                }
-                                                title="Excluir campo"
-                                            >
-                                                <Trash className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Nome do Campo
-                                            </Label>
-
-                                            <Input
-                                                value={
-                                                    field.name
-                                                }
-                                                onChange={(
-                                                    e,
-                                                ) =>
-                                                    updateFieldName(
-                                                        field.id,
-                                                        e
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                placeholder="Ex: Nome do Cliente"
-                                                className="h-8 bg-background text-xs"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-12 items-start gap-3">
-                                            <div className="col-span-8 space-y-1.5">
-                                                <Label className="text-xs font-medium">
-                                                    Tag / Slug
-                                                </Label>
-
-                                                <div
-                                                    draggable={
-                                                        !!field.slug
-                                                    }
-                                                    onDragStart={(
-                                                        e,
-                                                    ) =>
-                                                        handleDragStart(
-                                                            e,
-                                                            field.slug,
-                                                        )
-                                                    }
-                                                    className="relative flex cursor-grab select-none items-center active:cursor-grabbing"
-                                                >
-                                                    <Input
-                                                        value={
-                                                            field.slug
-                                                                ? `{{${field.slug}}}`
-                                                                : ''
-                                                        }
-                                                        disabled
-                                                        placeholder="{{nome_do_campo}}"
-                                                        className="h-8 w-full bg-muted/50 pr-8 font-mono text-xs text-muted-foreground"
-                                                    />
-
-                                                    {field.slug && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleCopyTag(
-                                                                    field.slug,
-                                                                )
-                                                            }
-                                                            title="Copiar Tag"
-                                                            className="absolute right-1.5 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
-                                                        >
-                                                            {copiedSlug ===
-                                                            field.slug ? (
-                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                            ) : (
-                                                                <Copy className="h-3.5 w-3.5" />
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="col-span-4 min-w-0 space-y-1.5">
-                                                <Label className="text-xs font-medium">
-                                                    Tipo
-                                                </Label>
-
-                                                <Select
-                                                    value={
-                                                        field.type
-                                                    }
-                                                    onValueChange={(
-                                                        value,
-                                                    ) =>
-                                                        updateFieldType(
-                                                            field.id,
-                                                            value,
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger className="h-8 w-full overflow-hidden bg-background text-xs">
-                                                        <SelectValue
-                                                            placeholder="Selecione"
-                                                            className="truncate"
-                                                        />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                        {fieldTypeOptions.map(
-                                                            (
-                                                                option,
-                                                            ) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        option.value
-                                                                    }
-                                                                    value={
-                                                                        option.value
-                                                                    }
-                                                                >
-                                                                    {
-                                                                        option.label
-                                                                    }
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ),
-                            )}
-                        </div>
+                        <DynamicField
+                            fields={data.fields}
+                            fieldTypeOptions={fieldTypeOptions}
+                            copiedSlug={copiedSlug}
+                            removeField={removeField}
+                            updateFieldName={updateFieldName}
+                            updateFieldType={updateFieldType}
+                            handleDragStart={handleDragStart}
+                            handleCopyTag={handleCopyTag}
+                        />
 
                         <Button
                             type="button"
@@ -902,9 +562,7 @@ export default function ModelEdit({
                                 <Save className="mr-1.5 h-4 w-4" />
                             )}
 
-                            {processing
-                                ? 'Salvando...'
-                                : 'Salvar Alterações'}
+                            {processing ? "Salvando..." : "Salvar Alterações"}
                         </Button>
                     </div>
                 </div>
@@ -912,17 +570,8 @@ export default function ModelEdit({
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
                     <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                 Pré-visualização
-                            </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Edit3 className="h-3 w-3" />
-                                Arraste a tag para o documento
                             </span>
                         </div>
                     </div>
@@ -945,25 +594,13 @@ export default function ModelEdit({
                                         ref={editorRef}
                                         contentEditable
                                         suppressContentEditableWarning
-                                        onDragOver={
-                                            handleDragOver
-                                        }
+                                        onDragOver={handleDragOver}
                                         onDrop={handleDrop}
-                                        className="
-                                            document-editor
-                                            min-h-[750px]
-                                            w-full
-                                            outline-none
-                                            font-sans
-                                            text-[13px]
-                                            leading-[1.7]
-                                            text-[#333]
-                                            focus:outline-none
-                                        "
+                                        className=" document-editor min-h-[750px] w-full outline-none font-sans text-[13px] leading-[1.7] text-[#333] focus:outline-none"
                                         dangerouslySetInnerHTML={{
                                             __html:
                                                 extractedContent ||
-                                                '<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>',
+                                                "<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>",
                                         }}
                                     />
                                 </div>
