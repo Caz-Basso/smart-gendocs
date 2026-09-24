@@ -1,4 +1,39 @@
+import {
+    useState,
+    useEffect,
+    type ChangeEvent,
+    type FormEvent,
+    type DragEvent,
+    useRef,
+} from 'react';
+
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
+import { model_registration } from '@/routes';
+
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+
+import { Button } from '@/components/ui/button';
+
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+
 import {
     Trash,
     Plus,
@@ -12,43 +47,10 @@ import {
     Check,
     Edit3,
 } from 'lucide-react';
-import mammoth from 'mammoth';
-import { useState, useEffect, ChangeEvent, FormEvent, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import AppLayout from '@/layouts/app-layout';
-import { model_registration } from '@/routes';
-import { BreadcrumbItem } from '@/types';
 
-/**
- * Imagens extraídas de PDFs/DOCX (ex.: logos) vêm em resolução nativa da
- * página; sem limite elas estouram a largura do editor. Injetamos estilo
- * inline (que vence qualquer CSS) limitando a largura de cada <img>.
- */
-function constrainImages(html: string): string {
-    return html.replace(
-        /<img(?![^>]*\bstyle=)/g,
-        '<img style="max-width:180px;max-height:72px;width:auto;height:auto"',
-    );
-}
+import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
-import { TextItem } from 'pdfjs-dist/types/src/display/api';
+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -72,14 +74,13 @@ interface Props {
     model: {
         id: string;
         name: string;
-        fields: any[];
+        fields: FieldItem[];
         extracted_text: string | null;
     };
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Cadastro de Modelos',
         title: 'Editar Modelo',
         href: model_registration(),
     },
@@ -95,11 +96,24 @@ function slugify(text: string) {
         .replace(/^_+|_+$/g, '');
 }
 
-export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
+function cleanHtml(html: string) {
+    return html
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/>\s+</g, '><')
+        .trim();
+}
+
+export default function ModelEdit({
+    fieldTypeOptions = [],
+    model,
+}: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
+
     const [extractedContent, setExtractedContent] = useState<string>(
         model.extracted_text || '',
     );
+
     const [isLoadingText, setIsLoadingText] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
@@ -111,52 +125,58 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         fields: FieldItem[];
         extracted_text: string;
     }>({
-        name: '',
         name: model.name || '',
         template: null,
-        fields: [
-            {
-                id: '1',
-                name: 'Nome do Cliente',
-                slug: 'nome_do_cliente',
-                type: 'text',
-            },
-        ],
-        extracted_text: '',
-        fields: model.fields?.length
-            ? model.fields
-            : [
-                  {
-                      id: '1',
-                      name: 'Nome do Cliente',
-                      slug: 'nome_do_cliente',
-                      type: 'text',
-                  },
-              ],
+        fields:
+            model.fields?.length > 0
+                ? model.fields
+                : [
+                      {
+                          id: '1',
+                          name: 'Nome do Cliente',
+                          slug: 'nome_do_cliente',
+                          type: 'text',
+                      },
+                  ],
         extracted_text: model.extracted_text || '',
     });
 
     const addField = () => {
         const newId = String(Date.now());
+
         setData('fields', [
             ...data.fields,
-            { id: newId, name: '', slug: '', type: 'text' },
+            {
+                id: newId,
+                name: '',
+                slug: '',
+                type: 'text',
+            },
         ]);
     };
 
     const removeField = (id: string) => {
-        if (data.fields.length === 1) return;
+        if (data.fields.length === 1) {
+            return;
+        }
+
         setData(
             'fields',
-            data.fields.filter((f) => f.id !== id),
+            data.fields.filter((field) => field.id !== id),
         );
     };
 
     const updateFieldName = (id: string, name: string) => {
         setData(
             'fields',
-            data.fields.map((f) =>
-                f.id === id ? { ...f, name, slug: slugify(name) } : f,
+            data.fields.map((field) =>
+                field.id === id
+                    ? {
+                          ...field,
+                          name,
+                          slug: slugify(name),
+                      }
+                    : field,
             ),
         );
     };
@@ -164,23 +184,149 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
     const updateFieldType = (id: string, type: string) => {
         setData(
             'fields',
-            data.fields.map((f) => (f.id === id ? { ...f, type } : f)),
+            data.fields.map((field) =>
+                field.id === id
+                    ? {
+                          ...field,
+                          type,
+                      }
+                    : field,
+            ),
         );
     };
 
-    const handleCopyTag = (slug: string) => {
+    const handleCopyTag = async (slug: string) => {
         const tag = `{{${slug}}}`;
-        navigator.clipboard.writeText(tag);
-        setCopiedSlug(slug);
-        setTimeout(() => setCopiedSlug(null), 2000);
+
+        try {
+            await navigator.clipboard.writeText(tag);
+
+            setCopiedSlug(slug);
+
+            setTimeout(() => {
+                setCopiedSlug(null);
+            }, 2000);
+        } catch (error) {
+            console.error('Erro ao copiar tag:', error);
+        }
+    };
+
+    const getCaretRange = (
+        event: DragEvent<HTMLDivElement>,
+    ): Range | null => {
+        const { clientX, clientY } = event;
+
+        if (typeof document.caretRangeFromPoint === 'function') {
+            return document.caretRangeFromPoint(
+                clientX,
+                clientY,
+            );
+        }
+
+        if (typeof document.caretPositionFromPoint === 'function') {
+            const position = document.caretPositionFromPoint(
+                clientX,
+                clientY,
+            );
+
+            if (!position) {
+                return null;
+            }
+
+            const range = document.createRange();
+
+            range.setStart(
+                position.offsetNode,
+                position.offset,
+            );
+
+            range.collapse(true);
+
+            return range;
+        }
+
+        return null;
+    };
+
+    const handleDragStart = (
+        event: DragEvent<HTMLDivElement>,
+        slug: string,
+    ) => {
+        if (!slug) {
+            return;
+        }
+
+        event.dataTransfer.setData(
+            'text/plain',
+            `{{${slug}}}`,
+        );
+
+        event.dataTransfer.effectAllowed = 'copy';
+    };
+
+    const handleDragOver = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+
+        event.dataTransfer.dropEffect = 'copy';
+    };
+
+    const handleDrop = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+
+        const editor = editorRef.current;
+
+        const text = event.dataTransfer.getData(
+            'text/plain',
+        );
+
+        if (!editor || !text) {
+            return;
+        }
+
+        const range = getCaretRange(event);
+
+        if (
+            !range ||
+            !editor.contains(range.commonAncestorContainer)
+        ) {
+            return;
+        }
+
+        const node = document.createTextNode(text);
+
+        range.deleteContents();
+
+        range.insertNode(node);
+
+        const cursor = document.createRange();
+
+        cursor.setStartAfter(node);
+
+        cursor.collapse(true);
+
+        const selection = window.getSelection();
+
+        selection?.removeAllRanges();
+
+        selection?.addRange(cursor);
+
+        const updatedHtml = editor.innerHTML;
+
+        setExtractedContent(updatedHtml);
+
+        setData('extracted_text', updatedHtml);
     };
 
     const handleCancel = () => {
-        if (
-            window.confirm(
-                'Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.',
-            )
-        ) {
+        const confirmed = window.confirm(
+            'Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.',
+        );
+
+        if (confirmed) {
             window.history.back();
         }
     };
@@ -197,21 +343,19 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
             ? editorRef.current.innerHTML
             : extractedContent;
 
-        // Limpar o HTML antes de salvar
-        const cleanedHtml = updatedHtmlContent
-            .replace(/&nbsp;/g, ' ')
-            .replace(/\s+/g, ' ')
-            .replace(/>\s+</g, '><')
-            .trim();
+        const cleanedHtml = cleanHtml(updatedHtmlContent);
 
-        setData('extracted_text', cleanedHtml);
-
-        post('/modelos', {
+        put(`/modelos/${model.id}`, {
+            ...data,
+            extracted_text: cleanedHtml,
             onSuccess: () => {
-                alert('Modelo salvo com sucesso!');
+                alert('Modelo atualizado com sucesso!');
             },
-            onError: (errors) => {
-                console.error('Erros de validação:', errors);
+            onError: (formErrors) => {
+                console.error(
+                    'Erros de validação:',
+                    formErrors,
+                );
             },
         });
     };
@@ -223,68 +367,98 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
 
         async function processDocument() {
             setIsLoadingText(true);
+
             try {
-                const buffer = await templateFile!.arrayBuffer();
+                const buffer = await templateFile.arrayBuffer();
 
                 const isDocx =
-                    templateFile!.type ===
+                    templateFile.type ===
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                    templateFile!.name.endsWith('.docx');
+                    templateFile.name
+                        .toLowerCase()
+                        .endsWith('.docx');
+
                 const isPdf =
-                    templateFile!.type === 'application/pdf' ||
-                    templateFile!.name.endsWith('.pdf');
+                    templateFile.type === 'application/pdf' ||
+                    templateFile.name.toLowerCase().endsWith('.pdf');
 
                 if (!isDocx && !isPdf) {
-                    setExtractedContent(
-                        '<p class="text-red-500 font-medium">Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.</p>',
-                    );
+                    setExtractedContent(`
+                        <p class="text-red-500 font-medium">
+                            Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.
+                        </p>
+                    `);
+
                     return;
                 }
 
                 if (isDocx) {
                     const result = await mammoth.convertToHtml({
-                        arrayBuffer: buffer,
-                        styleMap: [
-                            "p[style-name='Heading 1'] => h1:fresh",
-                            "p[style-name='Heading 2'] => h2:fresh",
-                            "p[style-name='Heading 3'] => h3:fresh",
-                        ],
-                    });
-                    // Limpar o HTML extraído
-                    const cleanedHtml = constrainImages(
-                        result.value
-                            .replace(/&nbsp;/g, ' ')
-                            .replace(/\s+/g, ' ')
-                            .replace(/>\s+</g, '><')
-                            .trim(),
-                    );
+                            arrayBuffer: buffer,
+                            styleMap: [
+                                "p[style-name='Heading 1'] => h1:fresh",
+                                "p[style-name='Heading 2'] => h2:fresh",
+                                "p[style-name='Heading 3'] => h3:fresh",
+                            ],
+                        });
+
+                    const cleanedHtml = cleanHtml(result.value);
+
                     setExtractedContent(cleanedHtml);
-                } else if (isPdf) {
-                    const pdf = await pdfjsLib.getDocument({ data: buffer })
-                        .promise;
+                    setData('extracted_text', cleanedHtml);
+
+                    return;
+                }
+
+                if (isPdf) {
+                    const pdf = await pdfjsLib.getDocument({
+                            data: buffer,
+                        }).promise;
+
                     let htmlBuilder = '';
 
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
+
                         const pageText = textContent.items
-                            .filter((item): item is TextItem => 'str' in item)
-                            .map((item) => item.str)
-                            .join(' ')
-                            .replace(/\s+/g, ' ')
-                            .trim();
+                                .filter(
+                                    (item): item is TextItem =>
+                                        'str' in item,
+                                )
+                                .map((item) => item.str)
+                                .join(' ')
+                                .replace(/\s+/g, ' ')
+                                .trim();
 
                         if (pageText) {
-                            htmlBuilder += `<p class="mb-3 text-justify leading-relaxed">${pageText}</p>`;
+                            htmlBuilder += `
+                                <p>
+                                    ${pageText}
+                                </p>
+                            `;
                         }
                     }
-                    setExtractedContent(htmlBuilder);
+
+                    const cleanedHtml = cleanHtml(htmlBuilder);
+
+                    setExtractedContent(cleanedHtml);
+                    setData('extracted_text', cleanedHtml);
                 }
-            } catch (err) {
-                console.error('Erro na conversão:', err);
-                setExtractedContent(
-                    '<p class="text-red-500 font-medium">Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.</p>',
+            } catch (error) {
+                console.error(
+                    'Erro na conversão:',
+                    error,
                 );
+
+                const errorHtml = `
+                    <p class="text-red-500 font-medium">
+                        Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.
+                    </p>
+                `;
+
+                setExtractedContent(errorHtml);
+                setData('extracted_text', errorHtml);
             } finally {
                 setIsLoadingText(false);
             }
@@ -293,22 +467,26 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         processDocument();
     }, [templateFile]);
 
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setTemplateFile(file);
-            setData('template', file);
+    const handleFileChange = (
+        e: ChangeEvent<HTMLInputElement>,
+    ) => {
+        const file = e.target.files?.[0];
+
+        if (!file) {
+            return;
         }
+
+        setTemplateFile(file);
+        setData('template', file);
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Cadastro de Modelos" />
             <Head title="Editar Modelo" />
 
             <form
                 onSubmit={handleSubmit}
-                className="mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
+                className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
             >
                 <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-sm lg:col-span-4">
                     <div className="space-y-5">
@@ -337,22 +515,22 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                                         <DialogTitle className="text-base font-bold sm:text-xl">
                                             Como criar e utilizar modelos
                                         </DialogTitle>
+
                                         <DialogDescription className="text-xs text-muted-foreground sm:text-sm">
-                                            Siga os passos abaixo para
-                                            automatizar o preenchimento dos seus
-                                            documentos.
+                                            Siga os passos abaixo para automatizar o preenchimento dos seus documentos.
                                         </DialogDescription>
                                     </DialogHeader>
 
                                     <div className="space-y-4 pt-2">
                                         <div className="space-y-1 rounded-lg border bg-muted/60 p-3 font-mono text-xs sm:p-4">
-                                            <span className="block text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                                                 Exemplo de uso no texto
                                             </span>
-                                            <p className="font-semibold break-all text-primary">
+
+                                            <p className="break-all font-semibold text-primary">
                                                 Contratante:{' '}
                                                 <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">
-                                                    &#123;&#123;nome_do_cliente&#125;&#125;
+                                                    {'{{nome_do_cliente}}'}
                                                 </span>
                                             </p>
                                         </div>
@@ -363,14 +541,14 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                                                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                                                         1
                                                     </span>
+
                                                     <h4 className="text-xs font-semibold">
                                                         Crie os Campos
                                                     </h4>
                                                 </div>
+
                                                 <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Adicione os campos dinâmicos
-                                                    na lista ao lado definindo
-                                                    nome e tipo.
+                                                    Adicione os campos dinâmicos na lista ao lado definindo nome e tipo.
                                                 </p>
                                             </div>
 
@@ -379,17 +557,18 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                                                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                                                         2
                                                     </span>
+
                                                     <h4 className="text-xs font-semibold">
                                                         Copie a Tag
                                                     </h4>
                                                 </div>
+
                                                 <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Copie a chave gerada
-                                                    automaticamente (ex:{' '}
+                                                    Copie a chave gerada automaticamente, como{' '}
                                                     <code className="font-mono text-primary">
-                                                        &#123;&#123;slug&#125;&#125;
+                                                        {'{{slug}}'}
                                                     </code>
-                                                    ).
+                                                    .
                                                 </p>
                                             </div>
 
@@ -398,14 +577,14 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                                                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                                                         3
                                                     </span>
+
                                                     <h4 className="text-xs font-semibold">
                                                         Insira no Texto
                                                     </h4>
                                                 </div>
+
                                                 <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Cole no painel de preview ou
-                                                    direto no seu arquivo
-                                                    Word/PDF antes de enviar.
+                                                    Cole no painel de preview ou diretamente no arquivo Word/PDF.
                                                 </p>
                                             </div>
                                         </div>
@@ -415,17 +594,24 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="model_name">Nome do Modelo</Label>
+                            <Label htmlFor="model_name">
+                                Nome do Modelo
+                            </Label>
+
                             <Input
                                 id="model_name"
                                 name="model_name"
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
                                 onChange={(e) =>
-                                    setData('name', e.target.value)
+                                    setData(
+                                        'name',
+                                        e.target.value,
+                                    )
                                 }
                                 required
                             />
+
                             {errors.name && (
                                 <span className="text-xs text-destructive">
                                     {errors.name}
@@ -441,44 +627,62 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                             {!templateFile ? (
                                 <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/20 p-4 text-center transition-colors hover:bg-muted/50">
                                     <Upload className="mb-1.5 h-6 w-6 text-muted-foreground" />
+
                                     <span className="text-xs font-medium">
                                         Clique ou arraste seu arquivo
                                     </span>
+
                                     <span className="mt-0.5 text-[10px] text-muted-foreground">
                                         Suporta DOCX e PDF
                                     </span>
+
                                     <input
                                         type="file"
                                         id="template"
                                         name="template"
                                         accept=".docx,.pdf"
                                         className="hidden"
-                                        onChange={handleFileChange}
+                                        onChange={
+                                            handleFileChange
+                                        }
                                     />
                                 </label>
                             ) : (
                                 <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                                    <div className="flex items-center gap-2.5 overflow-hidden">
+                                    <div className="flex min-w-0 items-center gap-2.5">
                                         <FileText className="h-5 w-5 shrink-0 text-primary" />
+
                                         <span className="truncate text-xs font-medium">
                                             {templateFile.name}
                                         </span>
                                     </div>
+
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
                                         className="h-7 text-xs text-destructive hover:bg-destructive/10"
                                         onClick={() => {
-                                            setTemplateFile(null);
-                                            setData('template', null);
-                                            setExtractedContent('');
+                                            setTemplateFile(
+                                                null,
+                                            );
+
+                                            setData(
+                                                'template',
+                                                null,
+                                            );
+
+                                            setExtractedContent(
+                                                model.extracted_text ||
+                                                    '',
+                                            );
                                         }}
                                     >
                                         Trocar
                                     </Button>
                                 </div>
                             )}
+
                             {errors.template && (
                                 <span className="text-xs text-destructive">
                                     {errors.template}
@@ -489,149 +693,191 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                         <hr className="my-4 border-border" />
 
                         <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                 Campos Dinâmicos
                             </h2>
+
                             <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
                                 {data.fields.length}{' '}
-                                {data.fields.length === 1 ? 'campo' : 'campos'}
+                                {data.fields.length === 1
+                                    ? 'campo'
+                                    : 'campos'}
                             </span>
                         </div>
 
                         <div className="-mr-2 max-h-[420px] space-y-3 overflow-y-auto pr-2">
-                            {data.fields.map((field, index) => (
-                                <div
-                                    key={field.id}
-                                    className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
-                                >
-                                    <div className="flex items-center justify-between border-b border-border/40 pb-1">
-                                        <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                            Campo #{index + 1}
-                                        </span>
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-6 w-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                            onClick={() =>
-                                                removeField(field.id)
-                                            }
-                                            disabled={data.fields.length === 1}
-                                            title="Excluir campo"
-                                        >
-                                            <Trash className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
+                            {data.fields.map(
+                                (field, index) => (
+                                    <div
+                                        key={field.id}
+                                        className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
+                                    >
+                                        <div className="flex items-center justify-between border-b border-border/40 pb-1">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                Campo #
+                                                {index + 1}
+                                            </span>
 
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-medium">
-                                            Nome do Campo
-                                        </Label>
-                                        <Input
-                                            value={field.name}
-                                            onChange={(e) =>
-                                                updateFieldName(
-                                                    field.id,
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder="Ex: Nome do Cliente"
-                                            className="h-8 bg-background text-xs"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-12 items-start gap-3">
-                                        <div className="col-span-8 space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Tag / Slug
-                                            </Label>
-
-                                            <div className="relative flex items-center">
-                                                <Input
-                                                    value={
-                                                        field.slug
-                                                            ? `{{${field.slug}}}`
-                                                            : ''
-                                                    }
-                                                    disabled
-                                                    placeholder="{{nome_do_campo}}"
-                                                    className="h-8 w-full bg-muted/50 pr-8 font-mono text-xs text-muted-foreground"
-                                                />
-                                                {field.slug && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleCopyTag(
-                                                                field.slug,
-                                                            )
-                                                        }
-                                                        title="Copiar Tag"
-                                                        className="absolute right-1.5 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
-                                                    >
-                                                        {copiedSlug ===
-                                                        field.slug ? (
-                                                            <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                        ) : (
-                                                            <Copy className="h-3.5 w-3.5" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-4 min-w-0 space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Tipo
-                                            </Label>
-                                            <Select
-                                                value={field.type}
-                                                onValueChange={(val) =>
-                                                    updateFieldType(
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                                onClick={() =>
+                                                    removeField(
                                                         field.id,
-                                                        val,
                                                     )
                                                 }
+                                                disabled={
+                                                    data.fields
+                                                        .length ===
+                                                    1
+                                                }
+                                                title="Excluir campo"
                                             >
-                                                <SelectTrigger className="h-8 w-full overflow-hidden bg-background text-xs">
-                                                    <SelectValue
-                                                        placeholder="Selecione"
-                                                        className="truncate"
+                                                <Trash className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium">
+                                                Nome do Campo
+                                            </Label>
+
+                                            <Input
+                                                value={
+                                                    field.name
+                                                }
+                                                onChange={(
+                                                    e,
+                                                ) =>
+                                                    updateFieldName(
+                                                        field.id,
+                                                        e
+                                                            .target
+                                                            .value,
+                                                    )
+                                                }
+                                                placeholder="Ex: Nome do Cliente"
+                                                className="h-8 bg-background text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-12 items-start gap-3">
+                                            <div className="col-span-8 space-y-1.5">
+                                                <Label className="text-xs font-medium">
+                                                    Tag / Slug
+                                                </Label>
+
+                                                <div
+                                                    draggable={
+                                                        !!field.slug
+                                                    }
+                                                    onDragStart={(
+                                                        e,
+                                                    ) =>
+                                                        handleDragStart(
+                                                            e,
+                                                            field.slug,
+                                                        )
+                                                    }
+                                                    className="relative flex cursor-grab select-none items-center active:cursor-grabbing"
+                                                >
+                                                    <Input
+                                                        value={
+                                                            field.slug
+                                                                ? `{{${field.slug}}}`
+                                                                : ''
+                                                        }
+                                                        disabled
+                                                        placeholder="{{nome_do_campo}}"
+                                                        className="h-8 w-full bg-muted/50 pr-8 font-mono text-xs text-muted-foreground"
                                                     />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {fieldTypeOptions.map(
-                                                        (option) => (
-                                                            <SelectItem
-                                                                key={
-                                                                    option.value
-                                                                }
-                                                                value={
-                                                                    option.value
-                                                                }
-                                                            >
-                                                                {option.label}
-                                                            </SelectItem>
-                                                        ),
+
+                                                    {field.slug && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleCopyTag(
+                                                                    field.slug,
+                                                                )
+                                                            }
+                                                            title="Copiar Tag"
+                                                            className="absolute right-1.5 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
+                                                        >
+                                                            {copiedSlug ===
+                                                            field.slug ? (
+                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                                            ) : (
+                                                                <Copy className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </button>
                                                     )}
-                                                </SelectContent>
-                                            </Select>
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-4 min-w-0 space-y-1.5">
+                                                <Label className="text-xs font-medium">
+                                                    Tipo
+                                                </Label>
+
+                                                <Select
+                                                    value={
+                                                        field.type
+                                                    }
+                                                    onValueChange={(
+                                                        value,
+                                                    ) =>
+                                                        updateFieldType(
+                                                            field.id,
+                                                            value,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="h-8 w-full overflow-hidden bg-background text-xs">
+                                                        <SelectValue
+                                                            placeholder="Selecione"
+                                                            className="truncate"
+                                                        />
+                                                    </SelectTrigger>
+
+                                                    <SelectContent>
+                                                        {fieldTypeOptions.map(
+                                                            (
+                                                                option,
+                                                            ) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        option.value
+                                                                    }
+                                                                    value={
+                                                                        option.value
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        option.label
+                                                                    }
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ),
+                            )}
                         </div>
 
-                        <div>
-                            <Button
-                                type="button"
-                                onClick={addField}
-                                variant="outline"
-                                className="h-9 w-full border-dashed text-xs font-medium tracking-wide uppercase"
-                            >
-                                <Plus className="mr-1.5 h-4 w-4" /> Adicionar
-                                novo campo
-                            </Button>
-                        </div>
+                        <Button
+                            type="button"
+                            onClick={addField}
+                            variant="outline"
+                            className="h-9 w-full border-dashed text-xs font-medium uppercase tracking-wide"
+                        >
+                            <Plus className="mr-1.5 h-4 w-4" />
+                            Adicionar novo campo
+                        </Button>
                     </div>
 
                     <div className="mt-6 flex items-center gap-3 border-t pt-6">
@@ -639,63 +885,90 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                             type="button"
                             variant="outline"
                             onClick={handleCancel}
-                            className="h-10 w-1/2 text-xs font-semibold tracking-wider text-muted-foreground uppercase hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                            className="h-10 w-1/2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                         >
-                            <X className="mr-1.5 h-4 w-4" /> Cancelar
+                            <X className="mr-1.5 h-4 w-4" />
+                            Cancelar
                         </Button>
 
                         <Button
                             type="submit"
                             disabled={processing}
-                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold tracking-wider text-white uppercase shadow-sm hover:bg-emerald-800"
+                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold uppercase tracking-wider text-white shadow-sm hover:bg-emerald-800"
                         >
                             {processing ? (
                                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                             ) : (
                                 <Save className="mr-1.5 h-4 w-4" />
                             )}
-                            Salvar Modelo Salvar Alterações
+
+                            {processing
+                                ? 'Salvando...'
+                                : 'Salvar Alterações'}
                         </Button>
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[700px] items-center justify-between gap-4">
-                        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                            Pré-visualização e Edição
-                        </span>
+                <div className="flex min-w-0 flex-col items-center lg:col-span-8">
+                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Pré-visualização
+                            </span>
+                        </div>
 
                         <div className="flex items-center gap-2">
                             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Edit3 className="h-3 w-3" /> Clique na folha
-                                para editar o texto
+                                <Edit3 className="h-3 w-3" />
+                                Arraste a tag para o documento
                             </span>
                         </div>
                     </div>
 
-                    <div className="min-h-[850px] w-full max-w-[700px] rounded-sm border border-border/80 bg-white px-[48px] py-[42px] text-gray-900 shadow-lg">
-                        {isLoadingText ? (
-                            <div className="flex min-h-[700px] items-center justify-center">
-                                <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                    <span className="text-sm">
-                                        Processando documento...
-                                    </span>
+                    <div className="relative w-full max-w-[900px]">
+                        <div className="relative mx-auto w-full max-w-[850px] overflow-hidden rounded-sm border border-border/80 bg-white shadow-xl">
+                            {isLoadingText ? (
+                                <div className="flex min-h-[841px] w-full items-center justify-center">
+                                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                                        <Loader2 className="h-6 w-6 animate-spin" />
+
+                                        <span className="text-sm">
+                                            Processando documento...
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        ) : (
-                            <div
-                                ref={editorRef}
-                                contentEditable
-                                suppressContentEditableWarning
-                                className="document-editor min-h-[800px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none focus:outline-none"
-                                dangerouslySetInnerHTML={{
-                                    __html:
-                                        extractedContent ||
-                                        `<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>`,
-                                }}
-                            />
-                        )}
+                            ) : (
+                                <div className="min-h-[841px] w-full px-[48px] py-[42px] text-gray-900">
+                                    <div
+                                        ref={editorRef}
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onDragOver={
+                                            handleDragOver
+                                        }
+                                        onDrop={handleDrop}
+                                        className="
+                                            document-editor
+                                            min-h-[750px]
+                                            w-full
+                                            outline-none
+                                            font-sans
+                                            text-[13px]
+                                            leading-[1.7]
+                                            text-[#333]
+                                            focus:outline-none
+                                        "
+                                        dangerouslySetInnerHTML={{
+                                            __html:
+                                                extractedContent ||
+                                                '<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>',
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </form>

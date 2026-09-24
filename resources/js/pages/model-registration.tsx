@@ -1,4 +1,39 @@
-import { Head, useForm } from '@inertiajs/react';
+import {
+    useEffect,
+    useRef,
+    useState,
+    type ChangeEvent,
+    type DragEvent,
+    type FormEvent,
+} from "react";
+
+import AppLayout from "@/layouts/app-layout";
+import { BreadcrumbItem } from "@/types";
+import { Head, useForm } from "@inertiajs/react";
+import { model_registration } from "@/routes";
+
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+import { Button } from "@/components/ui/button";
+
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+
 import {
     Trash,
     Plus,
@@ -10,43 +45,18 @@ import {
     HelpCircle,
     Copy,
     Check,
+    ChevronLeft,
+    ChevronRight,
     Edit3,
-} from 'lucide-react';
-import mammoth from 'mammoth';
-import { useState, useEffect, ChangeEvent, FormEvent, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import AppLayout from '@/layouts/app-layout';
-import { model_registration } from '@/routes';
-import { BreadcrumbItem } from '@/types';
+} from "lucide-react";
 
-/**
- * Imagens extraídas de PDFs/DOCX (ex.: logos) vêm em resolução nativa da
- * página; sem limite elas estouram a largura do editor. Injetamos estilo
- * inline (que vence qualquer CSS) limitando a largura de cada <img>.
- */
-function constrainImages(html: string): string {
-    return html.replace(
-        /<img(?![^>]*\bstyle=)/g,
-        '<img style="max-width:180px;max-height:72px;width:auto;height:auto"',
-    );
-}
+import mammoth from "mammoth";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url,
+).toString();
 
 interface FieldItem {
     id: string;
@@ -66,249 +76,422 @@ interface Props {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Cadastro de Modelos',
+        title: "Cadastro de Modelos",
         href: model_registration(),
     },
 ];
 
-function slugify(text: string) {
-    return text
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+const slugify = (text: string) =>
+    text
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-}
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
 
-export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
+export default function ModelRegistration({
+    fieldTypeOptions = [],
+}: Props) {
     const [templateFile, setTemplateFile] = useState<File | null>(null);
-    const [extractedContent, setExtractedContent] = useState<string>('');
-    const [isLoadingText, setIsLoadingText] = useState(false);
-    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-
     const editorRef = useRef<HTMLDivElement>(null);
 
-    const { data, setData, post, processing, errors } = useForm<{
-        name: string;
-        template: File | null;
-        fields: FieldItem[];
-        extracted_text: string;
-    }>({
-        name: '',
-        template: null,
-        fields: [
-            {
-                id: '1',
-                name: 'Nome do Cliente',
-                slug: 'nome_do_cliente',
-                type: 'text',
-            },
-        ],
-        extracted_text: '',
-    });
+    
+    const [loading, setLoading] = useState(false);
+    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+    const [pageImages, setPageImages] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [isPdf, setIsPdf] = useState(false);
+    const [documentHtml, setDocumentHtml] = useState("");
+
+    const { data, setData, post, processing, errors } =
+        useForm({
+            name: "",
+            template: null as File | null,
+            fields: [
+                {
+                    id: "1",
+                    name: "Nome do Cliente",
+                    slug: "nome_do_cliente",
+                    type: "text",
+                },
+            ] as FieldItem[],
+            extracted_text: "",
+        });
 
     const addField = () => {
-        const newId = String(Date.now());
-        setData('fields', [
+        setData("fields", [
             ...data.fields,
-            { id: newId, name: '', slug: '', type: 'text' },
+            {
+                id: crypto.randomUUID(),
+                name: "",
+                slug: "",
+                type: "text",
+            },
         ]);
     };
 
     const removeField = (id: string) => {
-        if (data.fields.length === 1) return;
+        if (data.fields.length <= 1) return;
+
         setData(
-            'fields',
-            data.fields.filter((f) => f.id !== id),
+            "fields",
+            data.fields.filter((field) => field.id !== id),
         );
     };
 
-    const updateFieldName = (id: string, name: string) => {
+    const updateField = (
+        id: string,
+        name: string,
+    ) => {
         setData(
-            'fields',
-            data.fields.map((f) =>
-                f.id === id ? { ...f, name, slug: slugify(name) } : f,
+            "fields",
+            data.fields.map((field) =>
+                field.id === id
+                    ? {
+                        ...field,
+                        name,
+                        slug: slugify(name),
+                    }
+                    : field,
             ),
         );
     };
 
-    const updateFieldType = (id: string, type: string) => {
+    const updateType = (
+        id: string,
+        type: string,
+    ) => {
         setData(
-            'fields',
-            data.fields.map((f) => (f.id === id ? { ...f, type } : f)),
+            "fields",
+            data.fields.map((field) =>
+                field.id === id
+                    ? { ...field, type }
+                    : field,
+            ),
         );
     };
 
-    const handleCopyTag = (slug: string) => {
-        const tag = `{{${slug}}}`;
-        navigator.clipboard.writeText(tag);
-        setCopiedSlug(slug);
-        setTimeout(() => setCopiedSlug(null), 2000);
-    };
+    const copyTag = async (slug: string) => {
+        try {
+            await navigator.clipboard.writeText(
+                `{{${slug}}}`,
+            );
 
-    const handleCancel = () => {
-        if (
-            window.confirm(
-                'Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.',
-            )
-        ) {
-            window.history.back();
+            setCopiedSlug(slug);
+
+            setTimeout(
+                () => setCopiedSlug(null),
+                2000,
+            );
+        } catch (error) {
+            console.error(
+                "Erro ao copiar tag:",
+                error,
+            );
         }
     };
 
-    const handleSubmit = (e: FormEvent) => {
-        e.preventDefault();
+    const getCaretRange = (
+        event: DragEvent<HTMLDivElement>,
+    ): Range | null => {
+        const { clientX, clientY } = event;
 
-        if (!data.name.trim()) {
-            alert('Por favor, informe o nome do modelo.');
+        if (
+            typeof document.caretRangeFromPoint ===
+            "function"
+        ) {
+            return document.caretRangeFromPoint(
+                clientX,
+                clientY,
+            );
+        }
+
+        if (
+            typeof document.caretPositionFromPoint ===
+            "function"
+        ) {
+            const position =
+                document.caretPositionFromPoint(
+                    clientX,
+                    clientY,
+                );
+
+            if (!position) return null;
+
+            const range = document.createRange();
+
+            range.setStart(
+                position.offsetNode,
+                position.offset,
+            );
+
+            range.collapse(true);
+
+            return range;
+        }
+
+        return null;
+    };
+
+    const handleDragStart = (
+        event: DragEvent<HTMLDivElement>,
+        slug: string,
+    ) => {
+        if (!slug) return;
+
+        event.dataTransfer.setData(
+            "text/plain",
+            `{{${slug}}}`,
+        );
+
+        event.dataTransfer.effectAllowed = "copy";
+    };
+
+    const handleDragOver = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleDrop = (
+        event: DragEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+
+        const editor = editorRef.current;
+        const text =
+            event.dataTransfer.getData("text/plain");
+
+        if (!editor || !text || isPdf) return;
+
+        const range = getCaretRange(event);
+
+        if (
+            !range ||
+            !editor.contains(range.commonAncestorContainer)
+        ) {
             return;
         }
 
-        const updatedHtmlContent = editorRef.current
-            ? editorRef.current.innerHTML
-            : extractedContent;
+        const node = document.createTextNode(text);
 
-        // Limpar o HTML antes de salvar
-        const cleanedHtml = updatedHtmlContent
-            .replace(/&nbsp;/g, ' ')
-            .replace(/\s+/g, ' ')
-            .replace(/>\s+</g, '><')
-            .trim();
+        range.insertNode(node);
 
-        setData('extracted_text', cleanedHtml);
+        const cursor = document.createRange();
 
-        post('/modelos', {
-            onSuccess: () => {
-                alert('Modelo salvo com sucesso!');
-            },
-            onError: (errors) => {
-                console.error('Erros de validação:', errors);
-            },
-        });
+        cursor.setStartAfter(node);
+        cursor.collapse(true);
+
+        const selection = window.getSelection();
+
+        selection?.removeAllRanges();
+        selection?.addRange(cursor);
+    };
+
+    const handleFileChange = (
+        event: ChangeEvent<HTMLInputElement>,
+    ) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        setTemplateFile(file);
+        setData("template", file);
+    };
+
+    const clearTemplate = () => {
+        setTemplateFile(null);
+        setData("template", null);
+        setPageImages([]);
+        setCurrentPage(0);
+        setIsPdf(false);
+        setDocumentHtml("");
+
+        if (editorRef.current) {
+            editorRef.current.innerHTML = "";
+        }
     };
 
     useEffect(() => {
         if (!templateFile) {
-            setExtractedContent('');
+            if (editorRef.current) {
+                editorRef.current.innerHTML = "";
+            }
+
+            setPageImages([]);
+            setCurrentPage(0);
+            setIsPdf(false);
             return;
         }
 
-        async function processDocument() {
-            setIsLoadingText(true);
+        let cancelled = false;
+
+        const loadDocument = async () => {
+            setLoading(true);
+
             try {
-                const buffer = await templateFile!.arrayBuffer();
+                const buffer =
+                    await templateFile.arrayBuffer();
+
+                const fileName =
+                    templateFile.name.toLowerCase();
 
                 const isDocx =
-                    templateFile!.type ===
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                    templateFile!.name.endsWith('.docx');
-                const isPdf =
-                    templateFile!.type === 'application/pdf' ||
-                    templateFile!.name.endsWith('.pdf');
+                    fileName.endsWith(".docx");
 
-                if (!isDocx && !isPdf) {
-                    setExtractedContent(
-                        '<p class="text-red-500 font-medium">Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.</p>',
-                    );
-                    return;
-                }
+                const pdf =
+                    fileName.endsWith(".pdf") ||
+                    templateFile.type ===
+                    "application/pdf";
 
                 if (isDocx) {
                     const result = await mammoth.convertToHtml({
                         arrayBuffer: buffer,
-                        styleMap: [
-                            "p[style-name='Heading 1'] => h1:fresh",
-                            "p[style-name='Heading 2'] => h2:fresh",
-                            "p[style-name='Heading 3'] => h3:fresh",
-                        ],
                     });
-                    // Limpar o HTML extraído
-                    const cleanedHtml = constrainImages(
-                        result.value
-                            .replace(/&nbsp;/g, ' ')
-                            .replace(/\s+/g, ' ')
-                            .replace(/>\s+</g, '><')
-                            .trim(),
+
+                    if (cancelled) return;
+
+                    setDocumentHtml(
+                        result.value || "<p>Documento vazio.</p>",
                     );
-                    setExtractedContent(cleanedHtml);
-                } else if (isPdf) {
-                    // Converte o PDF no servidor (pdf2docx) preservando a estrutura
-                    // (parágrafos, títulos e tabelas) e renderiza o DOCX no editor.
-                    const formData = new FormData();
-                    formData.append('file', templateFile!);
 
-                    const response = await fetch('/modelos/converter-pdf', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN':
-                                document
-                                    .querySelector('meta[name="csrf-token"]')
-                                    ?.getAttribute('content') || '',
-                            Accept: 'application/json',
-                        },
-                        body: formData,
-                    });
+                    setIsPdf(false);
+                    setPageImages([]);
+                    setCurrentPage(0);
 
-                    if (!response.ok) {
-                        const detail = await response.json().catch(() => null);
-                        const reason =
-                            detail?.error ?? `HTTP ${response.status}`;
-                        setExtractedContent(
-                            `<p class="text-red-500 font-medium">Não foi possível converter o PDF (${reason}). Verifique se o serviço de conversão está ativo.</p>`,
-                        );
-                        return;
-                    }
-
-                    // Respostas que não são DOCX (ex.: redirect de sessão expirada
-                    // devolve HTML com 200) não podem ir para o mammoth.
-                    const contentType =
-                        response.headers.get('Content-Type') ?? '';
-                    if (!contentType.includes('wordprocessingml')) {
-                        setExtractedContent(
-                            '<p class="text-red-500 font-medium">Sua sessão expirou. Recarregue a página e tente novamente.</p>',
-                        );
-                        return;
-                    }
-
-                    // O DOCX retornado (com a estrutura do PDF) segue o mesmo caminho
-                    // do upload .docx: mammoth converte para HTML estruturado.
-                    const docxBuffer = await response.arrayBuffer();
-                    const result = await mammoth.convertToHtml({
-                        arrayBuffer: docxBuffer,
-                        styleMap: [
-                            "p[style-name='Heading 1'] => h1:fresh",
-                            "p[style-name='Heading 2'] => h2:fresh",
-                            "p[style-name='Heading 3'] => h3:fresh",
-                        ],
-                    });
-                    const cleanedHtml = constrainImages(result.value)
-                        .replace(/&nbsp;/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .replace(/>\s+</g, '><')
-                        .trim();
-                    setExtractedContent(cleanedHtml);
+                    return;
                 }
-            } catch (err) {
-                console.error('Erro na conversão:', err);
-                const detail = err instanceof Error ? err.message : String(err);
-                setExtractedContent(
-                    `<p class="text-red-500 font-medium">Erro ao converter o arquivo: ${detail}</p>`,
-                );
-            } finally {
-                setIsLoadingText(false);
-            }
-        }
 
-        processDocument();
+                if (pdf) {
+                    const pdfDocument = await pdfjsLib
+                        .getDocument({
+                            data: buffer,
+                        })
+                        .promise;
+
+                    const images: string[] = [];
+
+                    for (let i = 1; i <= pdfDocument.numPages; i++) {
+                        if (cancelled) return;
+
+                        const page = await pdfDocument.getPage(i);
+
+                        const viewport = page.getViewport({
+                            scale: 1.5,
+                        });
+
+                        const canvas = window.document.createElement("canvas");
+                        const context = canvas.getContext("2d");
+
+                        if (!context) {
+                            throw new Error(
+                                "Não foi possível criar o contexto do canvas.",
+                            );
+                        }
+
+                        canvas.width = Math.ceil(viewport.width);
+                        canvas.height = Math.ceil(viewport.height);
+
+                        await page.render({
+                            canvas,
+                            viewport,
+                        }).promise;
+
+                        images.push(canvas.toDataURL("image/png"));
+                    }
+
+                    if (cancelled) return;
+
+                    setPageImages(images);
+                    setCurrentPage(0);
+                    setIsPdf(true);
+
+                    return;
+                }
+
+                if (editorRef.current) {
+                    editorRef.current.innerHTML =
+                        `<p class="text-red-500 font-medium">
+                            Tipo de arquivo não suportado.
+                        </p>`;
+                }
+            } catch (error) {
+                console.error(
+                    "Erro ao carregar documento:",
+                    error,
+                );
+
+                if (
+                    !cancelled &&
+                    editorRef.current
+                ) {
+                    editorRef.current.innerHTML =
+                        `<p class="text-red-500 font-medium">
+                            Não foi possível carregar o documento.
+                        </p>`;
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        loadDocument();
+
+        return () => {
+            cancelled = true;
+        };
     }, [templateFile]);
 
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setTemplateFile(file);
-            setData('template', file);
+    const previousPage = () => {
+        setCurrentPage((page) =>
+            Math.max(0, page - 1),
+        );
+    };
+
+    const nextPage = () => {
+        setCurrentPage((page) =>
+            Math.min(
+                pageImages.length - 1,
+                page + 1,
+            ),
+        );
+    };
+
+    const handleSubmit = (
+        event: FormEvent,
+    ) => {
+        event.preventDefault();
+
+        if (!data.name.trim()) {
+            alert(
+                "Por favor, informe o nome do modelo.",
+            );
+            return;
         }
+
+        if (!data.template) {
+            alert(
+                "Selecione um arquivo para o modelo.",
+            );
+            return;
+        }
+
+        const html =
+            editorRef.current?.innerHTML ?? "";
+
+        setData("extracted_text", html);
+
+        post("/modelos", {
+            onSuccess: () => {
+                alert(
+                    "Modelo salvo com sucesso!",
+                );
+            },
+        });
     };
 
     return (
@@ -317,16 +500,14 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
 
             <form
                 onSubmit={handleSubmit}
-                className="mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
+                className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
             >
-                <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-sm lg:col-span-4">
+                <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 shadow-sm lg:col-span-4">
                     <div className="space-y-5">
                         <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-base font-semibold">
-                                    Configuração do Modelo
-                                </h2>
-                            </div>
+                            <h2 className="text-base font-semibold">
+                                Configuração do Modelo
+                            </h2>
 
                             <Dialog>
                                 <DialogTrigger asChild>
@@ -336,105 +517,50 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                                         size="sm"
                                         className="h-8 gap-1.5 text-xs"
                                     >
-                                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <HelpCircle className="h-3.5 w-3.5" />
                                         Como usar
                                     </Button>
                                 </DialogTrigger>
 
-                                <DialogContent className="max-h-[85vh] w-[92vw] overflow-y-auto rounded-xl p-4 sm:p-6 md:max-w-3xl">
-                                    <DialogHeader className="pb-2">
-                                        <DialogTitle className="text-base font-bold sm:text-xl">
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>
                                             Como criar e utilizar modelos
                                         </DialogTitle>
-                                        <DialogDescription className="text-xs text-muted-foreground sm:text-sm">
-                                            Siga os passos abaixo para
-                                            automatizar o preenchimento dos seus
-                                            documentos.
+
+                                        <DialogDescription>
+                                            Crie os campos e arraste as tags diretamente para o documento.
                                         </DialogDescription>
                                     </DialogHeader>
 
-                                    <div className="space-y-4 pt-2">
-                                        <div className="space-y-1 rounded-lg border bg-muted/60 p-3 font-mono text-xs sm:p-4">
-                                            <span className="block text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                                Exemplo de uso no texto
-                                            </span>
-                                            <p className="font-semibold break-all text-primary">
-                                                Contratante:{' '}
-                                                <span className="rounded bg-primary/10 px-1 py-0.5 text-primary">
-                                                    &#123;&#123;nome_do_cliente&#125;&#125;
-                                                </span>
-                                            </p>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                                            <div className="space-y-1 rounded-lg border bg-card p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        1
-                                                    </span>
-                                                    <h4 className="text-xs font-semibold">
-                                                        Crie os Campos
-                                                    </h4>
-                                                </div>
-                                                <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Adicione os campos dinâmicos
-                                                    na lista ao lado definindo
-                                                    nome e tipo.
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-1 rounded-lg border bg-card p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        2
-                                                    </span>
-                                                    <h4 className="text-xs font-semibold">
-                                                        Copie a Tag
-                                                    </h4>
-                                                </div>
-                                                <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Copie a chave gerada
-                                                    automaticamente (ex:{' '}
-                                                    <code className="font-mono text-primary">
-                                                        &#123;&#123;slug&#125;&#125;
-                                                    </code>
-                                                    ).
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-1 rounded-lg border bg-card p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        3
-                                                    </span>
-                                                    <h4 className="text-xs font-semibold">
-                                                        Insira no Texto
-                                                    </h4>
-                                                </div>
-                                                <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-                                                    Cole no painel de preview ou
-                                                    direto no seu arquivo
-                                                    Word/PDF antes de enviar.
-                                                </p>
-                                            </div>
-                                        </div>
+                                    <div className="rounded-lg border bg-muted/50 p-4 font-mono text-sm">
+                                        Contratante:{" "}
+                                        <span className="rounded bg-primary/10 px-1 text-primary">
+                                            {"{{nome_do_cliente}}"}
+                                        </span>
                                     </div>
                                 </DialogContent>
                             </Dialog>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="model_name">Nome do Modelo</Label>
+                            <Label htmlFor="model_name">
+                                Nome do Modelo
+                            </Label>
+
                             <Input
                                 id="model_name"
-                                name="model_name"
-                                placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
                                 onChange={(e) =>
-                                    setData('name', e.target.value)
+                                    setData(
+                                        "name",
+                                        e.target.value,
+                                    )
                                 }
+                                placeholder="Ex: Contrato de Prestação de Serviços"
                                 required
                             />
+
                             {errors.name && (
                                 <span className="text-xs text-destructive">
                                     {errors.name}
@@ -448,262 +574,373 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                             </Label>
 
                             {!templateFile ? (
-                                <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/20 p-4 text-center transition-colors hover:bg-muted/50">
-                                    <Upload className="mb-1.5 h-6 w-6 text-muted-foreground" />
+                                <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/20 p-4 text-center hover:bg-muted/50">
+                                    <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
+
                                     <span className="text-xs font-medium">
                                         Clique ou arraste seu arquivo
                                     </span>
-                                    <span className="mt-0.5 text-[10px] text-muted-foreground">
+
+                                    <span className="text-[10px] text-muted-foreground">
                                         Suporta DOCX e PDF
                                     </span>
+
                                     <input
-                                        type="file"
                                         id="template"
-                                        name="template"
+                                        type="file"
                                         accept=".docx,.pdf"
                                         className="hidden"
-                                        onChange={handleFileChange}
+                                        onChange={
+                                            handleFileChange
+                                        }
                                     />
                                 </label>
                             ) : (
                                 <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                                    <div className="flex items-center gap-2.5 overflow-hidden">
-                                        <FileText className="h-5 w-5 shrink-0 text-primary" />
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+
                                         <span className="truncate text-xs font-medium">
-                                            {templateFile.name}
+                                            {
+                                                templateFile.name
+                                            }
                                         </span>
                                     </div>
+
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                                        onClick={() => {
-                                            setTemplateFile(null);
-                                            setData('template', null);
-                                            setExtractedContent('');
-                                        }}
+                                        onClick={
+                                            clearTemplate
+                                        }
                                     >
                                         Trocar
                                     </Button>
                                 </div>
                             )}
-                            {errors.template && (
-                                <span className="text-xs text-destructive">
-                                    {errors.template}
-                                </span>
-                            )}
                         </div>
 
-                        <hr className="my-4 border-border" />
+                        <hr />
 
                         <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                 Campos Dinâmicos
                             </h2>
-                            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
-                                {data.fields.length}{' '}
-                                {data.fields.length === 1 ? 'campo' : 'campos'}
+
+                            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+                                {data.fields.length}
                             </span>
                         </div>
 
-                        <div className="-mr-2 max-h-[420px] space-y-3 overflow-y-auto pr-2">
-                            {data.fields.map((field, index) => (
-                                <div
-                                    key={field.id}
-                                    className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
-                                >
-                                    <div className="flex items-center justify-between border-b border-border/40 pb-1">
-                                        <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                            Campo #{index + 1}
-                                        </span>
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-6 w-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                            onClick={() =>
-                                                removeField(field.id)
-                                            }
-                                            disabled={data.fields.length === 1}
-                                            title="Excluir campo"
-                                        >
-                                            <Trash className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
+                        <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
+                            {data.fields.map(
+                                (
+                                    field,
+                                    index,
+                                ) => (
+                                    <div
+                                        key={
+                                            field.id
+                                        }
+                                        className="space-y-3 rounded-xl border bg-card/60 p-3.5"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold uppercase text-muted-foreground">
+                                                Campo #
+                                                {index +
+                                                    1}
+                                            </span>
 
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs font-medium">
-                                            Nome do Campo
-                                        </Label>
-                                        <Input
-                                            value={field.name}
-                                            onChange={(e) =>
-                                                updateFieldName(
-                                                    field.id,
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder="Ex: Nome do Cliente"
-                                            className="h-8 bg-background text-xs"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-12 items-start gap-3">
-                                        <div className="col-span-8 space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Tag / Slug
-                                            </Label>
-
-                                            <div className="relative flex items-center">
-                                                <Input
-                                                    value={
-                                                        field.slug
-                                                            ? `{{${field.slug}}}`
-                                                            : ''
-                                                    }
-                                                    disabled
-                                                    placeholder="{{nome_do_campo}}"
-                                                    className="h-8 w-full bg-muted/50 pr-8 font-mono text-xs text-muted-foreground"
-                                                />
-                                                {field.slug && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleCopyTag(
-                                                                field.slug,
-                                                            )
-                                                        }
-                                                        title="Copiar Tag"
-                                                        className="absolute right-1.5 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
-                                                    >
-                                                        {copiedSlug ===
-                                                        field.slug ? (
-                                                            <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                        ) : (
-                                                            <Copy className="h-3.5 w-3.5" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-4 min-w-0 space-y-1.5">
-                                            <Label className="text-xs font-medium">
-                                                Tipo
-                                            </Label>
-                                            <Select
-                                                value={field.type}
-                                                onValueChange={(val) =>
-                                                    updateFieldType(
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6 text-destructive"
+                                                onClick={() =>
+                                                    removeField(
                                                         field.id,
-                                                        val,
                                                     )
                                                 }
+                                                disabled={
+                                                    data
+                                                        .fields
+                                                        .length ===
+                                                    1
+                                                }
                                             >
-                                                <SelectTrigger className="h-8 w-full overflow-hidden bg-background text-xs">
-                                                    <SelectValue
-                                                        placeholder="Selecione"
-                                                        className="truncate"
-                                                    />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {fieldTypeOptions.map(
-                                                        (option) => (
-                                                            <SelectItem
-                                                                key={
-                                                                    option.value
-                                                                }
-                                                                value={
-                                                                    option.value
-                                                                }
-                                                            >
-                                                                {option.label}
-                                                            </SelectItem>
-                                                        ),
+                                                <Trash className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">
+                                                Nome do Campo
+                                            </Label>
+
+                                            <Input
+                                                value={
+                                                    field.name
+                                                }
+                                                onChange={(
+                                                    e,
+                                                ) =>
+                                                    updateField(
+                                                        field.id,
+                                                        e
+                                                            .target
+                                                            .value,
+                                                    )
+                                                }
+                                                placeholder="Ex: Nome do Cliente"
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-12 gap-3">
+                                            <div className="col-span-8 space-y-1.5">
+                                                <Label className="text-xs">
+                                                    Tag / Slug
+                                                </Label>
+
+                                                <div
+                                                    draggable={
+                                                        !!field.slug
+                                                    }
+                                                    onDragStart={(
+                                                        e,
+                                                    ) =>
+                                                        handleDragStart(
+                                                            e,
+                                                            field.slug,
+                                                        )
+                                                    }
+                                                    className="relative cursor-grab select-none active:cursor-grabbing"
+                                                >
+                                                    <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 pr-8 font-mono text-xs text-muted-foreground">
+                                                        {field.slug
+                                                            ? `{{${field.slug}}}`
+                                                            : "{{nome_do_campo}}"}
+                                                    </div>
+
+                                                    {field.slug && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                copyTag(
+                                                                    field.slug,
+                                                                )
+                                                            }
+                                                            className="absolute right-1.5 top-1 rounded p-1 hover:bg-background"
+                                                        >
+                                                            {copiedSlug ===
+                                                                field.slug ? (
+                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                                            ) : (
+                                                                <Copy className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </button>
                                                     )}
-                                                </SelectContent>
-                                            </Select>
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-4 space-y-1.5">
+                                                <Label className="text-xs">
+                                                    Tipo
+                                                </Label>
+
+                                                <Select
+                                                    value={
+                                                        field.type
+                                                    }
+                                                    onValueChange={(
+                                                        value,
+                                                    ) =>
+                                                        updateType(
+                                                            field.id,
+                                                            value,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="h-8 text-xs">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+
+                                                    <SelectContent>
+                                                        {fieldTypeOptions.map(
+                                                            (
+                                                                option,
+                                                            ) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        option.value
+                                                                    }
+                                                                    value={
+                                                                        option.value
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        option.label
+                                                                    }
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ),
+                            )}
                         </div>
 
-                        <div>
-                            <Button
-                                type="button"
-                                onClick={addField}
-                                variant="outline"
-                                className="h-9 w-full border-dashed text-xs font-medium tracking-wide uppercase"
-                            >
-                                <Plus className="mr-1.5 h-4 w-4" /> Adicionar
-                                novo campo
-                            </Button>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 flex items-center gap-3 border-t pt-6">
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={handleCancel}
-                            className="h-10 w-1/2 text-xs font-semibold tracking-wider text-muted-foreground uppercase hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={addField}
+                            className="w-full border-dashed"
                         >
-                            <X className="mr-1.5 h-4 w-4" /> Cancelar
+                            <Plus className="mr-2 h-4 w-4" />
+                            Adicionar novo campo
+                        </Button>
+                    </div>
+
+                    <div className="flex gap-3 border-t pt-6">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                                window.history.back()
+                            }
+                            className="w-1/2"
+                        >
+                            <X className="mr-2 h-4 w-4" />
+                            Cancelar
                         </Button>
 
                         <Button
                             type="submit"
                             disabled={processing}
-                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold tracking-wider text-white uppercase shadow-sm hover:bg-emerald-800"
+                            className="w-1/2 bg-emerald-700 text-white hover:bg-emerald-800"
                         >
                             {processing ? (
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
-                                <Save className="mr-1.5 h-4 w-4" />
+                                <Save className="mr-2 h-4 w-4" />
                             )}
+
                             Salvar Modelo
                         </Button>
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[700px] items-center justify-between gap-4">
-                        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                            Pré-visualização e Edição
+                <div className="flex min-w-0 flex-col items-center lg:col-span-8">
+                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Pré-visualização
                         </span>
 
-                        <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Edit3 className="h-3 w-3" /> Clique na folha
-                                para editar o texto
-                            </span>
-                        </div>
+                        {isPdf &&
+                            pageImages.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={
+                                            previousPage
+                                        }
+                                        disabled={
+                                            currentPage ===
+                                            0
+                                        }
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+
+                                    <span className="text-xs">
+                                        {currentPage +
+                                            1}{" "}
+                                        /{" "}
+                                        {
+                                            pageImages.length
+                                        }
+                                    </span>
+
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={
+                                            nextPage
+                                        }
+                                        disabled={
+                                            currentPage >=
+                                            pageImages.length -
+                                            1
+                                        }
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+
+                        {!isPdf &&
+                            templateFile && (
+                                <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                    Arraste a tag para o documento
+                                </span>
+                            )}
                     </div>
 
-                    <div className="min-h-[850px] w-full max-w-[700px] rounded-sm border border-border/80 bg-white px-[48px] py-[42px] text-gray-900 shadow-lg">
-                        {isLoadingText ? (
-                            <div className="flex min-h-[700px] items-center justify-center">
-                                <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                    <span className="text-sm">
-                                        Processando documento...
-                                    </span>
-                                </div>
+                    <div className="w-full max-w-[850px] overflow-hidden rounded-sm border bg-white shadow-xl">
+                        {loading ? (
+                            <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 text-muted-foreground">
+                                <Loader2 className="h-7 w-7 animate-spin" />
+                                <span className="text-sm">
+                                    Renderizando documento...
+                                </span>
+                            </div>
+                        ) : isPdf &&
+                            pageImages.length ? (
+                            <img
+                                src={
+                                    pageImages[
+                                    currentPage
+                                    ]
+                                }
+                                alt={`Página ${currentPage + 1
+                                    }`}
+                                className="block h-auto w-full select-none"
+                                draggable={false}
+                            />
+                        ) : templateFile ? (
+                            <div className="min-h-[841px] px-[48px] py-[42px]">
+                                <div
+                                    ref={editorRef}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                    dangerouslySetInnerHTML={{
+                                        __html: documentHtml,
+                                    }}
+                                    className="document-editor min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
+                                />
                             </div>
                         ) : (
-                            <div
-                                ref={editorRef}
-                                contentEditable
-                                suppressContentEditableWarning
-                                className="document-editor min-h-[800px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none focus:outline-none"
-                                dangerouslySetInnerHTML={{
-                                    __html:
-                                        extractedContent ||
-                                        `<p>Digite ou cole o texto do seu modelo diretamente aqui...</p>`,
-                                }}
-                            />
+                            <div className="flex min-h-[841px] flex-col items-center justify-center text-center text-muted-foreground">
+                                <FileText className="mb-3 h-12 w-12 opacity-50" />
+
+                                <p className="text-sm font-medium">
+                                    Nenhum documento carregado
+                                </p>
+
+                                <p className="mt-1 max-w-xs text-xs">
+                                    Faça upload de um PDF ou DOCX para visualizar o modelo.
+                                </p>
+                            </div>
                         )}
                     </div>
                 </div>
