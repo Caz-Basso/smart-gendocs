@@ -52,6 +52,8 @@ Route::middleware('auth')->group(function (): void {
     // User...
     Route::delete('user/{user}', [UserController::class, 'destroy'])->name('user.destroy');
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::get('users/create', [UserController::class, 'createManaged'])->name('users.create');
+    Route::post('users', [UserController::class, 'storeManaged'])->name('users.store');
     Route::get('users', [UserController::class, 'index'])->name('users.index');
 
     Route::resource('roles', RoleController::class)->except(['show']);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Actions\SyncPermissionsFromPolicies;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -13,6 +14,8 @@ final class AdminSeeder extends Seeder
 {
     public function run(): void
     {
+        resolve(SyncPermissionsFromPolicies::class)->handle();
+
         $adminRole = Role::where('name', 'admin')->first();
 
         if (! $adminRole) {
@@ -20,6 +23,17 @@ final class AdminSeeder extends Seeder
 
             return;
         }
+
+        $adminRole->givePermissionTo([
+            'user.viewAny',
+            'user.create',
+            'user.update',
+            'user.delete',
+            'user.manageRoles',
+            'user.changeStatus',
+            'user.impersonate',
+            'user.viewAudits',
+        ]);
 
         $admin = User::updateOrCreate(
             ['email' => 'admin@smartgendocs.com'],

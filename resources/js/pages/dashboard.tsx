@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Head, Link, useForm } from "@inertiajs/react";
-import { Download, FileText, Plus } from "lucide-react";
+import { Download, FileText, Plus, Users } from "lucide-react";
 import AppLayout from "@/layouts/app-layout";
 import { dashboard, model_registration } from "@/routes";
+import { index as usersIndex } from "@/routes/users";
 import type { BreadcrumbItem } from "@/types";
 
 import {
@@ -96,6 +97,7 @@ export default function Dashboard({
     showMockModels = false,
     isAdmin = false,
 }: DashboardProps) {
+    const { auth } = usePage().props;
     const models = showMockModels ? MOCK_MODELS : customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
@@ -293,6 +295,17 @@ export default function Dashboard({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Gerador de Documentos" />
+
+            {auth.can.users.viewAny && (
+                <div className="flex justify-end px-4 pt-4">
+                    <Button asChild variant="outline">
+                        <Link href={usersIndex()}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Gerenciar usuários
+                        </Link>
+                    </Button>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 items-start gap-6 p-6 lg:grid-cols-12">
                 <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm lg:col-span-4">

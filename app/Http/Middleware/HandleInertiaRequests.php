@@ -55,7 +55,10 @@ final class HandleInertiaRequests extends Middleware
                 'can' => [
                     'users' => [
                         'viewAny' => $user instanceof User && $user->can('viewAny', User::class),
+                        'create' => $user instanceof User && $user->can('create', User::class),
                         'update' => $user instanceof User && $user->can('user.update'),
+                        'manageRoles' => $user instanceof User && $user->can('user.manageRoles'),
+                        'changeStatus' => $user instanceof User && $user->can('user.changeStatus'),
                         'delete' => $user instanceof User && $user->can('user.delete'),
                         'impersonate' => $user instanceof User && $user->can('user.impersonate'),
                         'viewAudits' => $user instanceof User && $user->can('user.viewAudits'),
