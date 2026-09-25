@@ -10,13 +10,15 @@ import {
 
 import { Button } from "@/components/ui/button";
 
+interface DocumentPage {
+    type: "pdf" | "html";
+    content: string;
+}
+
 interface DocumentPreviewProps {
     loading: boolean;
-    isPdf: boolean;
-    pageImages: string[];
+    documentPages: DocumentPage[];
     currentPage: number;
-    templateFile: File | null;
-    documentHtml: string;
     editorRef: RefObject<HTMLDivElement | null>;
     handleDragOver: (event: DragEvent<HTMLDivElement>) => void;
     handleDrop: (event: DragEvent<HTMLDivElement>) => void;
@@ -26,17 +28,16 @@ interface DocumentPreviewProps {
 
 export default function DocumentPreview({
     loading,
-    isPdf,
-    pageImages,
+    documentPages,
     currentPage,
-    templateFile,
-    documentHtml,
     editorRef,
     handleDragOver,
     handleDrop,
     previousPage,
     nextPage,
 }: DocumentPreviewProps) {
+    const currentDocument = documentPages[currentPage];
+
     return (
         <div className="flex min-w-0 flex-col items-center lg:col-span-8">
             <div className="mb-4 flex w-full max-w-[900px] items-center justify-between">
@@ -44,7 +45,7 @@ export default function DocumentPreview({
                     Pré-visualização
                 </span>
 
-                {isPdf && pageImages.length > 0 && (
+                {documentPages.length > 0 && (
                     <div className="flex items-center gap-2">
                         <Button
                             type="button"
@@ -57,7 +58,7 @@ export default function DocumentPreview({
                         </Button>
 
                         <span className="text-xs">
-                            {currentPage + 1} / {pageImages.length}
+                            {currentPage + 1} / {documentPages.length}
                         </span>
 
                         <Button
@@ -66,7 +67,7 @@ export default function DocumentPreview({
                             size="icon"
                             onClick={nextPage}
                             disabled={
-                                currentPage >= pageImages.length - 1
+                                currentPage >= documentPages.length - 1
                             }
                         >
                             <ChevronRight className="h-4 w-4" />
@@ -74,7 +75,7 @@ export default function DocumentPreview({
                     </div>
                 )}
 
-                {!isPdf && templateFile && (
+                {currentDocument?.type === "html" && (
                     <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <Edit3 className="h-3.5 w-3.5" />
                         Arraste a tag para o documento
@@ -91,14 +92,14 @@ export default function DocumentPreview({
                             Renderizando documento...
                         </span>
                     </div>
-                ) : isPdf && pageImages.length ? (
+                ) : currentDocument?.type === "pdf" ? (
                     <img
-                        src={pageImages[currentPage]}
+                        src={currentDocument.content}
                         alt={`Página ${currentPage + 1}`}
                         className="block h-auto w-full select-none"
                         draggable={false}
                     />
-                ) : templateFile ? (
+                ) : currentDocument?.type === "html" ? (
                     <div className="min-h-[841px] px-[48px] py-[42px]">
                         <div
                             ref={editorRef}
@@ -107,7 +108,7 @@ export default function DocumentPreview({
                             onDragOver={handleDragOver}
                             onDrop={handleDrop}
                             dangerouslySetInnerHTML={{
-                                __html: documentHtml,
+                                __html: currentDocument.content,
                             }}
                             className="document-editor min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
                         />

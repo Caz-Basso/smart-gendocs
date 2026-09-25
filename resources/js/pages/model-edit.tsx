@@ -1,11 +1,4 @@
-import {
-    useState,
-    useEffect,
-    type ChangeEvent,
-    type FormEvent,
-    type DragEvent,
-    useRef,
-} from "react";
+import { useState, type DragEvent, SyntheticEvent } from "react";
 
 import AppLayout from "@/layouts/app-layout";
 import type { BreadcrumbItem } from "@/types";
@@ -22,23 +15,12 @@ import FileUpload from "@/components/file-upload";
 import DocumentPreview from "@/components/document-preview";
 import SaveAndCancelBtn from "@/components/save-and-cancel-btn";
 
-import { Plus, Loader2, Save, X } from "lucide-react";
+import { useModelFields } from "@/hooks/use-model-fields";
+import { useDocumentPreview } from "@/hooks/use-document-preview";
 
-import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
-import type { TextItem } from "pdfjs-dist/types/src/display/api";
+import { Plus } from "lucide-react";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-).toString();
-
-interface FieldItem {
-    id: string;
-    name: string;
-    slug: string;
-    type: string;
-}
+import { ModelField } from "@/types/model-field";
 
 interface FieldTypeOption {
     value: string;
@@ -50,7 +32,7 @@ interface Props {
     model: {
         id: string;
         name: string;
-        fields: FieldItem[];
+        fields: ModelField[];
         extracted_text: string | null;
     };
 }
@@ -62,42 +44,29 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-function slugify(text: string) {
-    return text
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-}
-
-function cleanHtml(html: string) {
-    return html
-        .replace(/&nbsp;/g, " ")
-        .replace(/\s+/g, " ")
-        .replace(/>\s+</g, "><")
-        .trim();
-}
-
 export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
-    const [templateFile, setTemplateFile] = useState<File | null>(null);
-    const editorRef = useRef<HTMLDivElement>(null);
-
-    const [loading, setIsLoadingText] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-    const [pageImages, setPageImages] = useState<string[]>([]);
-    const [currentPage, setCurrentPage] = useState(0);
-    const [isPdf, setIsPdf] = useState(false);
 
-    const [extractedContent, setExtractedContent] = useState<string>(
-        model.extracted_text || "",
-    );
+    const {
+        templateFile,
+        documentPages,
+        currentPage,
+        loading,
+        editorRef,
+        handleFileChange,
+        clearTemplate,
+        handleDragOver,
+        handleDrop,
+        previousPage,
+        nextPage,
+    } = useDocumentPreview({
+        initialDocumentHtml: model.extracted_text || "",
+    });
 
     const { data, setData, put, processing, errors } = useForm<{
         name: string;
         template: File | null;
-        fields: FieldItem[];
+        fields: ModelField[];
         extracted_text: string;
     }>({
         name: model.name || "",
@@ -116,59 +85,11 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         extracted_text: model.extracted_text || "",
     });
 
-    const addField = () => {
-        const newId = String(Date.now());
-
-        setData("fields", [
-            ...data.fields,
-            {
-                id: newId,
-                name: "",
-                slug: "",
-                type: "text",
-            },
-        ]);
-    };
-
-    const removeField = (id: string) => {
-        if (data.fields.length === 1) {
-            return;
-        }
-
-        setData(
-            "fields",
-            data.fields.filter((field) => field.id !== id),
-        );
-    };
-
-    const updateFieldName = (id: string, name: string) => {
-        setData(
-            "fields",
-            data.fields.map((field) =>
-                field.id === id
-                    ? {
-                          ...field,
-                          name,
-                          slug: slugify(name),
-                      }
-                    : field,
-            ),
-        );
-    };
-
-    const updateFieldType = (id: string, type: string) => {
-        setData(
-            "fields",
-            data.fields.map((field) =>
-                field.id === id
-                    ? {
-                          ...field,
-                          type,
-                      }
-                    : field,
-            ),
-        );
-    };
+    const { addField, removeField, updateFieldName, updateFieldType } =
+        useModelFields({
+            fields: data.fields,
+            setFields: (fields) => setData("fields", fields),
+        });
 
     const handleCopyTag = async (slug: string) => {
         const tag = `{{${slug}}}`;
@@ -186,25 +107,6 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         }
     };
 
-    const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
-        const { clientX, clientY } = event;
-
-        if (typeof document.caretPositionFromPoint === "function") {
-            const position = document.caretPositionFromPoint(clientX, clientY);
-
-            if (!position || !position.offsetNode) {
-                return null;
-            }
-
-            const range = document.createRange();
-            range.setStart(position.offsetNode, position.offset);
-            range.collapse(true);
-            return range;
-        }
-
-        return null;
-    };
-
     const handleDragStart = (
         event: DragEvent<HTMLDivElement>,
         slug: string,
@@ -218,69 +120,7 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         event.dataTransfer.effectAllowed = "copy";
     };
 
-    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-
-        event.dataTransfer.dropEffect = "copy";
-    };
-
-    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-
-        const editor = editorRef.current;
-
-        const text = event.dataTransfer.getData("text/plain");
-
-        if (!editor || !text) {
-            return;
-        }
-
-        const range = getCaretRange(event);
-
-        if (!range || !editor.contains(range.commonAncestorContainer)) {
-            return;
-        }
-
-        const node = document.createTextNode(text);
-
-        range.deleteContents();
-        range.insertNode(node);
-
-        const cursor = document.createRange();
-
-        cursor.setStartAfter(node);
-        cursor.collapse(true);
-
-        const selection = window.getSelection();
-
-        selection?.removeAllRanges();
-        selection?.addRange(cursor);
-
-        const updatedHtml = editor.innerHTML;
-
-        setExtractedContent(updatedHtml);
-        setData("extracted_text", updatedHtml);
-    };
-
-    const previousPage = () => {
-        setCurrentPage((page) => Math.max(page - 1, 0));
-    };
-
-    const nextPage = () => {
-        setCurrentPage((page) => Math.min(page + 1, pageImages.length - 1));
-    };
-
-    const handleCancel = () => {
-        const confirmed = window.confirm(
-            "Tem certeza que deseja cancelar? As alterações não salvas serão perdidas.",
-        );
-
-        if (confirmed) {
-            window.history.back();
-        }
-    };
-
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         if (!data.name.trim()) {
@@ -288,11 +128,9 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
             return;
         }
 
-        const updatedHtmlContent = editorRef.current
-            ? editorRef.current.innerHTML
-            : extractedContent;
+        const updatedHtmlContent = editorRef.current?.innerHTML ?? "";
 
-        const cleanedHtml = cleanHtml(updatedHtmlContent);
+        setData("extracted_text", updatedHtmlContent);
 
         put(`/modelos/${model.id}`, {
             onSuccess: () => {
@@ -302,148 +140,6 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                 console.error("Erros de validação:", formErrors);
             },
         });
-    };
-
-    useEffect(() => {
-        if (!templateFile) {
-            return;
-        }
-
-        const file = templateFile;
-
-        async function processDocument() {
-            setIsLoadingText(true);
-
-            try {
-                const buffer = await file.arrayBuffer();
-
-                const isDocx =
-                    file.type ===
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-                    file.name.toLowerCase().endsWith(".docx");
-
-                const fileIsPdf =
-                    file.type === "application/pdf" ||
-                    file.name.toLowerCase().endsWith(".pdf");
-
-                setIsPdf(fileIsPdf);
-                setCurrentPage(0);
-                setPageImages([]);
-
-                if (!isDocx && !fileIsPdf) {
-                    setExtractedContent(`
-                        <p class="text-red-500 font-medium">
-                            Tipo de arquivo não suportado. Por favor, selecione um arquivo .docx ou .pdf.
-                        </p>
-                    `);
-
-                    return;
-                }
-
-                if (isDocx) {
-                    const result = await mammoth.convertToHtml(
-                        { arrayBuffer: buffer },
-                        {
-                            styleMap: [
-                                "p[style-name='Heading 1'] => h1:fresh",
-                                "p[style-name='Heading 2'] => h2:fresh",
-                                "p[style-name='Heading 3'] => h3:fresh",
-                            ],
-                        },
-                    );
-
-                    const cleanedHtml = cleanHtml(result.value);
-
-                    setExtractedContent(cleanedHtml);
-                    setData("extracted_text", cleanedHtml);
-
-                    return;
-                }
-
-                if (fileIsPdf) {
-                    const pdf = await pdfjsLib.getDocument({
-                        data: buffer,
-                    }).promise;
-
-                    const images: string[] = [];
-                    let htmlBuilder = "";
-
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-
-                        const viewport = page.getViewport({
-                            scale: 1.5,
-                        });
-
-                        const canvas = document.createElement("canvas");
-                        const context = canvas.getContext("2d");
-
-                        if (!context) {
-                            continue;
-                        }
-
-                        canvas.width = viewport.width;
-                        canvas.height = viewport.height;
-
-                        await page.render({
-                            canvas,
-                            canvasContext: context,
-                            viewport,
-                        }).promise;
-
-                        images.push(canvas.toDataURL("image/png"));
-
-                        const textContent = await page.getTextContent();
-
-                        const pageText = textContent.items
-                            .filter((item): item is TextItem => "str" in item)
-                            .map((item) => item.str)
-                            .join(" ")
-                            .replace(/\s+/g, " ")
-                            .trim();
-
-                        if (pageText) {
-                            htmlBuilder += `<p>${pageText}</p>`;
-                        }
-                    }
-
-                    setPageImages(images);
-
-                    const cleanedHtml = cleanHtml(htmlBuilder);
-
-                    setExtractedContent(cleanedHtml);
-                    setData("extracted_text", cleanedHtml);
-
-                    return;
-                }
-            } catch (error) {
-                console.error("Erro na conversão:", error);
-
-                const errorHtml = `
-                    <p class="text-red-500 font-medium">
-                        Erro ao converter o arquivo. Certifique-se de que é um PDF ou DOCX válido.
-                    </p>
-                `;
-
-                setExtractedContent(errorHtml);
-                setData("extracted_text", errorHtml);
-            } finally {
-                setIsLoadingText(false);
-            }
-        }
-
-        processDocument();
-    }, [templateFile]);
-
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-
-        if (!file) {
-            return;
-        }
-
-        setTemplateFile(file);
-        setData("template", file);
     };
 
     return (
@@ -489,14 +185,16 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
 
                         <FileUpload
                             templateFile={templateFile}
-                            handleFileChange={handleFileChange}
+                            handleFileChange={(event) => {
+                                handleFileChange(event);
+                                setData(
+                                    "template",
+                                    event.target.files?.[0] ?? null,
+                                );
+                            }}
                             onClearFile={() => {
-                                setTemplateFile(null);
+                                clearTemplate();
                                 setData("template", null);
-                                setExtractedContent(model.extracted_text || "");
-                                setIsPdf(false);
-                                setPageImages([]);
-                                setCurrentPage(0);
                             }}
                             error={errors.template}
                         />
@@ -530,11 +228,8 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
 
                 <DocumentPreview
                     loading={loading}
-                    isPdf={isPdf}
-                    pageImages={pageImages}
+                    documentPages={documentPages}
                     currentPage={currentPage}
-                    templateFile={templateFile}
-                    documentHtml={extractedContent}
                     editorRef={editorRef}
                     handleDragOver={handleDragOver}
                     handleDrop={handleDrop}

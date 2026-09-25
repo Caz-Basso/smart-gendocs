@@ -1,11 +1,4 @@
-import {
-    useEffect,
-    useRef,
-    useState,
-    type ChangeEvent,
-    type DragEvent,
-    type FormEvent,
-} from "react";
+import { useState, type DragEvent, type FormEvent } from "react";
 
 import AppLayout from "@/layouts/app-layout";
 import { BreadcrumbItem } from "@/types";
@@ -16,12 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import {
-    Plus,
-    Loader2,
-    Save,
-    X,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 
 import HowToUseDialog from "@/components/how-to-use-dialog";
 import DynamicField from "@/components/dynamic-field";
@@ -29,20 +17,9 @@ import FileUpload from "@/components/file-upload";
 import DocumentPreview from "@/components/document-preview";
 import SaveAndCancelBtn from "@/components/save-and-cancel-btn";
 
-import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-).toString();
-
-interface FieldItem {
-    id: string;
-    name: string;
-    slug: string;
-    type: string;
-}
+import { useModelFields } from "@/hooks/use-model-fields";
+import { useDocumentPreview } from "@/hooks/use-document-preview";
+import type { ModelField } from "@/types/model-field";
 
 interface FieldTypeOption {
     value: string;
@@ -60,25 +37,22 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-const slugify = (text: string) =>
-    text
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-
 export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
-    const [templateFile, setTemplateFile] = useState<File | null>(null);
-    const editorRef = useRef<HTMLDivElement>(null);
-
-    const [loading, setLoading] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-    const [pageImages, setPageImages] = useState<string[]>([]);
-    const [currentPage, setCurrentPage] = useState(0);
-    const [isPdf, setIsPdf] = useState(false);
-    const [documentHtml, setDocumentHtml] = useState("");
+
+    const {
+        templateFile,
+        documentPages,
+        currentPage,
+        loading,
+        editorRef,
+        handleFileChange,
+        clearTemplate,
+        handleDragOver,
+        handleDrop,
+        previousPage,
+        nextPage,
+    } = useDocumentPreview();
 
     const { data, setData, post, processing, errors } = useForm({
         name: "",
@@ -90,53 +64,19 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                 slug: "nome_do_cliente",
                 type: "text",
             },
-        ] as FieldItem[],
+        ] as ModelField[],
         extracted_text: "",
     });
 
-    const addField = () => {
-        setData("fields", [
-            ...data.fields,
-            {
-                id: crypto.randomUUID(),
-                name: "",
-                slug: "",
-                type: "text",
-            },
-        ]);
-    };
+    const { addField, removeField, updateFieldName, updateFieldType } =
+        useModelFields({
+            fields: data.fields,
+            setFields: (fields) => setData("fields", fields),
+        });
 
-    const removeField = (id: string) => {
-        if (data.fields.length <= 1) return;
-
-        setData(
-            "fields",
-            data.fields.filter((field) => field.id !== id),
-        );
-    };
-
-    const updateFieldName = (id: string, name: string) => {
-        setData(
-            "fields",
-            data.fields.map((field) =>
-                field.id === id
-                    ? {
-                          ...field,
-                          name,
-                          slug: slugify(name),
-                      }
-                    : field,
-            ),
-        );
-    };
-
-    const updateFieldType = (id: string, type: string) => {
-        setData(
-            "fields",
-            data.fields.map((field) =>
-                field.id === id ? { ...field, type } : field,
-            ),
-        );
+    const handleDragStart = (event: DragEvent<HTMLDivElement>, tag: string) => {
+        event.dataTransfer.setData("text/plain", tag);
+        event.dataTransfer.effectAllowed = "copy";
     };
 
     const handleCopyTag = async (slug: string) => {
@@ -149,216 +89,6 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
         } catch (error) {
             console.error("Erro ao copiar tag:", error);
         }
-    };
-
-    const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
-        const { clientX, clientY } = event;
-
-        if (typeof document.caretPositionFromPoint === "function") {
-            const position = document.caretPositionFromPoint(clientX, clientY);
-
-            if (!position || !position.offsetNode) {
-                return null;
-            }
-
-            const range = document.createRange();
-            range.setStart(position.offsetNode, position.offset);
-            range.collapse(true);
-            return range;
-        }
-
-        return null;
-    };
-
-    const handleDragStart = (
-        event: DragEvent<HTMLDivElement>,
-        slug: string,
-    ) => {
-        if (!slug) return;
-
-        event.dataTransfer.setData("text/plain", `{{${slug}}}`);
-
-        event.dataTransfer.effectAllowed = "copy";
-    };
-
-    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-    };
-
-    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-
-        const editor = editorRef.current;
-        const text = event.dataTransfer.getData("text/plain");
-
-        if (!editor || !text || isPdf) return;
-
-        const range = getCaretRange(event);
-
-        if (!range || !editor.contains(range.commonAncestorContainer)) {
-            return;
-        }
-
-        const node = document.createTextNode(text);
-
-        range.insertNode(node);
-
-        const cursor = document.createRange();
-
-        cursor.setStartAfter(node);
-        cursor.collapse(true);
-
-        const selection = window.getSelection();
-
-        selection?.removeAllRanges();
-        selection?.addRange(cursor);
-    };
-
-    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-
-        if (!file) return;
-
-        setTemplateFile(file);
-        setData("template", file);
-    };
-
-    const clearTemplate = () => {
-        setTemplateFile(null);
-        setData("template", null);
-        setPageImages([]);
-        setCurrentPage(0);
-        setIsPdf(false);
-        setDocumentHtml("");
-
-        if (editorRef.current) {
-            editorRef.current.innerHTML = "";
-        }
-    };
-
-    useEffect(() => {
-        if (!templateFile) {
-            if (editorRef.current) {
-                editorRef.current.innerHTML = "";
-            }
-
-            setPageImages([]);
-            setCurrentPage(0);
-            setIsPdf(false);
-            return;
-        }
-
-        let cancelled = false;
-
-        const loadDocument = async () => {
-            setLoading(true);
-
-            try {
-                const buffer = await templateFile.arrayBuffer();
-
-                const fileName = templateFile.name.toLowerCase();
-
-                const isDocx = fileName.endsWith(".docx");
-
-                const pdf =
-                    fileName.endsWith(".pdf") ||
-                    templateFile.type === "application/pdf";
-
-                if (isDocx) {
-                    const result = await mammoth.convertToHtml({
-                        arrayBuffer: buffer,
-                    });
-
-                    if (cancelled) return;
-
-                    setDocumentHtml(result.value || "<p>Documento vazio.</p>");
-
-                    setIsPdf(false);
-                    setPageImages([]);
-                    setCurrentPage(0);
-
-                    return;
-                }
-
-                if (pdf) {
-                    const pdfDocument = await pdfjsLib.getDocument({
-                        data: buffer,
-                    }).promise;
-
-                    const images: string[] = [];
-
-                    for (let i = 1; i <= pdfDocument.numPages; i++) {
-                        if (cancelled) return;
-
-                        const page = await pdfDocument.getPage(i);
-
-                        const viewport = page.getViewport({
-                            scale: 1.5,
-                        });
-
-                        const canvas = window.document.createElement("canvas");
-                        const context = canvas.getContext("2d");
-
-                        if (!context) {
-                            throw new Error(
-                                "Não foi possível criar o contexto do canvas.",
-                            );
-                        }
-
-                        canvas.width = Math.ceil(viewport.width);
-                        canvas.height = Math.ceil(viewport.height);
-
-                        await page.render({
-                            canvas,
-                            viewport,
-                        }).promise;
-
-                        images.push(canvas.toDataURL("image/png"));
-                    }
-
-                    if (cancelled) return;
-
-                    setPageImages(images);
-                    setCurrentPage(0);
-                    setIsPdf(true);
-
-                    return;
-                }
-
-                if (editorRef.current) {
-                    editorRef.current.innerHTML = `<p class="text-red-500 font-medium">
-                            Tipo de arquivo não suportado.
-                        </p>`;
-                }
-            } catch (error) {
-                console.error("Erro ao carregar documento:", error);
-
-                if (!cancelled && editorRef.current) {
-                    editorRef.current.innerHTML = `<p class="text-red-500 font-medium">
-                            Não foi possível carregar o documento.
-                        </p>`;
-                }
-            } finally {
-                if (!cancelled) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        loadDocument();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [templateFile]);
-
-    const previousPage = () => {
-        setCurrentPage((page) => Math.max(0, page - 1));
-    };
-
-    const nextPage = () => {
-        setCurrentPage((page) => Math.min(pageImages.length - 1, page + 1));
     };
 
     const handleSubmit = (event: FormEvent) => {
@@ -425,9 +155,13 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
 
                         <FileUpload
                             templateFile={templateFile}
-                            handleFileChange={handleFileChange}
+                            handleFileChange={(event) => {
+                                handleFileChange(event);
+                                const file = event.target.files?.[0] ?? null;
+                                setData("template", file);
+                            }}
                             onClearFile={() => {
-                                setTemplateFile(null);
+                                clearTemplate();
                                 setData("template", null);
                             }}
                             error={errors.template}
@@ -462,11 +196,8 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
 
                 <DocumentPreview
                     loading={loading}
-                    isPdf={isPdf}
-                    pageImages={pageImages}
+                    documentPages={documentPages}
                     currentPage={currentPage}
-                    templateFile={templateFile}
-                    documentHtml={documentHtml}
                     editorRef={editorRef}
                     handleDragOver={handleDragOver}
                     handleDrop={handleDrop}
