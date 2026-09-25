@@ -20,6 +20,7 @@ interface DocumentPreviewProps {
     documentPages: DocumentPage[];
     currentPage: number;
     editorRef: RefObject<HTMLDivElement | null>;
+    handleEditorInput: () => void;
     handleDragOver: (event: DragEvent<HTMLDivElement>) => void;
     handleDrop: (event: DragEvent<HTMLDivElement>) => void;
     previousPage: () => void;
@@ -33,6 +34,7 @@ export default function DocumentPreview({
     editorRef,
     handleDragOver,
     handleDrop,
+    handleEditorInput,
     previousPage,
     nextPage,
 }: DocumentPreviewProps) {
@@ -66,9 +68,7 @@ export default function DocumentPreview({
                             variant="ghost"
                             size="icon"
                             onClick={nextPage}
-                            disabled={
-                                currentPage >= documentPages.length - 1
-                            }
+                            disabled={currentPage >= documentPages.length - 1}
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -105,12 +105,13 @@ export default function DocumentPreview({
                             ref={editorRef}
                             contentEditable
                             suppressContentEditableWarning
+                            onInput={handleEditorInput}
                             onDragOver={handleDragOver}
                             onDrop={handleDrop}
+                            className="min-h-full bg-white text-black"
                             dangerouslySetInnerHTML={{
                                 __html: currentDocument.content,
                             }}
-                            className="document-editor min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
                         />
                     </div>
                 ) : (

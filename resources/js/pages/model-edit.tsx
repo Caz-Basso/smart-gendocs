@@ -1,4 +1,4 @@
-import { useState, type DragEvent, SyntheticEvent } from "react";
+import { useState, type DragEvent, type SyntheticEvent } from "react";
 
 import AppLayout from "@/layouts/app-layout";
 import type { BreadcrumbItem } from "@/types";
@@ -20,7 +20,7 @@ import { useDocumentPreview } from "@/hooks/use-document-preview";
 
 import { Plus } from "lucide-react";
 
-import { ModelField } from "@/types/model-field";
+import type { ModelField } from "@/types/model-field";
 
 interface FieldTypeOption {
     value: string;
@@ -57,8 +57,10 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         clearTemplate,
         handleDragOver,
         handleDrop,
+        handleEditorInput,
         previousPage,
         nextPage,
+        getDocumentHtml,
     } = useDocumentPreview({
         initialDocumentHtml: model.extracted_text || "",
     });
@@ -120,17 +122,17 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
         event.dataTransfer.effectAllowed = "copy";
     };
 
-    const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    const handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
+        event.preventDefault();
 
         if (!data.name.trim()) {
             alert("Por favor, informe o nome do modelo.");
             return;
         }
 
-        const updatedHtmlContent = editorRef.current?.innerHTML ?? "";
+        const html = getDocumentHtml();
 
-        setData("extracted_text", updatedHtmlContent);
+        setData("extracted_text", html);
 
         put(`/modelos/${model.id}`, {
             onSuccess: () => {
@@ -233,6 +235,7 @@ export default function ModelEdit({ fieldTypeOptions = [], model }: Props) {
                     editorRef={editorRef}
                     handleDragOver={handleDragOver}
                     handleDrop={handleDrop}
+                    handleEditorInput={handleEditorInput}
                     previousPage={previousPage}
                     nextPage={nextPage}
                 />

@@ -5,12 +5,8 @@ import {
     type ChangeEvent,
     type DragEvent,
 } from "react";
-
 import mammoth from "mammoth";
-
 import * as pdfjsLib from "pdfjs-dist";
-
-import type { TextItem } from "pdfjs-dist/types/src/display/api";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -45,35 +41,25 @@ function splitHtmlIntoPages(html: string): string[] {
     }
 
     const parser = new DOMParser();
-    const document = parser.parseFromString(html, "text/html");
-
-    const elements = Array.from(document.body.children);
+    const parsedDocument = parser.parseFromString(html, "text/html");
+    const elements = Array.from(parsedDocument.body.children);
 
     if (elements.length === 0) {
         return [html];
     }
 
-    const pages: string[] = [];
-    let currentPage = "";
-
     const MAX_BLOCKS_PER_PAGE = 12;
+    const pages: string[] = [];
 
-    elements.forEach((element) => {
-        const elementHtml = element.outerHTML;
+    for (let index = 0; index < elements.length; index += MAX_BLOCKS_PER_PAGE) {
+        const page = elements
+            .slice(index, index + MAX_BLOCKS_PER_PAGE)
+            .map((element) => element.outerHTML)
+            .join("");
 
-        currentPage += elementHtml;
-
-        if (
-            currentPage &&
-            currentPage.split("</").length - 1 >= MAX_BLOCKS_PER_PAGE
-        ) {
-            pages.push(currentPage);
-            currentPage = "";
+        if (page) {
+            pages.push(page);
         }
-    });
-
-    if (currentPage) {
-        pages.push(currentPage);
     }
 
     return pages.length > 0 ? pages : [html];
@@ -82,8 +68,6 @@ function splitHtmlIntoPages(html: string): string[] {
 export function useDocumentPreview({
     initialDocumentHtml = "",
 }: UseDocumentPreviewOptions = {}) {
-    const [templateFile, setTemplateFile] = useState<File | null>(null);
-
     const initialPages: DocumentPage[] = initialDocumentHtml
         ? splitHtmlIntoPages(initialDocumentHtml).map((page) => ({
               type: "html",
@@ -91,19 +75,36 @@ export function useDocumentPreview({
           }))
         : [];
 
+    const [templateFile, setTemplateFile] = useState<File | null>(null);
     const [documentHtml, setDocumentHtml] =
         useState<string>(initialDocumentHtml);
-
     const [documentPages, setDocumentPages] =
         useState<DocumentPage[]>(initialPages);
-
     const [currentPage, setCurrentPage] = useState(0);
-
     const [loading, setLoading] = useState(false);
 
-    const [isPdf, setIsPdf] = useState(false);
-
     const editorRef = useRef<HTMLDivElement>(null);
+
+    const handleEditorInput = () => {
+        const editor = editorRef.current;
+
+        if (!editor) {
+            return;
+        }
+
+        const html = editor.innerHTML;
+
+        setDocumentPages((pages) =>
+            pages.map((page, index) =>
+                index === currentPage && page.type === "html"
+                    ? {
+                          ...page,
+                          content: html,
+                      }
+                    : page,
+            ),
+        );
+    };
 
     const updateDocumentHtml = (html: string) => {
         setDocumentHtml(html);
@@ -118,6 +119,13 @@ export function useDocumentPreview({
         );
 
         setCurrentPage(0);
+    };
+
+    const getDocumentHtml = (): string => {
+        return documentPages
+            .filter((page) => page.type === "html")
+            .map((page) => page.content)
+            .join("");
     };
 
     const getCaretRange = (event: DragEvent<HTMLDivElement>): Range | null => {
@@ -149,14 +157,16 @@ export function useDocumentPreview({
     const handleDrop = (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
 
-        if (isPdf) {
-            return;
-        }
-
         const editor = editorRef.current;
         const text = event.dataTransfer.getData("text/plain");
 
         if (!editor || !text) {
+            return;
+        }
+
+        const currentDocumentPage = documentPages[currentPage];
+
+        if (!currentDocumentPage || currentDocumentPage.type !== "html") {
             return;
         }
 
@@ -181,7 +191,34 @@ export function useDocumentPreview({
         selection?.removeAllRanges();
         selection?.addRange(cursor);
 
-        updateDocumentHtml(editor.innerHTML);
+        const updatedHtml = editor.innerHTML;
+
+        setDocumentPages((pages) =>
+            pages.map((page, index) =>
+                index === currentPage && page.type === "html"
+                    ? {
+                          ...page,
+                          content: updatedHtml,
+                      }
+                    : page,
+            ),
+        );
+
+        setDocumentHtml((currentHtml) => {
+            const pages = documentPages.map((page, index) =>
+                index === currentPage && page.type === "html"
+                    ? {
+                          ...page,
+                          content: updatedHtml,
+                      }
+                    : page,
+            );
+
+            return pages
+                .filter((page) => page.type === "html")
+                .map((page) => page.content)
+                .join("");
+        });
     };
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -198,7 +235,6 @@ export function useDocumentPreview({
         setTemplateFile(null);
         setDocumentHtml(initialDocumentHtml);
         setCurrentPage(0);
-        setIsPdf(false);
 
         if (initialDocumentHtml) {
             const pages = splitHtmlIntoPages(initialDocumentHtml);
@@ -228,18 +264,15 @@ export function useDocumentPreview({
 
         const loadDocument = async () => {
             setLoading(true);
-
             setDocumentPages([]);
             setCurrentPage(0);
 
             try {
                 const buffer = await templateFile.arrayBuffer();
-
                 const fileName = templateFile.name.toLowerCase();
 
                 const isDocx = fileName.endsWith(".docx");
-
-                const pdf =
+                const isPdf =
                     fileName.endsWith(".pdf") ||
                     templateFile.type === "application/pdf";
 
@@ -248,32 +281,25 @@ export function useDocumentPreview({
                         arrayBuffer: buffer,
                     });
 
+                    const html = cleanHtml(result.value);
+
+                    const pages = splitHtmlIntoPages(html).map((page) => ({
+                        type: "html" as const,
+                        content: page,
+                    }));
+
                     if (cancelled) {
                         return;
                     }
 
-                    const html = cleanHtml(
-                        result.value || "<p>Documento vazio.</p>",
-                    );
-
-                    const pages = splitHtmlIntoPages(html);
-
                     setDocumentHtml(html);
-
-                    setDocumentPages(
-                        pages.map((page) => ({
-                            type: "html",
-                            content: page,
-                        })),
-                    );
-
-                    setIsPdf(false);
+                    setDocumentPages(pages);
                     setCurrentPage(0);
 
                     return;
                 }
 
-                if (pdf) {
+                if (isPdf) {
                     const pdfDocument = await pdfjsLib.getDocument({
                         data: buffer,
                     }).promise;
@@ -317,7 +343,6 @@ export function useDocumentPreview({
 
                     setDocumentPages(pages);
                     setDocumentHtml("");
-                    setIsPdf(true);
                     setCurrentPage(0);
 
                     return;
@@ -330,13 +355,13 @@ export function useDocumentPreview({
                 `;
 
                 setDocumentHtml(errorHtml);
+
                 setDocumentPages([
                     {
                         type: "html",
                         content: errorHtml,
                     },
                 ]);
-                setIsPdf(false);
             } catch (error) {
                 console.error("Erro ao carregar documento:", error);
 
@@ -370,6 +395,21 @@ export function useDocumentPreview({
         };
     }, [templateFile]);
 
+    useEffect(() => {
+        if (templateFile || !initialDocumentHtml) {
+            return;
+        }
+
+        const pages = splitHtmlIntoPages(initialDocumentHtml).map((page) => ({
+            type: "html" as const,
+            content: page,
+        }));
+
+        setDocumentHtml(initialDocumentHtml);
+        setDocumentPages(pages);
+        setCurrentPage(0);
+    }, [initialDocumentHtml, templateFile]);
+
     const previousPage = () => {
         setCurrentPage((page) => Math.max(page - 1, 0));
     };
@@ -384,14 +424,15 @@ export function useDocumentPreview({
         documentPages,
         currentPage,
         loading,
-        isPdf,
         editorRef,
         handleFileChange,
         clearTemplate,
         handleDragOver,
         handleDrop,
+        handleEditorInput,
         previousPage,
         nextPage,
+        getDocumentHtml,
         setDocumentHtml: updateDocumentHtml,
     };
 }

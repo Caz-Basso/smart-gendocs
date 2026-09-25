@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type FormEvent } from "react";
+import { useState, type DragEvent,  type SyntheticEvent } from "react";
 
 import AppLayout from "@/layouts/app-layout";
 import { BreadcrumbItem } from "@/types";
@@ -50,6 +50,7 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
         clearTemplate,
         handleDragOver,
         handleDrop,
+        handleEditorInput,
         previousPage,
         nextPage,
     } = useDocumentPreview();
@@ -91,8 +92,8 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
         }
     };
 
-    const handleSubmit = (event: FormEvent) => {
-        event.preventDefault();
+    const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
+        e.preventDefault();
 
         if (!data.name.trim()) {
             alert("Por favor, informe o nome do modelo.");
@@ -105,13 +106,10 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
         }
 
         const html = editorRef.current?.innerHTML ?? "";
-
         setData("extracted_text", html);
 
         post("/modelos", {
-            onSuccess: () => {
-                alert("Modelo salvo com sucesso!");
-            },
+            onSuccess: () => alert("Modelo salvo com sucesso!"),
         });
     };
 
@@ -201,6 +199,7 @@ export default function ModelRegistration({ fieldTypeOptions = [] }: Props) {
                     editorRef={editorRef}
                     handleDragOver={handleDragOver}
                     handleDrop={handleDrop}
+                    handleEditorInput={handleEditorInput}
                     previousPage={previousPage}
                     nextPage={nextPage}
                 />
