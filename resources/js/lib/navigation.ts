@@ -1,8 +1,15 @@
-import { LayoutGrid, Shield, Users, type LucideIcon } from 'lucide-react';
+import {
+    Files,
+    LayoutGrid,
+    Shield,
+    Users,
+    type LucideIcon,
+} from 'lucide-react';
 import type { NavGroup, NavItem, SharedNavItem } from '@/types';
 
 const iconMap: Record<string, LucideIcon> = {
     LayoutGrid,
+    Files,
     Shield,
     Users,
 };

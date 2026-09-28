@@ -86,6 +86,13 @@ final readonly class BuildMainNavigation
                 'ability' => null,
             ],
             [
+                'group' => 'Dashboard',
+                'title' => 'Meus documentos',
+                'href' => route('documents.index', absolute: false),
+                'icon' => 'Files',
+                'ability' => null,
+            ],
+            [
                 'group' => 'Administração',
                 'title' => 'Usuários',
                 'href' => route('users.index', absolute: false),

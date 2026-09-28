@@ -1,33 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { Head, Link, useForm, usePage } from "@inertiajs/react";
-import { Download, FileText, Plus, Users } from "lucide-react";
-import AppLayout from "@/layouts/app-layout";
-import { dashboard, model_registration } from "@/routes";
-import { index as usersIndex } from "@/routes/users";
-import type { BreadcrumbItem } from "@/types";
-
-import {
-    MOCK_MODELS,
-    type DocumentModel,
-    type DynamicField,
-} from "@/types/document";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Download, FileText, Plus, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import AppLayout from '@/layouts/app-layout';
+import { dashboard, model_registration } from '@/routes';
+import { index as usersIndex } from '@/routes/users';
+import type { BreadcrumbItem } from '@/types';
+import {
+    MOCK_MODELS,
+    type DocumentModel,
+    type DynamicField,
+} from '@/types/document';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: "Gerador de Documentos",
+        title: 'Gerador de Documentos',
         href: dashboard(),
     },
 ];
@@ -44,7 +42,7 @@ function getInitialData(model?: DocumentModel): Record<string, string> {
     const result: Record<string, string> = {};
 
     model.fields.forEach((field) => {
-        result[field.slug] = field.defaultValue ?? "";
+        result[field.slug] = field.defaultValue ?? '';
     });
 
     Object.assign(result, model.defaultData ?? {});
@@ -56,32 +54,32 @@ function formatValue(
     field: DynamicField | undefined,
     value: string | undefined,
 ): string {
-    if (!value) return "";
+    if (!value) return '';
     if (!field) return value;
 
-    if (field.type === "checkbox") {
-        return value === "true" ? "Sim" : "Não";
+    if (field.type === 'checkbox') {
+        return value === 'true' ? 'Sim' : 'Não';
     }
 
-    if (field.type === "select" || field.type === "radio") {
+    if (field.type === 'select' || field.type === 'radio') {
         const option = field.options?.find((item) => item.value === value);
 
         return option?.label ?? value;
     }
 
-    if (field.type === "currency") {
-        const numericValue = Number(value.replace(/\D/g, "")) / 100;
+    if (field.type === 'currency') {
+        const numericValue = Number(value.replace(/\D/g, '')) / 100;
 
         if (!Number.isNaN(numericValue)) {
-            return new Intl.NumberFormat("pt-BR", {
-                style: "currency",
-                currency: "BRL",
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
             }).format(numericValue);
         }
     }
 
-    if (field.type === "date") {
-        const parts = value.split("-");
+    if (field.type === 'date') {
+        const parts = value.split('-');
 
         if (parts.length === 3) {
             const [year, month, day] = parts;
@@ -102,7 +100,7 @@ export default function Dashboard({
     const models = showMockModels ? MOCK_MODELS : customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
-        models[0]?.id ?? "",
+        models[0]?.id ?? '',
     );
 
     const selectedModel = useMemo(
@@ -113,6 +111,7 @@ export default function Dashboard({
     const { data, setData, processing } = useForm<Record<string, string>>(
         getInitialData(selectedModel),
     );
+    const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         if (selectedModel) {
@@ -126,7 +125,7 @@ export default function Dashboard({
         const grouped = new Map<string, DynamicField[]>();
 
         selectedModel.fields.forEach((field) => {
-            const section = field.section ?? "Dados do Documento";
+            const section = field.section ?? 'Dados do Documento';
 
             if (!grouped.has(section)) {
                 grouped.set(section, []);
@@ -139,7 +138,7 @@ export default function Dashboard({
     }, [selectedModel]);
 
     function renderField(field: DynamicField) {
-        const value = data[field.slug] ?? "";
+        const value = data[field.slug] ?? '';
 
         const label = (
             <Label htmlFor={field.slug} className="text-xs font-medium">
@@ -150,14 +149,14 @@ export default function Dashboard({
         );
 
         enum FieldType {
-            TEXT = "text",
-            TEXTAREA = "textarea",
-            NUMBER = "number",
-            DATE = "date",
-            CURRENCY = "currency",
+            TEXT = 'text',
+            TEXTAREA = 'textarea',
+            NUMBER = 'number',
+            DATE = 'date',
+            CURRENCY = 'currency',
         }
 
-        let inputType = "text";
+        let inputType = 'text';
 
         if (field.type === FieldType.TEXTAREA) {
             return (
@@ -178,15 +177,15 @@ export default function Dashboard({
         }
 
         if (field.type === FieldType.NUMBER) {
-            inputType = "number";
+            inputType = 'number';
         }
 
         if (field.type === FieldType.DATE) {
-            inputType = "date";
+            inputType = 'date';
         }
 
         if (field.type === FieldType.CURRENCY) {
-            inputType = "number";
+            inputType = 'number';
         }
 
         return (
@@ -239,11 +238,16 @@ export default function Dashboard({
     }
 
     function handleDownload() {
-        if (!selectedModel) return;
+        if (!selectedModel || isGenerating) return;
 
         const formData = new FormData();
 
-        formData.append("model_id", selectedModel.id);
+        formData.append('model_id', selectedModel.id);
+        formData.append('document_name', selectedModel.name);
+        formData.append(
+            'field_definitions',
+            JSON.stringify(selectedModel.fields),
+        );
 
         if (showMockModels && selectedModel.preview) {
             selectedModel.preview.forEach((paragraph, index) => {
@@ -255,55 +259,60 @@ export default function Dashboard({
             formData.append(`data[${key}]`, value);
         });
 
-        fetch("/modelos/gerar", {
-            method: "POST",
+        setIsGenerating(true);
+
+        fetch('/modelos/gerar', {
+            method: 'POST',
 
             headers: {
-                "X-CSRF-TOKEN":
+                'X-CSRF-TOKEN':
                     document
                         .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content") || "",
+                        ?.getAttribute('content') || '',
 
-                Accept: "application/json",
+                Accept: 'application/json',
             },
 
             body: formData,
         })
             .then(async (response) => {
                 if (!response.ok) {
-                    const contentType = response.headers.get("content-type") ?? "";
+                    const contentType =
+                        response.headers.get('content-type') ?? '';
 
-                    if (contentType.includes("application/json")) {
+                    if (contentType.includes('application/json')) {
                         const payload = await response.json();
                         const firstError = Object.values(payload.errors ?? {})
                             .flat()
-                            .find((message) => typeof message === "string");
+                            .find((message) => typeof message === 'string');
 
                         throw new Error(
-                            typeof firstError === "string"
+                            typeof firstError === 'string'
                                 ? firstError
-                                : "Não foi possível gerar o documento.",
+                                : 'Não foi possível gerar o documento.',
                         );
                     }
 
-                    throw new Error("Não foi possível gerar o documento.");
+                    throw new Error('Não foi possível gerar o documento.');
                 }
 
-                const contentType = response.headers.get("content-type") ?? "";
+                const contentType = response.headers.get('content-type') ?? '';
 
-                if (!contentType.includes("application/pdf")) {
-                    throw new Error("O servidor não retornou um arquivo PDF válido.");
+                if (!contentType.includes('application/pdf')) {
+                    throw new Error(
+                        'O servidor não retornou um arquivo PDF válido.',
+                    );
                 }
 
                 return response.blob();
             })
             .then((blob) => {
                 const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
+                const a = document.createElement('a');
 
                 a.href = url;
 
-                a.download = `${selectedModel.name.replace(/\s+/g, "_").toLowerCase()}.pdf`;
+                a.download = `${selectedModel.name.replace(/\s+/g, '_').toLowerCase()}.pdf`;
 
                 document.body.appendChild(a);
 
@@ -312,16 +321,18 @@ export default function Dashboard({
                 window.URL.revokeObjectURL(url);
 
                 document.body.removeChild(a);
+                toast.success('Documento salvo em Meus documentos e baixado.');
             })
             .catch((error: unknown) => {
-                console.error("Erro:", error);
+                console.error('Erro:', error);
 
                 toast.error(
                     error instanceof Error
                         ? error.message
-                        : "Erro ao gerar documento. Tente novamente.",
+                        : 'Erro ao gerar documento. Tente novamente.',
                 );
-            });
+            })
+            .finally(() => setIsGenerating(false));
     }
 
     return (
@@ -358,7 +369,7 @@ export default function Dashboard({
 
                             <div className="flex w-full min-w-0 items-center gap-2">
                                 <Select
-                                    value={selectedModel?.id ?? ""}
+                                    value={selectedModel?.id ?? ''}
                                     onValueChange={(value) =>
                                         setSelectedModelId(value)
                                     }
@@ -374,7 +385,7 @@ export default function Dashboard({
                                     </SelectTrigger>
 
                                     <SelectContent>
-                                        {" "}
+                                        {' '}
                                         {models.map((model) => (
                                             <SelectItem
                                                 key={model.id}
@@ -412,7 +423,7 @@ export default function Dashboard({
                             sections.map(([section, fields]) => (
                                 <div key={section} className="space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                        <h2 className="text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
                                             {section}
                                         </h2>
 
@@ -433,7 +444,7 @@ export default function Dashboard({
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
                     <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                                 Pré-visualização do Documento
                             </span>
                         </div>
@@ -442,9 +453,10 @@ export default function Dashboard({
                             type="button"
                             className="shrink-0 gap-2 bg-emerald-700 text-white hover:bg-emerald-800"
                             onClick={handleDownload}
+                            disabled={isGenerating || processing}
                         >
                             <Download className="h-4 w-4" />
-                            Baixar Documento
+                            {isGenerating ? 'Salvando...' : 'Salvar e baixar'}
                         </Button>
                     </div>
 
@@ -454,7 +466,7 @@ export default function Dashboard({
                                 {selectedModel?.preview?.length ? (
                                     selectedModel.preview.map(
                                         (paragraph, index) => {
-                                            if (paragraph === "") {
+                                            if (paragraph === '') {
                                                 return (
                                                     <div
                                                         key={index}
@@ -468,17 +480,17 @@ export default function Dashboard({
                                             const isClause = paragraph
                                                 .trim()
                                                 .toUpperCase()
-                                                .startsWith("CLÁUSULA");
+                                                .startsWith('CLÁUSULA');
 
                                             return (
                                                 <p
                                                     key={index}
                                                     className={
                                                         isTitle
-                                                            ? "mb-8 text-center text-base font-bold uppercase tracking-wide"
+                                                            ? 'mb-8 text-center text-base font-bold tracking-wide uppercase'
                                                             : isClause
-                                                              ? "mb-2 mt-5 text-xs font-bold uppercase tracking-wide"
-                                                              : "mb-3 text-justify text-[13px] leading-[1.7] font-sans text-[#333]"
+                                                              ? 'mt-5 mb-2 text-xs font-bold tracking-wide uppercase'
+                                                              : 'mb-3 text-justify font-sans text-[13px] leading-[1.7] text-[#333]'
                                                     }
                                                 >
                                                     {renderPreviewText(

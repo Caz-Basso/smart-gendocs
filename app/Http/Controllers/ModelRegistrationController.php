@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Actions\GenerateSampleDocumentAction;
+use App\Actions\StoreGeneratedDocumentAction;
 use App\Enums\FieldType;
 use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
@@ -177,22 +178,36 @@ final class ModelRegistrationController
         GenerateDocumentRequest $request,
         GenerateDocumentAction $generateDocument,
         GenerateSampleDocumentAction $generateSampleDocument,
+        StoreGeneratedDocumentAction $storeGeneratedDocument,
     ): HttpResponse {
         $data = $request->validated();
         $modelId = $data['model_id'];
+        $model = null;
 
         if (Str::isUuid($modelId)) {
             $model = \App\Models\DocumentModel::findOrFail($modelId);
             $pdfContent = $generateDocument->handle($modelId, $data['data']);
-            $fileName = Str::slug($model->name).'.pdf';
+            $fields = $model->fields ?? [];
         } else {
             $pdfContent = $generateSampleDocument->handle($data['preview'], $data['data']);
-            $fileName = Str::slug($modelId).'.pdf';
+            $fields = json_decode($data['field_definitions'] ?? '[]', true, flags: JSON_THROW_ON_ERROR);
         }
+
+        $document = $storeGeneratedDocument->handle(
+            user: Auth::user(),
+            model: $model,
+            modelKey: $modelId,
+            name: $data['document_name'],
+            data: $data['data'],
+            preview: $data['preview'] ?? null,
+            fields: is_array($fields) ? $fields : [],
+            pdfContent: $pdfContent,
+        );
 
         return new HttpResponse($pdfContent, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+            'Content-Disposition' => 'attachment; filename="'.Str::slug($document->name).'.pdf"',
+            'X-Generated-Document-Id' => $document->id,
             'Cache-Control' => 'private, max-age=0, must-revalidate',
             'Pragma' => 'public',
         ]);

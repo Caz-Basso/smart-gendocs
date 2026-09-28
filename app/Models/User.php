@@ -10,6 +10,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Lab404\Impersonate\Models\Impersonate;
@@ -60,6 +61,11 @@ final class User extends Authenticatable implements Auditable, MustVerifyEmail
         'two_factor_secret',
         'two_factor_recovery_codes',
     ];
+
+    public function generatedDocuments(): HasMany
+    {
+        return $this->hasMany(GeneratedDocument::class);
+    }
 
     /**
      * @return array<string, string>

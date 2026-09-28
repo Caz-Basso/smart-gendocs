@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\AuditableType;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\GeneratedDocumentController;
 use App\Http\Controllers\ModelRegistrationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SessionController;
@@ -48,6 +49,14 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/gerar', [ModelRegistrationController::class, 'generate'])
             ->middleware('role_or_permission:user|admin|super-admin')
             ->name('documents.generate');
+    });
+
+    Route::prefix('documentos')->name('documents.')->middleware('role_or_permission:user|admin|super-admin')->group(function (): void {
+        Route::get('/', [GeneratedDocumentController::class, 'index'])->name('index');
+        Route::get('/{document}/editar', [GeneratedDocumentController::class, 'edit'])->name('edit');
+        Route::put('/{document}', [GeneratedDocumentController::class, 'update'])->name('update');
+        Route::get('/{document}/baixar', [GeneratedDocumentController::class, 'download'])->name('download');
+        Route::delete('/{document}', [GeneratedDocumentController::class, 'destroy'])->name('destroy');
     });
 });
 
