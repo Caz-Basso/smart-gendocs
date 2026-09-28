@@ -78,7 +78,11 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
         const name = editingName.trim();
         const email = editingEmail.trim();
 
-        if (name === '' || email === '' || (name === user.name && email === user.email)) {
+        if (
+            name === '' ||
+            email === '' ||
+            (name === user.name && email === user.email)
+        ) {
             cancelEditing();
 
             return;
@@ -280,25 +284,38 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 text-muted-foreground">
-                                                        {editingId === user.id ? (
+                                                        {editingId ===
+                                                        user.id ? (
                                                             <div className="flex items-center gap-2">
                                                                 <Input
-                                                                    value={editingEmail}
-                                                                    onChange={(event) =>
+                                                                    value={
+                                                                        editingEmail
+                                                                    }
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) =>
                                                                         setEditingEmail(
-                                                                            event.target.value,
+                                                                            event
+                                                                                .target
+                                                                                .value,
                                                                         )
                                                                     }
-                                                                    disabled={saving}
+                                                                    disabled={
+                                                                        saving
+                                                                    }
                                                                     type="email"
                                                                     className="h-8 max-w-xs"
                                                                 />
                                                             </div>
-                                                        ) : user.email}
+                                                        ) : (
+                                                            user.email
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {auth.can.users.manageRoles &&
-                                                        assignableRoles.length > 0 &&
+                                                        {auth.can.users
+                                                            .manageRoles &&
+                                                        assignableRoles.length >
+                                                            0 &&
                                                         (!user.roles.some(
                                                             (role) =>
                                                                 role.name ===
@@ -310,13 +327,22 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                                                     'super-admin',
                                                             )) ? (
                                                             <Select
-                                                                value={user.roles[0]?.name ?? 'user'}
-                                                                onValueChange={(role) =>
+                                                                value={
+                                                                    user
+                                                                        .roles[0]
+                                                                        ?.name ??
+                                                                    'user'
+                                                                }
+                                                                onValueChange={(
+                                                                    role,
+                                                                ) =>
                                                                     router.patch(
                                                                         update.url(
                                                                             user,
                                                                         ),
-                                                                        { role },
+                                                                        {
+                                                                            role,
+                                                                        },
                                                                         {
                                                                             preserveScroll: true,
                                                                         },
@@ -328,15 +354,31 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                                                 </SelectTrigger>
                                                                 <SelectContent>
                                                                     {assignableRoles.map(
-                                                                        (role) => (
-                                                                        <SelectItem key={role.name} value={role.name}>{role.label}</SelectItem>
+                                                                        (
+                                                                            role,
+                                                                        ) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    role.name
+                                                                                }
+                                                                                value={
+                                                                                    role.name
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    role.label
+                                                                                }
+                                                                            </SelectItem>
                                                                         ),
                                                                     )}
                                                                 </SelectContent>
                                                             </Select>
                                                         ) : (
-                                                            <span className="capitalize text-muted-foreground">
-                                                                {user.roles[0]?.name?.replace('-', ' ') ?? 'user'}
+                                                            <span className="text-muted-foreground capitalize">
+                                                                {user.roles[0]?.name?.replace(
+                                                                    '-',
+                                                                    ' ',
+                                                                ) ?? 'user'}
                                                             </span>
                                                         )}
                                                     </td>
@@ -348,7 +390,9 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                                                     : 'text-muted-foreground'
                                                             }
                                                         >
-                                                            {user.is_active ? 'Ativo' : 'Inativo'}
+                                                            {user.is_active
+                                                                ? 'Ativo'
+                                                                : 'Inativo'}
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3 text-muted-foreground">
@@ -357,24 +401,43 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                                         ).toLocaleDateString()}
                                                     </td>
                                                     <td className="flex justify-end gap-2 px-4 py-3">
-                                                        {auth.can.users.changeStatus &&
-                                                            user.id !== currentUserId &&
-                                                            (!user.roles.some((role) => role.name === 'super-admin') ||
-                                                                auth.user.roles?.some((role) => role.name === 'super-admin')) && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    router.patch(
-                                                                        update.url(user),
-                                                                        { is_active: !user.is_active },
-                                                                        { preserveScroll: true },
-                                                                    )
-                                                                }
-                                                            >
-                                                                {user.is_active ? 'Desativar' : 'Ativar'}
-                                                            </Button>
-                                                        )}
+                                                        {auth.can.users
+                                                            .changeStatus &&
+                                                            user.id !==
+                                                                currentUserId &&
+                                                            (!user.roles.some(
+                                                                (role) =>
+                                                                    role.name ===
+                                                                    'super-admin',
+                                                            ) ||
+                                                                auth.user.roles?.some(
+                                                                    (role) =>
+                                                                        role.name ===
+                                                                        'super-admin',
+                                                                )) && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        router.patch(
+                                                                            update.url(
+                                                                                user,
+                                                                            ),
+                                                                            {
+                                                                                is_active:
+                                                                                    !user.is_active,
+                                                                            },
+                                                                            {
+                                                                                preserveScroll: true,
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {user.is_active
+                                                                        ? 'Desativar'
+                                                                        : 'Ativar'}
+                                                                </Button>
+                                                            )}
                                                         {user.id !==
                                                             currentUserId &&
                                                             auth.can.users
@@ -423,34 +486,35 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                                                 </Link>
                                                             </Button>
                                                         )}
-                                                        {auth.can.users.delete &&
+                                                        {auth.can.users
+                                                            .delete &&
                                                             (!user.roles.some(
                                                                 (role) =>
                                                                     role.name ===
                                                                     'super-admin',
                                                             ) ||
-                                                            auth.user.roles?.some(
-                                                                (role) =>
-                                                                    role.name ===
-                                                                    'super-admin',
-                                                            )) && (
-                                                            <Button
-                                                                asChild
-                                                                variant="outline"
-                                                                size="sm"
-                                                            >
-                                                                <Link
-                                                                    href={destroy(
-                                                                        user,
-                                                                    )}
-                                                                    as="button"
-                                                                    method="delete"
+                                                                auth.user.roles?.some(
+                                                                    (role) =>
+                                                                        role.name ===
+                                                                        'super-admin',
+                                                                )) && (
+                                                                <Button
+                                                                    asChild
+                                                                    variant="outline"
+                                                                    size="sm"
                                                                 >
-                                                                    <Trash className="mr-2 h-4 w-4" />
-                                                                    Excluir
-                                                                </Link>
-                                                            </Button>
-                                                        )}
+                                                                    <Link
+                                                                        href={destroy(
+                                                                            user,
+                                                                        )}
+                                                                        as="button"
+                                                                        method="delete"
+                                                                    >
+                                                                        <Trash className="mr-2 h-4 w-4" />
+                                                                        Excluir
+                                                                    </Link>
+                                                                </Button>
+                                                            )}
                                                     </td>
                                                 </tr>
                                             ))}

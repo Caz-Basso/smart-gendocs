@@ -103,7 +103,9 @@ export default function AuditShow({ type, id, audits }: AuditShowProps) {
                                                     {audit.created_at
                                                         ? new Date(
                                                               audit.created_at,
-                                                          ).toLocaleString('pt-BR')
+                                                          ).toLocaleString(
+                                                              'pt-BR',
+                                                          )
                                                         : '?'}
                                                 </td>
                                             </tr>

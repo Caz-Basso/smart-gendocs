@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateModelAction;
+use App\Actions\ConvertFileToHtmlAction;
 use App\Actions\GenerateDocumentAction;
 use App\Actions\GenerateSampleDocumentAction;
 use App\Actions\StoreGeneratedDocumentAction;
@@ -66,6 +67,13 @@ final class ModelRegistrationController
                 'name' => $model->name,
                 'fields' => $fields,
                 'preview' => $preview,
+                'html_content' => $model->html_content,
+                'document_structure' => $model->document_structure,
+                'templateUrl' => $model->template_path !== null
+                    ? Storage::disk('public')->url($model->template_path)
+                    : null,
+                'templateIsPdf' => $model->template_path !== null
+                    && str_ends_with(mb_strtolower($model->template_path), '.pdf'),
             ];
         });
 
@@ -134,22 +142,29 @@ final class ModelRegistrationController
         ]);
     }
 
-    public function update(StoreModelRequest $request, string $id): RedirectResponse
+    public function update(
+        StoreModelRequest $request,
+        string $id,
+        ConvertFileToHtmlAction $convertFileToHtml,
+    ): RedirectResponse
     {
         $model = \App\Models\DocumentModel::findOrFail($id);
 
         // Handle update logic here if needed, for now just update basic fields
         $data = $request->validated();
         $templatePath = $model->template_path;
+        $htmlContent = $model->html_content;
 
         if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
             $templatePath = $data['template']->store('templates', 'public');
+            $htmlContent = $convertFileToHtml->handle($data['template']);
         }
 
         $model->update([
             'name' => $data['name'],
             'template_path' => $templatePath,
             'extracted_text' => $data['extracted_text'] ?? $model->extracted_text,
+            'html_content' => $htmlContent,
             'document_structure' => array_key_exists('document_structure', $data)
                 ? $data['document_structure']
                 : $model->document_structure,
@@ -186,10 +201,13 @@ final class ModelRegistrationController
 
         if (Str::isUuid($modelId)) {
             $model = \App\Models\DocumentModel::findOrFail($modelId);
-            $pdfContent = $generateDocument->handle($modelId, $data['data']);
+            $generated = $generateDocument->handle($modelId, $data['data']);
+            $pdfContent = $generated['pdf'];
+            $htmlContent = $generated['html'];
             $fields = $model->fields ?? [];
         } else {
             $pdfContent = $generateSampleDocument->handle($data['preview'], $data['data']);
+            $htmlContent = null;
             $fields = json_decode($data['field_definitions'] ?? '[]', true, flags: JSON_THROW_ON_ERROR);
         }
 
@@ -202,6 +220,7 @@ final class ModelRegistrationController
             preview: $data['preview'] ?? null,
             fields: is_array($fields) ? $fields : [],
             pdfContent: $pdfContent,
+            htmlContent: $htmlContent,
         );
 
         return new HttpResponse($pdfContent, 200, [

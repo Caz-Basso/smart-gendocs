@@ -1,8 +1,7 @@
-import type { ChangeEvent } from "react";
-
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { FileText, Upload } from "lucide-react";
+import { FileText, Upload } from 'lucide-react';
+import type { ChangeEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 
 interface FileUploadProps {
     templateFile: File | null;

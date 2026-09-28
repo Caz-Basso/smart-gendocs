@@ -82,7 +82,10 @@ export default function AdminCreateUser({
                                     type="email"
                                     value={form.data.email}
                                     onChange={(event) =>
-                                        form.setData('email', event.target.value)
+                                        form.setData(
+                                            'email',
+                                            event.target.value,
+                                        )
                                     }
                                     required
                                 />
@@ -94,7 +97,10 @@ export default function AdminCreateUser({
                                     id="password"
                                     value={form.data.password}
                                     onChange={(event) =>
-                                        form.setData('password', event.target.value)
+                                        form.setData(
+                                            'password',
+                                            event.target.value,
+                                        )
                                     }
                                     required
                                     autoComplete="new-password"
@@ -117,7 +123,9 @@ export default function AdminCreateUser({
                                     required
                                     autoComplete="new-password"
                                 />
-                                <InputError message={form.errors.password_confirmation} />
+                                <InputError
+                                    message={form.errors.password_confirmation}
+                                />
                             </div>
                             {canManageRoles && (
                                 <div className="grid gap-2">

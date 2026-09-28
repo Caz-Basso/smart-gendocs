@@ -1,3 +1,5 @@
+import type { PdfDocumentStructure } from '@/lib/pdf-document';
+
 export type FieldType =
     | 'text'
     | 'textarea'
@@ -36,6 +38,9 @@ export interface DocumentModel {
     fields: DynamicField[];
     defaultData?: Record<string, string>;
     preview?: string[];
+    document_structure?: PdfDocumentStructure | null;
+    templateUrl?: string | null;
+    html_content?: string | null;
 }
 
 const option = (value: string, label: string): FieldOption => ({

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Actions\GenerateDocumentAction;
 use App\Models\DocumentModel;
 use App\Models\User;
@@ -38,7 +40,8 @@ it('generates a filled pdf using the original pages and saved document structure
         'user_id' => $user->id,
     ]);
 
-    $pdf = app(GenerateDocumentAction::class)->handle($model->id, ['nome' => 'Ana']);
+    $result = app(GenerateDocumentAction::class)->handle($model->id, ['nome' => 'Ana']);
 
-    expect($pdf)->toStartWith('%PDF-');
+    expect($result['pdf'])->toStartWith('%PDF-');
+    expect($result['html'])->toBeString();
 });

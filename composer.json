@@ -19,6 +19,8 @@
         "nunomaduro/essentials": "^1.2.0",
         "opcodesio/log-viewer": "^3.24.2",
         "owen-it/laravel-auditing": ">=14.0.6",
+        "phpoffice/phpword": "1.1.0",
+        "smalot/pdfparser": ">=2.12.5",
         "spatie/laravel-permission": ">=8.3"
     },
     "require-dev": {

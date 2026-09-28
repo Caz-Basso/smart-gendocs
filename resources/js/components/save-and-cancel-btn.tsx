@@ -1,12 +1,11 @@
-import { Button } from "@/components/ui/button";
-
-import { Loader2, Save, X } from "lucide-react";
+import { Loader2, Save, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 interface SaveAndCancelBtnProps {
     processing: boolean;
 }
 
 export default function SaveAndCancelBtn({
-processing,
+    processing,
 }: SaveAndCancelBtnProps) {
     return (
         <div className="flex gap-3 border-t pt-6">

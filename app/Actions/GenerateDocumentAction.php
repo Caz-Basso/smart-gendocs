@@ -11,7 +11,7 @@ use RuntimeException;
 
 final readonly class GenerateDocumentAction
 {
-    public function handle(string $modelId, array $data): string
+    public function handle(string $modelId, array $data): array
     {
         $model = DocumentModel::findOrFail($modelId);
 
@@ -19,34 +19,28 @@ final readonly class GenerateDocumentAction
             return $this->generateFromStructure($model, $data);
         }
 
-        // Substituir os placeholders pelos dados
-        $content = $model->extracted_text ?? '';
+        $htmlContent = $model->html_content ?? $model->extracted_text ?? '';
 
         foreach ($data as $key => $value) {
             $placeholder = '{{'.$key.'}}';
-            $content = str_replace($placeholder, (string) $value, $content);
+            $htmlContent = str_replace($placeholder, (string) $value, $htmlContent);
         }
 
-        // Criar PDF com configurações básicas
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
         ]);
 
-        // Processar conteúdo simples
-        $cleanContent = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cleanContent = strip_tags($cleanContent);
-        $cleanContent = mb_trim($cleanContent);
+        $mpdf->WriteHTML($htmlContent);
 
-        // Escrever como texto simples
-        $mpdf->WriteHTML($cleanContent);
-
-        // Retornar o conteúdo do PDF
-        return $mpdf->Output('', 'S');
+        return [
+            'pdf' => $mpdf->Output('', 'S'),
+            'html' => $htmlContent,
+        ];
     }
 
     /** @param array<string, mixed> $data */
-    private function generateFromStructure(DocumentModel $model, array $data): string
+    private function generateFromStructure(DocumentModel $model, array $data): array
     {
         $templatePath = Storage::disk('public')->path($model->template_path);
 
@@ -125,6 +119,9 @@ final readonly class GenerateDocumentAction
             }
         }
 
-        return $mpdf->Output('', 'S');
+        return [
+            'pdf' => $mpdf->Output('', 'S'),
+            'html' => $model->html_content ?? '',
+        ];
     }
 }
