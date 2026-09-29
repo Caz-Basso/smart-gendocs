@@ -1,24 +1,18 @@
-import {
-    Files,
-    LayoutGrid,
-    Shield,
-    Users,
-    type LucideIcon,
-} from 'lucide-react';
-import type { NavGroup, NavItem, SharedNavItem } from '@/types';
+import { Folder, FileText, UserRoundCog, Bookmark,  type LucideIcon } from "lucide-react";
+import type { NavGroup, NavItem, SharedNavItem } from "@/types";
 
 const iconMap: Record<string, LucideIcon> = {
-    LayoutGrid,
-    Files,
-    Shield,
-    Users,
+    Folder,
+    FileText,
+    UserRoundCog,
+    Bookmark,
 };
 
 export function toNavItem(item: SharedNavItem): NavItem {
     return {
         title: item.title,
         href: item.href,
-        icon: iconMap[item.icon] ?? LayoutGrid,
+        icon: iconMap[item.icon] ?? FileText,
     };
 }
 
@@ -35,7 +29,7 @@ export type NavGroupWithItems = {
 export function toNavGroups(groups: NavGroup[]): NavGroupWithItems[] {
     return groups.map((group) => ({
         label: group.label,
-        icon: iconMap[group.icon] ?? LayoutGrid,
+        icon: iconMap[group.icon] ?? FileText,
         items: toNavItems(group.items),
     }));
 }

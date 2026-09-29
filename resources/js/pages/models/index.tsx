@@ -1,10 +1,9 @@
-import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
-import { Plus, FileText, Pencil, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import AppLayout from '@/layouts/app-layout';
-import { model_registration } from '@/routes';
+import { Head, router } from "@inertiajs/react";
+import { FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+
 import {
     Dialog,
     DialogContent,
@@ -12,7 +11,11 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
+
+import AppLayout from "@/layouts/app-layout";
+
+import { model_registration } from "@/routes";
 
 interface Model {
     id: string;
@@ -27,7 +30,7 @@ interface Props {
     models: Model[];
 }
 
-const breadcrumbs = [{ title: 'Modelos', href: '/modelos' }];
+const breadcrumbs = [{ title: "Modelos", href: "/modelos" }];
 
 export default function ModelsIndex({ models }: Props) {
     const [modelToDelete, setModelToDelete] = useState<Model | null>(null);
@@ -40,18 +43,20 @@ export default function ModelsIndex({ models }: Props) {
 
         const modelName = modelToDelete.name;
 
+        setIsDeleting(true);
+
         router.delete(`/modelos/${modelToDelete.id}`, {
             onSuccess: () => {
                 toast.success(`Modelo "${modelName}" excluído.`);
                 setModelToDelete(null);
             },
             onError: () => {
-                toast.error('Não foi possível excluir o modelo. Tente novamente.');
+                toast.error(
+                    "Não foi possível excluir o modelo. Tente novamente.",
+                );
             },
             onFinish: () => setIsDeleting(false),
         });
-
-        setIsDeleting(true);
     };
 
     return (
@@ -69,12 +74,14 @@ export default function ModelsIndex({ models }: Props) {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Excluir modelo?</DialogTitle>
+
                         <DialogDescription>
                             {modelToDelete
                                 ? `O modelo "${modelToDelete.name}" e o arquivo PDF/DOCX associado serão excluídos permanentemente. Essa ação não pode ser desfeita.`
-                                : ''}
+                                : ""}
                         </DialogDescription>
                     </DialogHeader>
+
                     <DialogFooter>
                         <Button
                             type="button"
@@ -84,21 +91,31 @@ export default function ModelsIndex({ models }: Props) {
                         >
                             Cancelar
                         </Button>
+
                         <Button
                             type="button"
                             variant="destructive"
                             disabled={isDeleting}
                             onClick={deleteModel}
                         >
-                            {isDeleting ? 'Excluindo...' : 'Excluir modelo'}
+                            {isDeleting ? "Excluindo..." : "Excluir modelo"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            <div className="mx-auto max-w-[1600px] p-6">
+            <div className="mx-auto w-full max-w-6xl p-6">
                 <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">Modelos Cadastrados</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold">
+                            Modelos Cadastrados
+                        </h1>
+
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Gerencie os modelos de documentos disponíveis.
+                        </p>
+                    </div>
+
                     <Button asChild>
                         <a href={model_registration.url()}>
                             <Plus className="mr-2 h-4 w-4" />
@@ -110,12 +127,15 @@ export default function ModelsIndex({ models }: Props) {
                 {models.length === 0 ? (
                     <div className="rounded-lg border-2 border-dashed py-12 text-center">
                         <FileText className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                        <h3 className="mb-2 text-lg font-medium">
+
+                        <h2 className="mb-2 text-lg font-medium">
                             Nenhum modelo encontrado
-                        </h3>
-                        <p className="mb-4 text-muted-foreground">
+                        </h2>
+
+                        <p className="mb-4 text-sm text-muted-foreground">
                             Comece criando seu primeiro modelo de documento.
                         </p>
+
                         <Button asChild>
                             <a href={model_registration.url()}>
                                 <Plus className="mr-2 h-4 w-4" />
@@ -124,44 +144,51 @@ export default function ModelsIndex({ models }: Props) {
                         </Button>
                     </div>
                 ) : (
-                    <div className="rounded-md border bg-card text-card-foreground shadow-sm">
-                        <div className="relative w-full overflow-auto">
-                            <table className="w-full caption-bottom text-sm">
-                                <thead className="bg-muted/50 [&_tr]:border-b">
-                                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
-                                            Nome do Modelo
+                    <div className="overflow-hidden rounded-lg border bg-card">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50">
+                                    <tr className="border-b text-left">
+                                        <th className="px-4 py-3 font-medium">
+                                            Modelo
                                         </th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+
+                                        <th className="px-4 py-3 font-medium">
                                             Criado por
                                         </th>
-                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
-                                            Data de Criação
+
+                                        <th className="px-4 py-3 font-medium">
+                                            Criado em
                                         </th>
-                                        <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">
+
+                                        <th className="px-4 py-3 text-right font-medium">
                                             Ações
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody className="[&_tr:last-child]:border-0">
+
+                                <tbody>
                                     {models.map((model) => (
                                         <tr
                                             key={model.id}
-                                            className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                                            className="border-b last:border-0"
                                         >
-                                            <td className="p-4 align-middle font-medium">
+                                            <td className="px-4 py-4 font-medium">
                                                 {model.name}
                                             </td>
-                                            <td className="p-4 align-middle">
+
+                                            <td className="px-4 py-4 text-muted-foreground">
                                                 {model.user?.name ||
-                                                    'Desconhecido'}
+                                                    "Desconhecido"}
                                             </td>
-                                            <td className="p-4 align-middle">
+
+                                            <td className="px-4 py-4 text-muted-foreground">
                                                 {new Date(
                                                     model.created_at,
-                                                ).toLocaleDateString('pt-BR')}
+                                                ).toLocaleDateString("pt-BR")}
                                             </td>
-                                            <td className="p-4 text-right align-middle">
+
+                                            <td className="px-4 py-3">
                                                 <div className="flex justify-end gap-2">
                                                     <Button
                                                         variant="outline"
@@ -175,10 +202,15 @@ export default function ModelsIndex({ models }: Props) {
                                                             Editar
                                                         </a>
                                                     </Button>
+
                                                     <Button
                                                         variant="destructive"
                                                         size="sm"
-                                                        onClick={() => setModelToDelete(model)}
+                                                        onClick={() =>
+                                                            setModelToDelete(
+                                                                model,
+                                                            )
+                                                        }
                                                     >
                                                         <Trash2 className="mr-2 h-4 w-4" />
                                                         Excluir
