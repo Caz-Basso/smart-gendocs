@@ -1,44 +1,44 @@
-import { Link, usePage } from '@inertiajs/react';
-import { ChevronDown, Menu } from 'lucide-react';
-import AppLogo from '@/components/app-logo';
-import { Breadcrumbs } from '@/components/breadcrumbs';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+import { Link, usePage } from "@inertiajs/react";
+import { ChevronDown, Menu, Bookmark } from "lucide-react";
+import AppLogo from "@/components/app-logo";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
     Sheet,
     SheetContent,
     SheetHeader,
     SheetTitle,
     SheetTrigger,
-} from '@/components/ui/sheet';
-import { UserMenuContent } from '@/components/user-menu-content';
-import { useCurrentUrl } from '@/hooks/use-current-url';
-import { useInitials } from '@/hooks/use-initials';
-import { toNavGroups, type NavGroupWithItems } from '@/lib/navigation';
-import { cn } from '@/lib/utils';
-import { dashboard, model_registration } from '@/routes';
-import models from '@/routes/models';
-import type { BreadcrumbItem, NavItem } from '@/types';
+} from "@/components/ui/sheet";
+import { UserMenuContent } from "@/components/user-menu-content";
+import { useCurrentUrl } from "@/hooks/use-current-url";
+import { useInitials } from "@/hooks/use-initials";
+import { toNavGroups, type NavGroupWithItems } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
+import { dashboard, model_registration } from "@/routes";
+import models from "@/routes/models";
+import type { BreadcrumbItem, NavItem } from "@/types";
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
 };
 
 const navTriggerStyles =
-    'inline-flex h-9 w-max items-center justify-center rounded-md bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+    "inline-flex h-9 w-max items-center justify-center rounded-md bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 
 const activeItemStyles =
-    'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
+    "text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100";
 
 function isGroupActive(
     group: NavGroupWithItems,
-    isCurrentUrl: (url: NonNullable<NavItem['href']>) => boolean,
+    isCurrentUrl: (url: NonNullable<NavItem["href"]>) => boolean,
 ): boolean {
     return group.items.some((item) => isCurrentUrl(item.href));
 }
@@ -49,9 +49,9 @@ function HeaderNavGroup({
     whenCurrentUrl,
 }: {
     group: NavGroupWithItems;
-    isCurrentUrl: (url: NonNullable<NavItem['href']>) => boolean;
+    isCurrentUrl: (url: NonNullable<NavItem["href"]>) => boolean;
     whenCurrentUrl: (
-        url: NonNullable<NavItem['href']>,
+        url: NonNullable<NavItem["href"]>,
         activeClass: string,
     ) => string;
 }) {
@@ -68,7 +68,7 @@ function HeaderNavGroup({
                     className={cn(
                         navTriggerStyles,
                         whenCurrentUrl(item.href, activeItemStyles),
-                        'cursor-pointer',
+                        "cursor-pointer",
                     )}
                 >
                     {item.icon && <item.icon className="mr-2 h-4 w-4" />}
@@ -87,7 +87,7 @@ function HeaderNavGroup({
                 <DropdownMenuTrigger
                     className={cn(
                         navTriggerStyles,
-                        'cursor-pointer gap-1 data-[state=open]:bg-accent',
+                        "cursor-pointer gap-1 data-[state=open]:bg-accent",
                         groupActive && activeItemStyles,
                     )}
                 >
@@ -102,7 +102,7 @@ function HeaderNavGroup({
                                 href={item.href}
                                 prefetch
                                 className={cn(
-                                    'flex w-full cursor-pointer items-center gap-2',
+                                    "flex w-full cursor-pointer items-center gap-2",
                                     whenCurrentUrl(item.href, activeItemStyles),
                                 )}
                             >
@@ -136,7 +136,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const user = auth.user;
     const isAdmin = user.roles?.some(
         (role: { name: string }) =>
-            role.name === 'admin' || role.name === 'super-admin',
+            role.name === "admin" || role.name === "super-admin",
     );
 
     return (
@@ -219,6 +219,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                             prefetch
                                                             className="flex items-center space-x-2 font-medium"
                                                         >
+                                                            <Bookmark className="h-5 w-5" />
                                                             <span>Modelos</span>
                                                         </Link>
                                                     </div>
@@ -268,9 +269,10 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                     models.index.url(),
                                                     activeItemStyles,
                                                 ),
-                                                'cursor-pointer',
+                                                "cursor-pointer",
                                             )}
                                         >
+                                            <Bookmark className="mr-2 h-4 w-4" />
                                             Modelos
                                         </Link>
                                         {isCurrentUrl(models.index.url()) && (

@@ -58,6 +58,8 @@ final readonly class BuildMainNavigation
     private function groupOrder(): array
     {
         return [
+            'GenerateDocument',
+            'MyDocument',
             'Dashboard',
             'Administração',
         ];
@@ -66,8 +68,9 @@ final readonly class BuildMainNavigation
     private function groupIcon(string $label): string
     {
         return match ($label) {
-            'Dashboard' => 'LayoutGrid',
-            'Administração' => 'Shield',
+            'GenerateDocument' => 'FileText',
+            'Dashboard' => 'LayoutDashboard',
+            'Administração' => 'ShieldCheck',
             default => 'LayoutGrid',
         };
     }
@@ -79,31 +82,34 @@ final readonly class BuildMainNavigation
     {
         return [
             [
-                'group' => 'Dashboard',
-                'title' => 'Dashboard',
+                'group' => 'GenerateDocument',
+                'title' => 'Gerar documento',
                 'href' => route('dashboard', absolute: false),
-                'icon' => 'LayoutGrid',
+                'icon' => 'FileText',
                 'ability' => null,
             ],
+
             [
-                'group' => 'Dashboard',
+                'group' => 'MyDocument',
                 'title' => 'Meus documentos',
                 'href' => route('documents.index', absolute: false),
-                'icon' => 'Files',
+                'icon' => 'Folder',
                 'ability' => null,
             ],
+
             [
                 'group' => 'Administração',
                 'title' => 'Usuários',
                 'href' => route('users.index', absolute: false),
-                'icon' => 'Users',
+                'icon' => 'UserRoundCog',
                 'ability' => ['viewAny', User::class],
             ],
+
             [
                 'group' => 'Administração',
                 'title' => 'Perfis',
                 'href' => route('roles.index', absolute: false),
-                'icon' => 'Shield',
+                'icon' => 'ShieldCheck',
                 'ability' => ['viewAny', Role::class],
             ],
         ];

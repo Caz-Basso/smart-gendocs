@@ -5,7 +5,6 @@ import { DocumentPreview } from '@/components/document/document-preview';
 import { DynamicFieldInput } from '@/components/document/dynamic-field-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { DocumentModel } from '@/types/document';
 import {
     Select,
     SelectContent,
@@ -17,7 +16,9 @@ import { useGenerateDocument } from '@/hooks/use-generate-document';
 import AppLayout from '@/layouts/app-layout';
 import { getInitialData, groupFieldsBySection } from '@/lib/document-fields';
 import { dashboard, model_registration } from '@/routes';
+import { index as usersIndex } from '@/routes/users';
 import type { BreadcrumbItem } from '@/types';
+import { MOCK_MODELS, type DocumentModel } from '@/types/document';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Gerador de Documentos', href: dashboard() },
@@ -31,10 +32,11 @@ interface DashboardProps {
 
 export default function Dashboard({
     customModels = [],
+    showMockModels = false,
     isAdmin = false,
 }: DashboardProps) {
     const { auth } = usePage().props;
-    const models = customModels;
+    const models = showMockModels ? MOCK_MODELS : customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
         models[0]?.id ?? '',
@@ -52,6 +54,7 @@ export default function Dashboard({
 
     useEffect(() => {
         if (selectedModel) setData(getInitialData(selectedModel));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedModelId]);
 
     const sections = useMemo(
@@ -65,6 +68,7 @@ export default function Dashboard({
         generate({
             model: selectedModel,
             data,
+            includePreview: showMockModels,
         });
     };
 
@@ -72,7 +76,19 @@ export default function Dashboard({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Gerador de Documentos" />
 
+            {auth.can.users.viewAny && (
+                <div className="flex justify-end px-4 pt-4">
+                    <Button asChild variant="outline">
+                        <Link href={usersIndex()}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Gerenciar usuários
+                        </Link>
+                    </Button>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 items-start gap-6 p-6 lg:grid-cols-12">
+                {/* ---------- Formulário ---------- */}
                 <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm lg:col-span-4">
                     <div className="shrink-0 space-y-4 p-6">
                         <h1 className="text-base font-semibold tracking-tight">
@@ -165,6 +181,7 @@ export default function Dashboard({
                     </div>
                 </div>
 
+                {/* ---------- Preview ---------- */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
                     <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
                         <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
