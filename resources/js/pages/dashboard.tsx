@@ -5,6 +5,7 @@ import { DocumentPreview } from '@/components/document/document-preview';
 import { DynamicFieldInput } from '@/components/document/dynamic-field-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { DocumentModel } from '@/types/document';
 import {
     Select,
     SelectContent,
@@ -16,9 +17,7 @@ import { useGenerateDocument } from '@/hooks/use-generate-document';
 import AppLayout from '@/layouts/app-layout';
 import { getInitialData, groupFieldsBySection } from '@/lib/document-fields';
 import { dashboard, model_registration } from '@/routes';
-import { index as usersIndex } from '@/routes/users';
 import type { BreadcrumbItem } from '@/types';
-import { MOCK_MODELS, type DocumentModel } from '@/types/document';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Gerador de Documentos', href: dashboard() },
@@ -32,11 +31,10 @@ interface DashboardProps {
 
 export default function Dashboard({
     customModels = [],
-    showMockModels = false,
     isAdmin = false,
 }: DashboardProps) {
     const { auth } = usePage().props;
-    const models = showMockModels ? MOCK_MODELS : customModels;
+    const models = customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
         models[0]?.id ?? '',
@@ -67,7 +65,6 @@ export default function Dashboard({
         generate({
             model: selectedModel,
             data,
-            includePreview: showMockModels,
         });
     };
 
