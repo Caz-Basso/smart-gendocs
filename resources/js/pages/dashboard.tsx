@@ -75,17 +75,6 @@ export default function Dashboard({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Gerador de Documentos" />
 
-            {auth.can.users.viewAny && (
-                <div className="flex justify-end px-4 pt-4">
-                    <Button asChild variant="outline">
-                        <Link href={usersIndex()}>
-                            <Users className="mr-2 h-4 w-4" />
-                            Gerenciar usuários
-                        </Link>
-                    </Button>
-                </div>
-            )}
-
             <div className="grid grid-cols-1 items-start gap-6 p-6 lg:grid-cols-12">
                 <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm lg:col-span-4">
                     <div className="shrink-0 space-y-4 p-6">
