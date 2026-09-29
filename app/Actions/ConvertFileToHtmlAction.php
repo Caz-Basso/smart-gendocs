@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use PhpOffice\PhpWord\IOFactory;
 use RuntimeException;
-use Smalot\PdfParser\Parser as PdfParser;
 
 final readonly class ConvertFileToHtmlAction
 {
@@ -24,21 +26,26 @@ final readonly class ConvertFileToHtmlAction
 
     private function convertPdfToHtml(UploadedFile $file): string
     {
-        $parser = new PdfParser();
-        $pdf = $parser->parseFile($file->getPathname());
-        $text = $pdf->getText();
-
-        $html = '<div class="pdf-content">';
-        $paragraphs = explode("\n", $text);
-
-        foreach ($paragraphs as $paragraph) {
-            $paragraph = mb_trim($paragraph);
-            if ($paragraph !== '') {
-                $html .= '<p>'.htmlspecialchars($paragraph, ENT_QUOTES | ENT_HTML5, 'UTF-8').'</p>';
-            }
+        try {
+            $response = Http::connectTimeout(5)
+                ->timeout(130)
+                ->attach(
+                    'file',
+                    $file->get(),
+                    $file->getClientOriginalName(),
+                    ['Content-Type' => 'application/pdf'],
+                )
+                ->post(rtrim((string) config('services.pdf2htmlex.url'), '/').'/convert')
+                ->throw();
+        } catch (ConnectionException|RequestException $exception) {
+            throw new RuntimeException('O serviço pdf2htmlEX não está disponível.', previous: $exception);
         }
 
-        $html .= '</div>';
+        $html = $response->json('html');
+
+        if (! is_string($html) || $html === '') {
+            throw new RuntimeException('O pdf2htmlEX não retornou HTML para este PDF.');
+        }
 
         return $html;
     }

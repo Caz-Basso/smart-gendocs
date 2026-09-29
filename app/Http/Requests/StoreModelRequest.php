@@ -35,6 +35,7 @@ final class StoreModelRequest extends FormRequest
             'fields.*.slug' => 'required|string|max:255',
             'fields.*.type' => ['required', 'string', Rule::enum(FieldType::class)],
             'extracted_text' => 'nullable|string',
+            'html_content' => 'nullable|string|max:42000000',
             'document_structure' => 'nullable|array',
             'document_structure.version' => 'required_with:document_structure|integer|in:1',
             'document_structure.pages' => 'required_with:document_structure|array|min:1|max:100',

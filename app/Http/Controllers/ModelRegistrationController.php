@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\CreateModelAction;
 use App\Actions\ConvertFileToHtmlAction;
+use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Actions\GenerateSampleDocumentAction;
 use App\Actions\StoreGeneratedDocumentAction;
 use App\Enums\FieldType;
 use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,9 +29,13 @@ final class ModelRegistrationController
     {
         // Se for admin, mostra todos os modelos. Se for user, mostra apenas os próprios
         if (Auth::user()->hasRole('admin') || Auth::user()->hasRole('super-admin')) {
-            $documentModels = \App\Models\DocumentModel::latest()->get();
+            $documentModels = \App\Models\DocumentModel::query()
+                ->select(['id', 'name', 'fields', 'document_structure', 'extracted_text', 'user_id'])
+                ->latest()
+                ->get();
         } else {
             $documentModels = \App\Models\DocumentModel::where('user_id', Auth::id())
+                ->select(['id', 'name', 'fields', 'document_structure', 'extracted_text', 'user_id'])
                 ->latest()
                 ->get();
         }
@@ -67,7 +74,10 @@ final class ModelRegistrationController
                 'name' => $model->name,
                 'fields' => $fields,
                 'preview' => $preview,
-                'html_content' => $model->html_content,
+                'html_content' => $model->template_path !== null
+                    && str_ends_with(mb_strtolower($model->template_path), '.pdf')
+                        ? null
+                        : $model->html_content,
                 'document_structure' => $model->document_structure,
                 'templateUrl' => $model->template_path !== null
                     ? Storage::disk('public')->url($model->template_path)
@@ -86,10 +96,10 @@ final class ModelRegistrationController
 
     public function index(): Response
     {
-        $models = \App\Models\DocumentModel::where('user_id', Auth::id())
-            ->latest()
-            ->get();
-        $query = \App\Models\DocumentModel::with('user')->latest();
+        $query = \App\Models\DocumentModel::query()
+            ->select(['id', 'name', 'created_at', 'user_id'])
+            ->with('user:id,name')
+            ->latest();
 
         if (! Auth::user()->hasRole('admin') && ! Auth::user()->hasRole('super-admin')) {
             $query->where('user_id', Auth::id());
@@ -112,6 +122,25 @@ final class ModelRegistrationController
         return Inertia::render('model-registration', [
             'fieldTypeOptions' => $fieldTypeOptions,
         ]);
+    }
+
+    public function convertPdfToHtml(Request $request, ConvertFileToHtmlAction $convertFileToHtml): JsonResponse
+    {
+        $validated = $request->validate([
+            'pdf' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ]);
+
+        try {
+            return response()->json([
+                'html' => $convertFileToHtml->handle($validated['pdf']),
+            ]);
+        } catch (RuntimeException $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Não foi possível converter o PDF para HTML.',
+            ], 502);
+        }
     }
 
     public function store(StoreModelRequest $request, CreateModelAction $createModel): RedirectResponse
@@ -164,7 +193,7 @@ final class ModelRegistrationController
             'name' => $data['name'],
             'template_path' => $templatePath,
             'extracted_text' => $data['extracted_text'] ?? $model->extracted_text,
-            'html_content' => $htmlContent,
+            'html_content' => $data['html_content'] ?? $htmlContent,
             'document_structure' => array_key_exists('document_structure', $data)
                 ? $data['document_structure']
                 : $model->document_structure,

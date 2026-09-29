@@ -37,4 +37,8 @@ return [
         ],
     ],
 
+    'pdf2htmlex' => [
+        'url' => env('PDF2HTMLEX_URL', 'http://pdf2htmlex:8000'),
+    ],
+
 ];
