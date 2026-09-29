@@ -54,6 +54,7 @@ export default function Dashboard({
 
     useEffect(() => {
         if (selectedModel) setData(getInitialData(selectedModel));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedModelId]);
 
     const sections = useMemo(
@@ -87,6 +88,7 @@ export default function Dashboard({
             )}
 
             <div className="grid grid-cols-1 items-start gap-6 p-6 lg:grid-cols-12">
+                {/* ---------- Formulário ---------- */}
                 <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm lg:col-span-4">
                     <div className="shrink-0 space-y-4 p-6">
                         <h1 className="text-base font-semibold tracking-tight">
@@ -179,6 +181,7 @@ export default function Dashboard({
                     </div>
                 </div>
 
+                {/* ---------- Preview ---------- */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
                     <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
                         <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
