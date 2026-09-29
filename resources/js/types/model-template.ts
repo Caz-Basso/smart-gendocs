@@ -17,6 +17,7 @@ export interface ModelData {
     name: string;
     fields: FieldItem[];
     extracted_text: string | null;
+    html_content: string | null;
     document_structure: PdfDocumentStructure | null;
 }
 
@@ -26,5 +27,6 @@ export type ModelFormData = {
     template: File | null;
     fields: FieldItem[];
     extracted_text: string;
+    html_content: string;
     document_structure: PdfDocumentStructure | null;
 };

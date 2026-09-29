@@ -20,7 +20,10 @@ final readonly class CreateModelAction
 
             if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
                 $templatePath = $data['template']->store('templates', 'public');
-                $htmlContent = $this->convertFileToHtml->handle($data['template']);
+                $htmlContent = is_string($data['html_content'] ?? null)
+                    && $data['html_content'] !== ''
+                        ? $data['html_content']
+                        : $this->convertFileToHtml->handle($data['template']);
             }
 
             return DocumentModel::create([

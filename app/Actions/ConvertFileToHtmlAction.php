@@ -35,7 +35,7 @@ final readonly class ConvertFileToHtmlAction
                     $file->getClientOriginalName(),
                     ['Content-Type' => 'application/pdf'],
                 )
-                ->post(rtrim((string) config('services.pdf2htmlex.url'), '/').'/convert')
+                ->post(mb_rtrim((string) config('services.pdf2htmlex.url'), '/').'/convert')
                 ->throw();
         } catch (ConnectionException|RequestException $exception) {
             throw new RuntimeException('O serviço pdf2htmlEX não está disponível.', previous: $exception);

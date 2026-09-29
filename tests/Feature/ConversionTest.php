@@ -35,7 +35,7 @@ test('converts pdf to html using pdf2htmlEX', function () {
 
     expect($action->handle($file))->toBe('<html><body>Converted PDF</body></html>');
 
-    Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
+    Http::assertSent(function (Illuminate\Http\Client\Request $request): bool {
         return $request->url() === 'http://pdf2htmlex:8000/convert'
             && $request->isMultipart();
     });

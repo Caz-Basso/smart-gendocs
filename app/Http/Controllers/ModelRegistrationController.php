@@ -19,9 +19,9 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use RuntimeException;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 final class ModelRegistrationController
 {
@@ -175,8 +175,7 @@ final class ModelRegistrationController
         StoreModelRequest $request,
         string $id,
         ConvertFileToHtmlAction $convertFileToHtml,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $model = \App\Models\DocumentModel::findOrFail($id);
 
         // Handle update logic here if needed, for now just update basic fields

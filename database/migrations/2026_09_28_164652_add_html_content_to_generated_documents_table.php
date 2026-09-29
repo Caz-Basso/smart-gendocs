@@ -13,6 +13,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('generated_documents') || Schema::hasColumn('generated_documents', 'html_content')) {
+            return;
+        }
+
         Schema::table('generated_documents', function (Blueprint $table) {
             $table->text('html_content')->nullable()->after('file_path');
         });
@@ -23,6 +27,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('generated_documents') || ! Schema::hasColumn('generated_documents', 'html_content')) {
+            return;
+        }
+
         Schema::table('generated_documents', function (Blueprint $table) {
             $table->dropColumn('html_content');
         });

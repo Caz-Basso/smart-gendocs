@@ -10,6 +10,7 @@ import { useTagDrop } from '@/hooks/use-tag-drop';
 import { useTemplateFields } from '@/hooks/use-template-fields';
 import { useTemplateLoader } from '@/hooks/use-template-loader';
 import {
+    convertPdfToHtml,
     pdfDocumentStructureToHtml,
     sanitizePdfDocumentStructure,
     type PdfDocumentStructure,
@@ -62,6 +63,7 @@ export function ModelForm({
         [model],
     );
     const initialHtml = model?.extracted_text ?? '';
+    const initialConvertedHtml = model?.html_content ?? '';
 
     const [templateFile, setTemplateFile] = useState<File | null>(null);
     const [documentStructure, setDocumentStructure] =
@@ -70,6 +72,10 @@ export function ModelForm({
     const [docVersion, setDocVersion] = useState(0);
     const [pageImages, setPageImages] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
+    const [convertedPdfHtml, setConvertedPdfHtml] = useState(initialConvertedHtml);
+    const [pdfConversionError, setPdfConversionError] = useState<string | null>(null);
+    const [isConvertingPdf, setIsConvertingPdf] = useState(false);
+    const [pdfPreviewMode, setPdfPreviewMode] = useState<'editor' | 'html'>('editor');
     const [isCancelOpen, setIsCancelOpen] = useState(false);
     const [isUpdateOpen, setIsUpdateOpen] = useState(false);
 
@@ -81,6 +87,7 @@ export function ModelForm({
                 ? model.fields
                 : [createDefaultField()],
             extracted_text: initialHtml,
+            html_content: initialConvertedHtml,
             document_structure: model?.document_structure ?? null,
         });
 
@@ -92,6 +99,92 @@ export function ModelForm({
     const fieldsApi = useTemplateFields(data.fields, (fields) =>
         setData('fields', fields),
     );
+
+    useEffect(() => {
+        const isSelectedPdf = templateFile !== null
+            && (templateFile.type === 'application/pdf'
+                || templateFile.name.toLowerCase().endsWith('.pdf'));
+        const shouldConvertSavedPdf = templateFile === null
+            && isEdit
+            && templateIsPdf
+            && templateUrl !== null
+            && initialConvertedHtml === '';
+
+        if (!isSelectedPdf && !shouldConvertSavedPdf) {
+            return;
+        }
+
+        let cancelled = false;
+        const abortController = new AbortController();
+
+        setIsConvertingPdf(true);
+        setPdfConversionError(null);
+        setConvertedPdfHtml(initialConvertedHtml);
+
+        const convertSelectedPdf = async () => {
+            try {
+                let pdfFile = templateFile;
+
+                if (pdfFile === null && templateUrl !== null) {
+                    const response = await fetch(templateUrl, {
+                        signal: abortController.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Não foi possível carregar o PDF salvo.');
+                    }
+
+                    pdfFile = new File(
+                        [await response.blob()],
+                        'modelo.pdf',
+                        { type: 'application/pdf' },
+                    );
+                }
+
+                if (pdfFile === null) {
+                    return;
+                }
+
+                const html = await convertPdfToHtml(
+                    pdfFile,
+                    abortController.signal,
+                );
+
+                if (!cancelled) {
+                    setConvertedPdfHtml(html);
+                    setData('html_content', html);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    const message = error instanceof Error
+                        ? error.message
+                        : 'Não foi possível converter o PDF para HTML.';
+
+                    setPdfConversionError(message);
+                    toast.error(message);
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsConvertingPdf(false);
+                }
+            }
+        };
+
+        setData('html_content', '');
+        void convertSelectedPdf();
+
+        return () => {
+            cancelled = true;
+            abortController.abort();
+        };
+    }, [
+        initialConvertedHtml,
+        isEdit,
+        setData,
+        templateFile,
+        templateIsPdf,
+        templateUrl,
+    ]);
 
     // ---------- Sincroniza o resultado do loader com o estado do editor ----------
     useEffect(() => {
@@ -111,6 +204,7 @@ export function ModelForm({
             setData((previous) => ({
                 ...previous,
                 extracted_text: loaded.html,
+                html_content: loaded.html,
                 document_structure: null,
             }));
 
@@ -167,12 +261,22 @@ export function ModelForm({
     const handleFileSelect = (file: File) => {
         setTemplateFile(file);
         setData('template', file);
+        setPdfPreviewMode('editor');
+        setPdfConversionError(null);
+
+        if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+            setConvertedPdfHtml('');
+            setData('html_content', '');
+        }
     };
 
     const handleFileClear = () => {
         setTemplateFile(null);
         setPageImages([]);
         setCurrentPage(0);
+        setConvertedPdfHtml(initialConvertedHtml);
+        setPdfConversionError(null);
+        setPdfPreviewMode('editor');
         setDocumentStructure(initialStructure);
         setHtmlContent(initialHtml);
         setDocVersion((version) => version + 1);
@@ -180,6 +284,7 @@ export function ModelForm({
             ...previous,
             template: null,
             extracted_text: initialHtml,
+            html_content: initialConvertedHtml,
             document_structure: model?.document_structure ?? null,
         }));
     };
@@ -199,6 +304,7 @@ export function ModelForm({
         transform((formData) => ({
             ...formData,
             extracted_text: html,
+            html_content: convertedPdfHtml || formData.html_content,
             document_structure: structure,
         }));
 
@@ -242,6 +348,12 @@ export function ModelForm({
 
         if (loading || processing) return;
 
+        if (isConvertingPdf) {
+            toast.error('Aguarde a conversão PDF para HTML terminar.');
+
+            return;
+        }
+
         if (!data.name.trim()) {
             toast.error('Informe o nome do modelo para continuar.');
 
@@ -272,7 +384,6 @@ export function ModelForm({
     // ---------- Render ----------
     const showPdf = documentStructure !== null && pageImages.length > 0;
     const showEmpty = !isEdit && !templateFile;
-    const firstError = Object.values(errors).find(Boolean);
 
     return (
         <>
@@ -384,11 +495,6 @@ export function ModelForm({
                         </Button>
                     </div>
 
-                    {firstError && (
-                        <p role="alert" className="text-sm text-destructive">
-                            Não foi possível salvar: {firstError}
-                        </p>
-                    )}
                 </div>
 
                 {/* ---------- Pré-visualização ---------- */}
@@ -403,11 +509,31 @@ export function ModelForm({
                         </div>
 
                         {showPdf ? (
-                            <PdfPagination
-                                current={currentPage}
-                                total={pageImages.length}
-                                onChange={setCurrentPage}
-                            />
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={pdfPreviewMode === 'editor' ? 'secondary' : 'ghost'}
+                                    onClick={() => setPdfPreviewMode('editor')}
+                                >
+                                    Editor atual
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={pdfPreviewMode === 'html' ? 'secondary' : 'ghost'}
+                                    onClick={() => setPdfPreviewMode('html')}
+                                >
+                                    HTML pdf2htmlEX
+                                </Button>
+                                {pdfPreviewMode === 'editor' && (
+                                    <PdfPagination
+                                        current={currentPage}
+                                        total={pageImages.length}
+                                        onChange={setCurrentPage}
+                                    />
+                                )}
+                            </div>
                         ) : (
                             !showEmpty && (
                                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -426,6 +552,28 @@ export function ModelForm({
                                     Processando documento...
                                 </span>
                             </div>
+                        ) : showPdf && pdfPreviewMode === 'html' ? (
+                            convertedPdfHtml ? (
+                                <iframe
+                                    title="Pré-visualização convertida pelo pdf2htmlEX"
+                                    srcDoc={convertedPdfHtml}
+                                    sandbox="allow-scripts"
+                                    className="h-[1000px] w-full bg-white"
+                                />
+                            ) : (
+                                <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+                                    {isConvertingPdf ? (
+                                        <Loader2 className="h-7 w-7 animate-spin" />
+                                    ) : (
+                                        <FileText className="h-10 w-10 opacity-50" />
+                                    )}
+                                    <span className="text-sm">
+                                        {isConvertingPdf
+                                            ? 'Convertendo o PDF com pdf2htmlEX…'
+                                            : pdfConversionError ?? 'A conversão para HTML não está disponível.'}
+                                    </span>
+                                </div>
+                            )
                         ) : showPdf ? (
                             <PdfPreview
                                 containerRef={editorRef}

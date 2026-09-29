@@ -20,6 +20,7 @@ return new class extends Migration
             $table->json('preview')->nullable();
             $table->json('fields');
             $table->string('file_path');
+            $table->text('html_content')->nullable();
             $table->timestamps();
             $table->index(['user_id', 'created_at']);
         });
