@@ -30,12 +30,12 @@ final class ModelRegistrationController
         // Se for admin, mostra todos os modelos. Se for user, mostra apenas os próprios
         if (Auth::user()->hasRole('admin') || Auth::user()->hasRole('super-admin')) {
             $documentModels = \App\Models\DocumentModel::query()
-                ->select(['id', 'name', 'fields', 'document_structure', 'extracted_text', 'user_id'])
+                ->select(['id', 'name', 'fields', 'document_structure', 'extracted_text', 'user_id', 'template_path', 'html_content'])
                 ->latest()
                 ->get();
         } else {
             $documentModels = \App\Models\DocumentModel::where('user_id', Auth::id())
-                ->select(['id', 'name', 'fields', 'document_structure', 'extracted_text', 'user_id'])
+                ->select(['id', 'name', 'fields', 'document_structure', 'extracted_text', 'user_id', 'template_path', 'html_content'])
                 ->latest()
                 ->get();
         }
@@ -74,10 +74,7 @@ final class ModelRegistrationController
                 'name' => $model->name,
                 'fields' => $fields,
                 'preview' => $preview,
-                'html_content' => $model->template_path !== null
-                    && str_ends_with(mb_strtolower($model->template_path), '.pdf')
-                        ? null
-                        : $model->html_content,
+                'html_content' => $model->html_content ?? $model->extracted_text,
                 'document_structure' => $model->document_structure,
                 'templateUrl' => $model->template_path !== null
                     ? Storage::disk('public')->url($model->template_path)

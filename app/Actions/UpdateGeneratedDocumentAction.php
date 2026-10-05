@@ -27,7 +27,8 @@ final readonly class UpdateGeneratedDocumentAction
                 throw new RuntimeException('O modelo original não está mais disponível para editar este documento.');
             }
 
-            $pdfContent = $this->generateDocument->handle($model->id, $data);
+            $generated = $this->generateDocument->handle($model->id, $data);
+            $pdfContent = $generated['pdf'];
         } else {
             $pdfContent = $this->generateSampleDocument->handle($document->preview ?? [], $data);
         }

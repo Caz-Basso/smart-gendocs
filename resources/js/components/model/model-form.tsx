@@ -10,7 +10,6 @@ import { useTagDrop } from '@/hooks/use-tag-drop';
 import { useTemplateFields } from '@/hooks/use-template-fields';
 import { useTemplateLoader } from '@/hooks/use-template-loader';
 import {
-    convertPdfToHtml,
     pdfDocumentStructureToHtml,
     sanitizePdfDocumentStructure,
     type PdfDocumentStructure,

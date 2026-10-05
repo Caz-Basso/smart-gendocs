@@ -53,15 +53,16 @@ export function PdfPreview({
                                 event.currentTarget.textContent ?? '',
                             )
                         }
-                        className="absolute overflow-hidden bg-white text-black outline-none focus:ring-1 focus:ring-blue-500"
+                        className="absolute overflow-hidden rounded-[2px] bg-white/95 text-black outline-none transition-shadow hover:ring-1 hover:ring-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-600"
                         style={{
                             left: `${element.x * 100}%`,
                             top: `${element.y * 100}%`,
                             width: `${Math.min(1 - element.x, Math.max(element.width, 0.04)) * 100}%`,
-                            height: `${Math.max(element.height * 1.5, 0.015) * 100}%`,
+                            minHeight: `${Math.max(element.height * 1.2, 0.015) * 100}%`,
                             fontSize: `${(element.fontSize / (page?.width || 1)) * 100}cqw`,
-                            lineHeight: 1,
-                            whiteSpace: 'nowrap',
+                            lineHeight: 1.2,
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap',
                         }}
                     >
                         {element.text}

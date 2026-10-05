@@ -25,14 +25,6 @@ services:
             - pgsql
             - redis
             - mailpit
-            - pdf2htmlex
-    pdf2htmlex:
-        build:
-            context: './docker/pdf2htmlex'
-            dockerfile: Dockerfile
-        image: 'smart-gendocs/pdf2htmlex:dev'
-        networks:
-            - sail
     pgsql:
         image: 'postgres:18-alpine'
         ports:

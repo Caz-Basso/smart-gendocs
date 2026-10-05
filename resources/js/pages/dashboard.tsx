@@ -185,6 +185,9 @@ export default function Dashboard({
                     <div className="relative w-full max-w-[900px]">
                         <DocumentPreview
                             preview={selectedModel?.preview}
+                            htmlContent={selectedModel?.html_content}
+                            documentStructure={selectedModel?.document_structure}
+                            templateUrl={selectedModel?.templateUrl}
                             fields={selectedModel?.fields ?? []}
                             data={data}
                         />

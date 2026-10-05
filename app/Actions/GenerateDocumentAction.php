@@ -23,15 +23,21 @@ final readonly class GenerateDocumentAction
 
         foreach ($data as $key => $value) {
             $placeholder = '{{'.$key.'}}';
-            $htmlContent = str_replace($placeholder, (string) $value, $htmlContent);
+            $htmlContent = str_replace($placeholder, htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $htmlContent);
         }
+
+        $styledHtml = $this->wrapWithInstitutionalA4Styles($htmlContent, $model->name);
 
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
+            'margin_left' => 20,
+            'margin_right' => 20,
+            'margin_top' => 20,
+            'margin_bottom' => 20,
         ]);
 
-        $mpdf->WriteHTML($htmlContent);
+        $mpdf->WriteHTML($styledHtml);
 
         return [
             'pdf' => $mpdf->Output('', 'S'),
@@ -42,6 +48,34 @@ final readonly class GenerateDocumentAction
     /** @param array<string, mixed> $data */
     private function generateFromStructure(DocumentModel $model, array $data): array
     {
+        // Se houver html_content ou extracted_text disponível, prioriza o fluxo limpo
+        // que não duplica texto nem corta linhas com nowrap.
+        if (! empty($model->html_content) || ! empty($model->extracted_text)) {
+            $html = $model->html_content ?? $model->extracted_text;
+
+            foreach ($data as $key => $value) {
+                $html = str_replace('{{'.$key.'}}', htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $html);
+            }
+
+            $styledHtml = $this->wrapWithInstitutionalA4Styles($html, $model->name);
+
+            $mpdf = new Mpdf([
+                'mode' => 'utf-8',
+                'format' => 'A4',
+                'margin_left' => 20,
+                'margin_right' => 20,
+                'margin_top' => 20,
+                'margin_bottom' => 20,
+            ]);
+
+            $mpdf->WriteHTML($styledHtml);
+
+            return [
+                'pdf' => $mpdf->Output('', 'S'),
+                'html' => $html,
+            ];
+        }
+
         $templatePath = Storage::disk('public')->path($model->template_path);
 
         if (! is_file($templatePath)) {
@@ -81,7 +115,6 @@ final readonly class GenerateDocumentAction
                 $height = max(1.0, (float) $element['height'] * $size['height']);
                 $text = (string) ($element['text'] ?? '');
                 $originalText = (string) ($element['originalText'] ?? $text);
-                $templateTextLength = max(1, mb_strlen($originalText));
 
                 foreach ($data as $key => $value) {
                     if (is_scalar($value)) {
@@ -89,24 +122,22 @@ final readonly class GenerateDocumentAction
                     }
                 }
 
+                // Se o texto não foi alterado nem preenchido por tag, mantém o PDF original intacto
                 if ($text === $originalText) {
                     continue;
                 }
 
-                $mpdf->SetFillColor(255, 255, 255);
-                $mpdf->SetDrawColor(255, 255, 255);
-                $mpdf->Rect($x, $y, $width, $height, 'F');
-
                 $escapedText = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $fontSize = min(200, max(1, (float) $element['fontSize']));
-                $fontSize = max(6, $fontSize * min(1, $templateTextLength / max(1, mb_strlen($text))));
+                $fontSize = min(24, max(8, (float) ($element['fontSize'] ?? 11)));
+
+                // Escreve apenas o valor preenchido na área designada sem retângulos destrutivos
                 $mpdf->WriteFixedPosHTML(
-                    '<div style="font-family: sans-serif; font-size: '.$fontSize.'pt; line-height: 1; margin: 0; padding: 0; white-space: nowrap;">'.$escapedText.'</div>',
+                    '<div style="font-family: sans-serif; font-size: '.$fontSize.'pt; line-height: 1.3; color: #111; margin: 0; padding: 0; word-wrap: break-word;">'.$escapedText.'</div>',
                     $x,
                     $y,
                     $width,
                     $height,
-                    'hidden',
+                    'auto',
                 );
             }
         }
@@ -123,5 +154,76 @@ final readonly class GenerateDocumentAction
             'pdf' => $mpdf->Output('', 'S'),
             'html' => $model->html_content ?? '',
         ];
+    }
+
+    /**
+     * Aplica folha de estilos A4 institucional limpa e compatível com mPDF.
+     */
+    private function wrapWithInstitutionalA4Styles(string $content, string $title): string
+    {
+        $escapedTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return <<<HTML
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>{$escapedTitle}</title>
+            <style>
+                body {
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    font-size: 11pt;
+                    line-height: 1.6;
+                    color: #222;
+                }
+                h1, h2, h3, h4 {
+                    color: #0b3d2c;
+                    margin-top: 18pt;
+                    margin-bottom: 8pt;
+                    font-weight: bold;
+                    page-break-after: avoid;
+                }
+                h1 { font-size: 16pt; text-align: center; }
+                h2 { font-size: 13pt; border-bottom: 1px solid #ddd; padding-bottom: 4pt; }
+                h3 { font-size: 11pt; }
+                p {
+                    margin-bottom: 10pt;
+                    text-align: justify;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 14pt 0;
+                    page-break-inside: auto;
+                }
+                th, td {
+                    border: 1px solid #ccc;
+                    padding: 6pt 8pt;
+                    font-size: 10pt;
+                    text-align: left;
+                    vertical-align: top;
+                }
+                th {
+                    background-color: #f4f6f5;
+                    color: #0b3d2c;
+                    font-weight: bold;
+                }
+                tr {
+                    page-break-inside: avoid;
+                }
+                img {
+                    max-width: 100%;
+                    height: auto;
+                }
+                .page-break {
+                    page-break-after: always;
+                }
+            </style>
+        </head>
+        <body>
+            {$content}
+        </body>
+        </html>
+        HTML;
     }
 }

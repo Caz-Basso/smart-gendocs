@@ -29,47 +29,6 @@ export interface ParsedPdfDocument {
     pageImages: string[];
 }
 
-export async function convertPdfToHtml(
-    file: File,
-    signal?: AbortSignal,
-): Promise<string> {
-    const formData = new FormData();
-    formData.append('pdf', file);
-
-    const csrfToken = document.querySelector<HTMLMetaElement>(
-        'meta[name="csrf-token"]',
-    )?.content;
-    const response = await fetch('/modelos/converter-html', {
-        method: 'POST',
-        headers: {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
-        },
-        body: formData,
-        signal,
-    });
-
-    const result = (await response.json().catch(() => null)) as {
-        html?: unknown;
-        message?: unknown;
-    } | null;
-
-    if (!response.ok) {
-        throw new Error(
-            typeof result?.message === 'string'
-                ? result.message
-                : 'Não foi possível converter o PDF para HTML.',
-        );
-    }
-
-    if (typeof result?.html !== 'string' || result.html === '') {
-        throw new Error('O conversor não retornou um documento HTML.');
-    }
-
-    return result.html;
-}
-
 export function sanitizePdfDocumentStructure(
     structure: PdfDocumentStructure,
 ): PdfDocumentStructure {
