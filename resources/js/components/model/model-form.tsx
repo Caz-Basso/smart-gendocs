@@ -1,8 +1,26 @@
 import { useForm } from '@inertiajs/react';
-import { Edit3, FileText, Loader2, Save, X } from 'lucide-react';
+import {
+    Braces,
+    Copy,
+    Download,
+    Edit3,
+    Eye,
+    FileText,
+    Loader2,
+    Save,
+    X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCopyTag } from '@/hooks/use-copy-tag';
@@ -72,6 +90,7 @@ export function ModelForm({
     const [currentPage, setCurrentPage] = useState(0);
     const [isCancelOpen, setIsCancelOpen] = useState(false);
     const [isUpdateOpen, setIsUpdateOpen] = useState(false);
+    const [isJsonOpen, setIsJsonOpen] = useState(false);
 
     const { data, setData, transform, post, put, processing, errors, isDirty } =
         useForm<ModelFormData>({
@@ -273,6 +292,48 @@ export function ModelForm({
     const showPdf = documentStructure !== null && pageImages.length > 0;
     const showEmpty = !isEdit && !templateFile;
     const firstError = Object.values(errors).find(Boolean);
+    const jsonContent = useMemo(
+        () =>
+            documentStructure
+                ? JSON.stringify(
+                      sanitizePdfDocumentStructure(documentStructure),
+                      null,
+                      2,
+                  )
+                : '',
+        [documentStructure],
+    );
+
+    const downloadJson = () => {
+        if (!jsonContent) return;
+
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        const fileName = (model?.name ?? data.name)
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '') || 'documento';
+
+        anchor.href = url;
+        anchor.download = `${fileName}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    const copyJson = async () => {
+        if (!jsonContent) return;
+
+        try {
+            await navigator.clipboard.writeText(jsonContent);
+            toast.success('JSON copiado para a área de transferência.');
+        } catch {
+            toast.error('Não foi possível copiar o JSON.');
+        }
+    };
 
     return (
         <>
@@ -297,6 +358,40 @@ export function ModelForm({
                 disabled={processing}
                 onConfirm={save}
             />
+
+            <Dialog open={isJsonOpen} onOpenChange={setIsJsonOpen}>
+                <DialogContent className="max-h-[85vh] max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Estrutura JSON do PDF</DialogTitle>
+                        <DialogDescription>
+                            Prévia da estrutura convertida, incluindo as alterações
+                            ainda não salvas.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <pre className="max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-left text-xs whitespace-pre-wrap">
+                        {jsonContent}
+                    </pre>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={copyJson}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copiar JSON
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsJsonOpen(false)}
+                        >
+                            Fechar
+                        </Button>
+                        <Button type="button" onClick={downloadJson}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Baixar JSON
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <form
                 onSubmit={handleSubmit}
@@ -403,11 +498,40 @@ export function ModelForm({
                         </div>
 
                         {showPdf ? (
-                            <PdfPagination
-                                current={currentPage}
-                                total={pageImages.length}
-                                onChange={setCurrentPage}
-                            />
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                <PdfPagination
+                                    current={currentPage}
+                                    total={pageImages.length}
+                                    onChange={setCurrentPage}
+                                />
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setIsJsonOpen(true)}
+                                >
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Ver JSON
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={downloadJson}
+                                >
+                                    <Braces className="mr-2 h-4 w-4" />
+                                    Baixar JSON
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={copyJson}
+                                >
+                                    <Copy className="mr-2 h-4 w-4" />
+                                    Copiar JSON
+                                </Button>
+                            </div>
                         ) : (
                             !showEmpty && (
                                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
