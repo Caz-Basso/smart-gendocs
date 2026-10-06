@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Services\DocumentEngineClient;
 use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpWord\IOFactory;
 use RuntimeException;
 use Smalot\PdfParser\Page;
 use Smalot\PdfParser\Parser;
+use Throwable;
 
 final readonly class ConvertFileToHtmlAction
 {
+    public function __construct(
+        private DocumentEngineClient $docEngineClient = new DocumentEngineClient,
+    ) {}
+
     public function handle(UploadedFile $file): string
     {
         $extension = mb_strtolower($file->getClientOriginalExtension());
@@ -23,8 +29,16 @@ final readonly class ConvertFileToHtmlAction
         };
     }
 
-    public function convertPdfPathToHtml(string $filePath): string
+    public function convertPdfPathToHtml(string $filePath, ?string $originalName = null): string
     {
+        // 1. Tenta utilizar o microserviço especializado PyMuPDF + pdfplumber
+        $analyzed = $this->docEngineClient->analyzePdf($filePath, $originalName);
+
+        if ($analyzed !== null && ! empty($analyzed['html'])) {
+            return $analyzed['html'];
+        }
+
+        // 2. Fallback nativo resiliente com ordenação por coordenadas espaciais
         try {
             $parser = new Parser();
             $pdf = $parser->parseFile($filePath);
@@ -47,25 +61,36 @@ final readonly class ConvertFileToHtmlAction
             }
 
             return $html;
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             throw new RuntimeException('Não foi possível converter o PDF para HTML: '.$exception->getMessage(), previous: $exception);
         }
     }
 
     private function convertPdfToHtml(UploadedFile $file): string
     {
-        return $this->convertPdfPathToHtml($file->getPathname());
+        return $this->convertPdfPathToHtml($file->getPathname(), $file->getClientOriginalName());
     }
 
     private function extractPageHtml(Page $page, int $pageNum, int $totalPages): string
     {
-        $items = $page->getDataTm();
+        $items = [];
+        try {
+            $items = $page->getDataTm();
+        } catch (Throwable) {
+            $items = [];
+        }
 
         if (! empty($items)) {
             return $this->extractPageFromTm($items, $pageNum, $totalPages);
         }
 
-        return $this->extractPageFromRawText($page->getText(), $pageNum, $totalPages);
+        try {
+            $rawText = $page->getText();
+        } catch (Throwable) {
+            $rawText = '';
+        }
+
+        return $this->extractPageFromRawText($rawText, $pageNum, $totalPages);
     }
 
     /**

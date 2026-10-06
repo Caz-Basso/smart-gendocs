@@ -25,6 +25,16 @@ services:
             - pgsql
             - redis
             - mailpit
+            - doc-engine
+    doc-engine:
+        build:
+            context: './docker/doc-engine'
+            dockerfile: Dockerfile
+        image: 'smart-gendocs/doc-engine:latest'
+        ports:
+            - '${FORWARD_DOC_ENGINE_PORT:-8001}:8000'
+        networks:
+            - sail
     pgsql:
         image: 'postgres:18-alpine'
         ports:

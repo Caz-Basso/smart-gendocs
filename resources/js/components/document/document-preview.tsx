@@ -53,7 +53,7 @@ function extractPagesFromHtml(rawHtml: string): string[] {
         const doc = parser.parseFromString(rawHtml, 'text/html');
 
         const pageNodes = doc.querySelectorAll('.pf, .pdf-page');
-        if (pageNodes.length > 1) {
+        if (pageNodes.length > 0) {
             return Array.from(pageNodes).map((node) => node.outerHTML);
         }
 
@@ -63,7 +63,7 @@ function extractPagesFromHtml(rawHtml: string): string[] {
                 /<div[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>|<div[^>]*style=["'][^"']*page-break-after:\s*always[^"']*["'][^>]*>/i,
             );
             const filtered = parts.filter((part) => part.trim().length > 0);
-            if (filtered.length > 1) {
+            if (filtered.length > 0) {
                 return filtered;
             }
         }
@@ -100,6 +100,30 @@ export function DocumentPreview({
             font-family: 'Aptos', 'Calibri', 'Arial', sans-serif;
             color: #1f2937;
             line-height: 1.6;
+        }
+        .doc-preview-a4 .pdf-page {
+            box-sizing: border-box;
+            width: 100%;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            min-height: 842px;
+            padding: 0 !important;
+        }
+        .doc-preview-a4 .pdf-header {
+            margin-bottom: 20px;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        .doc-preview-a4 .pdf-body {
+            flex: 1 0 auto;
+            width: 100%;
+        }
+        .doc-preview-a4 .pdf-footer {
+            margin-top: auto;
+            padding-top: 14px;
+            width: 100%;
+            flex-shrink: 0;
         }
         .doc-preview-a4 p {
             margin-bottom: 12px;

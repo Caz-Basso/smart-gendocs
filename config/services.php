@@ -37,4 +37,8 @@ return [
         ],
     ],
 
+    'doc_engine' => [
+        'url' => env('DOC_ENGINE_URL', 'http://doc-engine:8000'),
+    ],
+
 ];

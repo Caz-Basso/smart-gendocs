@@ -21,24 +21,58 @@ test('convert docx to html', function () {
     expect($html)->not->toBeEmpty();
 });
 
-test('converts pdf to html using pdf2htmlEX', function () {
-    config()->set('services.pdf2htmlex.url', 'http://pdf2htmlex:8000');
+test('converts pdf to html using doc-engine microservice', function () {
+    config()->set('services.doc_engine.url', 'http://doc-engine:8000');
 
     Http::fake([
-        'http://pdf2htmlex:8000/convert' => Http::response([
-            'html' => '<html><body>Converted PDF</body></html>',
+        'http://doc-engine:8000/analyze' => Http::response([
+            'status' => 'success',
+            'pages_count' => 1,
+            'pages' => [
+                [
+                    'page_number' => 1,
+                    'header' => '<p>UNESC - Cabeçalho</p>',
+                    'body' => '<p>Edital 001/2026</p>',
+                    'footer' => '<p>Página 1</p>',
+                    'tables' => [],
+                ],
+            ],
+            'html' => '<div class="pdf-page"><div class="pdf-header"><p>UNESC - Cabeçalho</p></div><div class="pdf-body"><p>Edital 001/2026</p></div><div class="pdf-footer"><p>Página 1</p></div></div>',
         ]),
     ]);
 
     $action = app(ConvertFileToHtmlAction::class);
     $file = UploadedFile::fake()->create('document.pdf', 100, 'application/pdf');
 
-    expect($action->handle($file))->toBe('<html><body>Converted PDF</body></html>');
+    $html = $action->handle($file);
+
+    expect($html)->toContain('UNESC - Cabeçalho');
+    expect($html)->toContain('Edital 001/2026');
 
     Http::assertSent(function (Illuminate\Http\Client\Request $request): bool {
-        return $request->url() === 'http://pdf2htmlex:8000/convert'
+        return $request->url() === 'http://doc-engine:8000/analyze'
             && $request->isMultipart();
     });
+});
+
+test('converts pdf to html using native parser when doc-engine is unreachable', function () {
+    config()->set('services.doc_engine.url', 'http://doc-engine:8000');
+
+    Http::fake([
+        'http://doc-engine:8000/analyze' => Http::response(null, 500),
+    ]);
+
+    $action = app(ConvertFileToHtmlAction::class);
+    // Real minimal valid PDF with "Hello World"
+    $minimalPdf = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\n0000000101 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF";
+
+    $file = UploadedFile::fake()->createWithContent('document.pdf', $minimalPdf);
+
+    $html = $action->handle($file);
+
+    expect($html)->toBeString();
+    expect($html)->toContain('pdf-page');
+    expect($html)->toContain('pdf-body');
 });
 
 test('convert html to pdf', function () {

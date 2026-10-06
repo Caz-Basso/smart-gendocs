@@ -71,10 +71,6 @@ export function ModelForm({
     const [docVersion, setDocVersion] = useState(0);
     const [pageImages, setPageImages] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
-    const [convertedPdfHtml, setConvertedPdfHtml] = useState(initialConvertedHtml);
-    const [pdfConversionError, setPdfConversionError] = useState<string | null>(null);
-    const [isConvertingPdf, setIsConvertingPdf] = useState(false);
-    const [pdfPreviewMode, setPdfPreviewMode] = useState<'editor' | 'html'>('editor');
     const [isCancelOpen, setIsCancelOpen] = useState(false);
     const [isUpdateOpen, setIsUpdateOpen] = useState(false);
 
@@ -98,92 +94,6 @@ export function ModelForm({
     const fieldsApi = useTemplateFields(data.fields, (fields) =>
         setData('fields', fields),
     );
-
-    useEffect(() => {
-        const isSelectedPdf = templateFile !== null
-            && (templateFile.type === 'application/pdf'
-                || templateFile.name.toLowerCase().endsWith('.pdf'));
-        const shouldConvertSavedPdf = templateFile === null
-            && isEdit
-            && templateIsPdf
-            && templateUrl !== null
-            && initialConvertedHtml === '';
-
-        if (!isSelectedPdf && !shouldConvertSavedPdf) {
-            return;
-        }
-
-        let cancelled = false;
-        const abortController = new AbortController();
-
-        setIsConvertingPdf(true);
-        setPdfConversionError(null);
-        setConvertedPdfHtml(initialConvertedHtml);
-
-        const convertSelectedPdf = async () => {
-            try {
-                let pdfFile = templateFile;
-
-                if (pdfFile === null && templateUrl !== null) {
-                    const response = await fetch(templateUrl, {
-                        signal: abortController.signal,
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Não foi possível carregar o PDF salvo.');
-                    }
-
-                    pdfFile = new File(
-                        [await response.blob()],
-                        'modelo.pdf',
-                        { type: 'application/pdf' },
-                    );
-                }
-
-                if (pdfFile === null) {
-                    return;
-                }
-
-                const html = await convertPdfToHtml(
-                    pdfFile,
-                    abortController.signal,
-                );
-
-                if (!cancelled) {
-                    setConvertedPdfHtml(html);
-                    setData('html_content', html);
-                }
-            } catch (error) {
-                if (!cancelled) {
-                    const message = error instanceof Error
-                        ? error.message
-                        : 'Não foi possível converter o PDF para HTML.';
-
-                    setPdfConversionError(message);
-                    toast.error(message);
-                }
-            } finally {
-                if (!cancelled) {
-                    setIsConvertingPdf(false);
-                }
-            }
-        };
-
-        setData('html_content', '');
-        void convertSelectedPdf();
-
-        return () => {
-            cancelled = true;
-            abortController.abort();
-        };
-    }, [
-        initialConvertedHtml,
-        isEdit,
-        setData,
-        templateFile,
-        templateIsPdf,
-        templateUrl,
-    ]);
 
     // ---------- Sincroniza o resultado do loader com o estado do editor ----------
     useEffect(() => {
@@ -508,30 +418,12 @@ export function ModelForm({
                         </div>
 
                         {showPdf ? (
-                            <div className="flex items-center gap-1">
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={pdfPreviewMode === 'editor' ? 'secondary' : 'ghost'}
-                                    onClick={() => setPdfPreviewMode('editor')}
-                                >
-                                    Editor atual
-                                </Button>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={pdfPreviewMode === 'html' ? 'secondary' : 'ghost'}
-                                    onClick={() => setPdfPreviewMode('html')}
-                                >
-                                    HTML pdf2htmlEX
-                                </Button>
-                                {pdfPreviewMode === 'editor' && (
-                                    <PdfPagination
-                                        current={currentPage}
-                                        total={pageImages.length}
-                                        onChange={setCurrentPage}
-                                    />
-                                )}
+                            <div className="flex items-center gap-2">
+                                <PdfPagination
+                                    current={currentPage}
+                                    total={pageImages.length}
+                                    onChange={setCurrentPage}
+                                />
                             </div>
                         ) : (
                             !showEmpty && (
@@ -551,28 +443,6 @@ export function ModelForm({
                                     Processando documento...
                                 </span>
                             </div>
-                        ) : showPdf && pdfPreviewMode === 'html' ? (
-                            convertedPdfHtml ? (
-                                <iframe
-                                    title="Pré-visualização convertida pelo pdf2htmlEX"
-                                    srcDoc={convertedPdfHtml}
-                                    sandbox="allow-scripts"
-                                    className="h-[1000px] w-full bg-white"
-                                />
-                            ) : (
-                                <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
-                                    {isConvertingPdf ? (
-                                        <Loader2 className="h-7 w-7 animate-spin" />
-                                    ) : (
-                                        <FileText className="h-10 w-10 opacity-50" />
-                                    )}
-                                    <span className="text-sm">
-                                        {isConvertingPdf
-                                            ? 'Convertendo o PDF com pdf2htmlEX…'
-                                            : pdfConversionError ?? 'A conversão para HTML não está disponível.'}
-                                    </span>
-                                </div>
-                            )
                         ) : showPdf ? (
                             <PdfPreview
                                 containerRef={editorRef}
