@@ -41,4 +41,8 @@ return [
         'url' => env('DOC_ENGINE_URL', 'http://doc-engine:8000'),
     ],
 
+    'gotenberg' => [
+        'url' => env('GOTENBERG_URL', 'http://gotenberg:3000'),
+    ],
+
 ];

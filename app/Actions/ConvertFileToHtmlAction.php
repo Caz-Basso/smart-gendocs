@@ -204,10 +204,36 @@ final readonly class ConvertFileToHtmlAction
         $phpWord = IOFactory::load($file->getPathname());
 
         $htmlWriter = IOFactory::createWriter($phpWord, 'HTML');
+
+        $htmlWriter->setUseInlineCSS(false);
+
         ob_start();
         $htmlWriter->save('php://output');
         $html = (string) ob_get_clean();
 
-        return $html;
+        $cleanedHtml = $this->cleanDocxHtml($html);
+
+        return $cleanedHtml;
+    }
+
+    private function cleanDocxHtml(string $html): string
+    {
+        $html = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $html);
+
+        $html = preg_replace('/class="[^"]*"/', '', $html);
+
+        $html = preg_replace('/style="[^"]*"/', '', $html);
+
+        $html = preg_replace('/<div[^>]*>/i', '<div>', $html);
+        $html = preg_replace('/<span[^>]*>/i', '<span>', $html);
+        $html = preg_replace('/<p[^>]*>/i', '<p>', $html);
+
+        $html = preg_replace('/<h([1-6])[^>]*>/i', '<h$1>', $html);
+
+        $html = strip_tags($html, '<h1><h2><h3><h4><h5><h6><p><br><strong><b><em><i><u><ul><ol><li><table><thead><tbody><tr><th><td><div><span>');
+
+        $html = preg_replace('/\s+/', ' ', $html);
+
+        return mb_trim($html);
     }
 }

@@ -26,6 +26,7 @@ services:
             - redis
             - mailpit
             - doc-engine
+            - gotenberg
     doc-engine:
         build:
             context: './docker/doc-engine'
@@ -33,6 +34,12 @@ services:
         image: 'smart-gendocs/doc-engine:latest'
         ports:
             - '${FORWARD_DOC_ENGINE_PORT:-8001}:8000'
+        networks:
+            - sail
+    gotenberg:
+        image: 'gotenberg/gotenberg:8'
+        ports:
+            - '${FORWARD_GOTENBERG_PORT:-3000}:3000'
         networks:
             - sail
     pgsql:

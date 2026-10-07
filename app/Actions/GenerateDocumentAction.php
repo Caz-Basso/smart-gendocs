@@ -11,6 +11,8 @@ use RuntimeException;
 
 final readonly class GenerateDocumentAction
 {
+    public function __construct(private ConvertHtmlToPdfAction $convertToPdf = new ConvertHtmlToPdfAction) {}
+
     public function handle(string $modelId, array $data): array
     {
         $model = DocumentModel::findOrFail($modelId);
@@ -27,20 +29,17 @@ final readonly class GenerateDocumentAction
         }
 
         $styledHtml = $this->wrapWithInstitutionalA4Styles($htmlContent, $model->name);
+        $headerHtml = $this->getInstitutionalHeader();
+        $footerHtml = $this->getInstitutionalFooter();
 
-        $mpdf = new Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'margin_left' => 20,
-            'margin_right' => 20,
-            'margin_top' => 20,
-            'margin_bottom' => 20,
-        ]);
-
-        $mpdf->WriteHTML($styledHtml);
+        try {
+            $pdf = $this->convertToPdf->handle($styledHtml, $headerHtml, $footerHtml);
+        } catch (RuntimeException $e) {
+            throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), previous: $e);
+        }
 
         return [
-            'pdf' => $mpdf->Output('', 'S'),
+            'pdf' => $pdf,
             'html' => $htmlContent,
         ];
     }
@@ -48,8 +47,6 @@ final readonly class GenerateDocumentAction
     /** @param array<string, mixed> $data */
     private function generateFromStructure(DocumentModel $model, array $data): array
     {
-        // Se houver html_content ou extracted_text disponível, prioriza o fluxo limpo
-        // que não duplica texto nem corta linhas com nowrap.
         if (! empty($model->html_content) || ! empty($model->extracted_text)) {
             $html = $model->html_content ?? $model->extracted_text;
 
@@ -58,20 +55,17 @@ final readonly class GenerateDocumentAction
             }
 
             $styledHtml = $this->wrapWithInstitutionalA4Styles($html, $model->name);
+            $headerHtml = $this->getInstitutionalHeader();
+            $footerHtml = $this->getInstitutionalFooter();
 
-            $mpdf = new Mpdf([
-                'mode' => 'utf-8',
-                'format' => 'A4',
-                'margin_left' => 20,
-                'margin_right' => 20,
-                'margin_top' => 20,
-                'margin_bottom' => 20,
-            ]);
-
-            $mpdf->WriteHTML($styledHtml);
+            try {
+                $pdf = $this->convertToPdf->handle($styledHtml, $headerHtml, $footerHtml);
+            } catch (RuntimeException $e) {
+                throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), previous: $e);
+            }
 
             return [
-                'pdf' => $mpdf->Output('', 'S'),
+                'pdf' => $pdf,
                 'html' => $html,
             ];
         }
@@ -122,7 +116,6 @@ final readonly class GenerateDocumentAction
                     }
                 }
 
-                // Se o texto não foi alterado nem preenchido por tag, mantém o PDF original intacto
                 if ($text === $originalText) {
                     continue;
                 }
@@ -130,7 +123,6 @@ final readonly class GenerateDocumentAction
                 $escapedText = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $fontSize = min(24, max(8, (float) ($element['fontSize'] ?? 11)));
 
-                // Escreve apenas o valor preenchido na área designada sem retângulos destrutivos
                 $mpdf->WriteFixedPosHTML(
                     '<div style="font-family: sans-serif; font-size: '.$fontSize.'pt; line-height: 1.3; color: #111; margin: 0; padding: 0; word-wrap: break-word;">'.$escapedText.'</div>',
                     $x,
@@ -157,7 +149,7 @@ final readonly class GenerateDocumentAction
     }
 
     /**
-     * Aplica folha de estilos A4 institucional limpa e compatível com mPDF.
+     * Aplica folha de estilos A4 institucional limpa e compatível com Gotenberg/Chromium.
      */
     private function wrapWithInstitutionalA4Styles(string $content, string $title): string
     {
@@ -170,8 +162,15 @@ final readonly class GenerateDocumentAction
             <meta charset="utf-8">
             <title>{$escapedTitle}</title>
             <style>
+                @page {
+                    size: A4 portrait;
+                    margin-top: 25mm;
+                    margin-bottom: 25mm;
+                    margin-left: 20mm;
+                    margin-right: 20mm;
+                }
                 body {
-                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    font-family: 'Aptos', 'Calibri', 'Arial', sans-serif;
                     font-size: 11pt;
                     line-height: 1.6;
                     color: #222;
@@ -224,6 +223,24 @@ final readonly class GenerateDocumentAction
             {$content}
         </body>
         </html>
+        HTML;
+    }
+
+    private function getInstitutionalHeader(): string
+    {
+        return <<<'HTML'
+        <div style="text-align: center; font-size: 10pt; color: #666; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+            <strong>UNIVERSIDADE DO EXTREMO SUL CATARINENSE - UNESC</strong>
+        </div>
+        HTML;
+    }
+
+    private function getInstitutionalFooter(): string
+    {
+        return <<<'HTML'
+        <div style="text-align: center; font-size: 9pt; color: #666; padding-top: 10px; border-top: 1px solid #ddd;">
+            Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+        </div>
         HTML;
     }
 }

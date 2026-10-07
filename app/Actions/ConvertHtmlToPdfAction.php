@@ -4,23 +4,19 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use Mpdf\Mpdf;
+use App\Services\GotenbergClient;
+use RuntimeException;
 
 final readonly class ConvertHtmlToPdfAction
 {
-    public function handle(string $html): string
+    public function __construct(private GotenbergClient $gotenberg = new GotenbergClient) {}
+
+    public function handle(string $html, ?string $headerHtml = null, ?string $footerHtml = null): string
     {
-        $mpdf = new Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'margin_left' => 15,
-            'margin_right' => 15,
-            'margin_top' => 15,
-            'margin_bottom' => 15,
-        ]);
+        if (! $this->gotenberg->isAvailable()) {
+            throw new RuntimeException('Serviço de geração de PDF (Gotenberg) não está disponível.');
+        }
 
-        $mpdf->WriteHTML($html);
-
-        return $mpdf->Output('', 'S');
+        return $this->gotenberg->convertA4HtmlToPdf($html, $headerHtml, $footerHtml);
     }
 }
