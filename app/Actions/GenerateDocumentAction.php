@@ -29,27 +29,66 @@ final readonly class GenerateDocumentAction
             }
         }
 
-        // Criar PDF com mPDF suportando estilos de documento jurídico, tabelas, imagens e reflow
+        // Extrair configurações de margens e tipografia se presentes no HTML
+        $marginTop = 30;
+        $marginLeft = 30;
+        $marginRight = 20;
+        $marginBottom = 20;
+
+        if (preg_match('/<!--\s*a4-config:\s*([^>]+)\s*-->/', $content, $matches)) {
+            if (preg_match('/top=(\d+)/', $matches[1], $topMatch)) {
+                $marginTop = (int) $topMatch[1];
+            }
+            if (preg_match('/left=(\d+)/', $matches[1], $leftMatch)) {
+                $marginLeft = (int) $leftMatch[1];
+            }
+            if (preg_match('/right=(\d+)/', $matches[1], $rightMatch)) {
+                $marginRight = (int) $rightMatch[1];
+            }
+            if (preg_match('/bottom=(\d+)/', $matches[1], $bottomMatch)) {
+                $marginBottom = (int) $bottomMatch[1];
+            }
+        }
+
+        // Criar PDF com mPDF suportando estilos de documento oficial/jurídico, tabelas, imagens e reflow
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
-            'margin_left' => 20,
-            'margin_right' => 20,
-            'margin_top' => 20,
-            'margin_bottom' => 20,
+            'margin_left' => $marginLeft,
+            'margin_right' => $marginRight,
+            'margin_top' => $marginTop,
+            'margin_bottom' => $marginBottom,
         ]);
 
         $styledHtml = '
         <style>
-            body { font-family: "DejaVu Sans", "Helvetica", Arial, sans-serif; font-size: 11pt; color: #1a202c; line-height: 1.6; }
-            h1, h2, h3 { font-family: "DejaVu Sans", "Helvetica", Arial, sans-serif; color: #0f172a; margin-top: 18px; margin-bottom: 10px; }
-            h1 { font-size: 17pt; text-align: center; }
-            h2 { font-size: 13pt; }
-            p { margin-bottom: 10px; text-align: justify; }
-            table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10pt; }
-            td, th { border: 1px solid #cbd5e1; padding: 8px 10px; }
+            body {
+                font-family: "DejaVu Serif", "Times New Roman", Times, Georgia, serif;
+                font-size: 12pt;
+                color: #111827;
+                line-height: 1.5;
+            }
+            h1, h2, h3 {
+                color: #0f172a;
+                font-family: "DejaVu Serif", "Times New Roman", serif;
+                margin-top: 14pt;
+                margin-bottom: 8pt;
+            }
+            h1 { font-size: 16pt; text-align: center; }
+            h2 { font-size: 14pt; }
+            h3 { font-size: 12pt; font-weight: bold; }
+            p {
+                margin-bottom: 6pt;
+                text-align: justify;
+                line-height: 1.5;
+            }
+            table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 10pt; }
+            td, th { border: 1px solid #94a3b8; padding: 6pt 8pt; vertical-align: top; }
             img { max-width: 100%; height: auto; display: inline-block; }
             .page-break { page-break-after: always; }
+            .document-header { margin-bottom: 16pt; text-align: center; font-size: 10.5pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 8pt; }
+            .document-footer { margin-top: 20pt; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
+            .citation-long { margin-left: 4.0cm; font-size: 10pt; line-height: 1.0; text-align: justify; margin-top: 8pt; margin-bottom: 8pt; }
         </style>
         '.$content;
 

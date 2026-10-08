@@ -78,6 +78,10 @@ def extract_docx_to_rich_html(docx_path):
                 if filename in images:
                     rel_map[rId] = images[filename]
 
+        # 3. Mapeamento de relações de cabeçalho e rodapé
+        header_blocks = []
+        footer_blocks = []
+
         if 'word/document.xml' not in names:
             return "<p>Documento vazio.</p>"
 
@@ -88,20 +92,59 @@ def extract_docx_to_rich_html(docx_path):
 
         html_blocks = []
 
-        def parse_paragraph(p_elem):
-            # Alinhamento
-            align = 'justify'
-            jc = p_elem.find('.//w:jc', NS)
-            if jc is not None:
-                val = jc.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val', '')
-                if val == 'center':
-                    align = 'center'
-                elif val == 'right':
-                    align = 'right'
-                elif val == 'left':
-                    align = 'left'
-                elif val == 'both':
-                    align = 'justify'
+        def parse_paragraph(p_elem, default_align='justify'):
+            align = default_align
+            pPr = p_elem.find('w:pPr', NS)
+            first_line_indent = None
+            left_indent = None
+            line_height = 1.5
+            space_before = 0
+            space_after = 6
+            font_family = "'Times New Roman', Times, serif"
+
+            if pPr is not None:
+                jc = pPr.find('w:jc', NS)
+                if jc is not None:
+                    val = jc.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val', '')
+                    if val == 'center':
+                        align = 'center'
+                    elif val == 'right':
+                        align = 'right'
+                    elif val == 'left':
+                        align = 'left'
+                    elif val == 'both':
+                        align = 'justify'
+
+                ind = pPr.find('w:ind', NS)
+                if ind is not None:
+                    fl_val = ind.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}firstLine')
+                    if fl_val and fl_val.isdigit():
+                        cm_val = round(int(fl_val) / 567.0, 2)
+                        if cm_val > 0.1:
+                            first_line_indent = f"{cm_val}cm"
+                    l_val = ind.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}left')
+                    if l_val and l_val.isdigit():
+                        cm_val = round(int(l_val) / 567.0, 2)
+                        if cm_val > 0.1:
+                            left_indent = f"{cm_val}cm"
+
+                spacing = pPr.find('w:spacing', NS)
+                if spacing is not None:
+                    line_val = spacing.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}line')
+                    if line_val and line_val.isdigit():
+                        mult = round(int(line_val) / 240.0, 2)
+                        if 0.8 <= mult <= 3.0:
+                            line_height = mult
+                    after_val = spacing.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}after')
+                    if after_val and after_val.isdigit():
+                        pt_val = round(int(after_val) / 20.0, 1)
+                        if pt_val >= 0:
+                            space_after = pt_val
+                    before_val = spacing.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}before')
+                    if before_val and before_val.isdigit():
+                        pt_val = round(int(before_val) / 20.0, 1)
+                        if pt_val >= 0:
+                            space_before = pt_val
 
             # Verifica imagem embutida no parágrafo
             img_html = []
@@ -111,10 +154,21 @@ def extract_docx_to_rich_html(docx_path):
                     img_src = rel_map[embed_id]
                     img_html.append(f'<img src="{img_src}" alt="Imagem do documento" style="max-width: 280px; max-height: 120px; width: auto; height: auto; display: inline-block;" />')
 
+            # Detecção de quebra de página explícita no DOCX
+            has_page_break = False
+            if pPr is not None and pPr.find('w:pageBreakBefore', NS) is not None:
+                has_page_break = True
+
             # Processa runs de texto
             runs_text = []
             is_title = False
             for r in p_elem.findall('w:r', NS):
+                for br in r.findall('w:br', NS):
+                    if br.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type') == 'page':
+                        has_page_break = True
+                if r.find('w:lastRenderedPageBreak', NS) is not None:
+                    has_page_break = True
+
                 t = r.find('w:t', NS)
                 if t is not None and t.text:
                     txt = t.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -122,6 +176,14 @@ def extract_docx_to_rich_html(docx_path):
                     is_i = r.find('.//w:i', NS) is not None
                     is_u = r.find('.//w:u', NS) is not None
                     sz = r.find('.//w:sz', NS)
+                    rf = r.find('.//w:rFonts', NS)
+                    if rf is not None:
+                        f_name = rf.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}ascii') or rf.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hAnsi')
+                        if f_name:
+                            if 'arial' in f_name.lower():
+                                font_family = "Arial, Helvetica, sans-serif"
+                            elif 'times' in f_name.lower():
+                                font_family = "'Times New Roman', Times, serif"
 
                     formatted = txt
                     if is_b:
@@ -141,15 +203,40 @@ def extract_docx_to_rich_html(docx_path):
             combined_text = "".join(runs_text)
 
             if img_html:
-                return f'<p style="text-align: {align}; margin: 15px 0;">{" ".join(img_html)}</p>'
+                img_block = f'<p style="text-align: {align}; margin: 12pt 0;">{" ".join(img_html)}</p>'
+                if has_page_break:
+                    return '<hr class="page-break" style="page-break-after: always; margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />\n' + img_block
+                return img_block
 
             if not combined_text.strip():
-                return '<p style="margin: 0 0 10px 0;"><br/></p>'
+                empty_block = '<p style="margin: 0 0 6pt 0;"><br/></p>'
+                if has_page_break:
+                    return '<hr class="page-break" style="page-break-after: always; margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />\n' + empty_block
+                return empty_block
 
             if is_title:
-                return f'<h2 style="text-align: {align}; margin: 20px 0 15px 0; font-size: 16pt; font-weight: bold;">{combined_text}</h2>'
+                title_block = f'<h2 style="text-align: {align}; margin-top: 18pt; margin-bottom: 10pt; font-family: {font_family}; font-size: 15pt; font-weight: bold;">{combined_text}</h2>'
+                if has_page_break:
+                    return '<hr class="page-break" style="page-break-after: always; margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />\n' + title_block
+                return title_block
 
-            return f'<p style="text-align: {align}; line-height: 1.6; margin: 0 0 12px 0;">{combined_text}</p>'
+            p_styles = [
+                f"text-align: {align}",
+                f"line-height: {line_height}",
+                f"font-family: {font_family}",
+                "font-size: 12pt",
+                f"margin-top: {space_before}pt",
+                f"margin-bottom: {space_after}pt",
+            ]
+            if first_line_indent:
+                p_styles.append(f"text-indent: {first_line_indent}")
+            if left_indent:
+                p_styles.append(f"margin-left: {left_indent}")
+
+            p_block = f'<p style="{"; ".join(p_styles)};">{combined_text}</p>'
+            if has_page_break:
+                return '<hr class="page-break" style="page-break-after: always; margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />\n' + p_block
+            return p_block
 
         def parse_table(tbl_elem):
             rows_html = []
@@ -158,9 +245,30 @@ def extract_docx_to_rich_html(docx_path):
                 for tc in tr.findall('w:tc', NS):
                     tc_paragraphs = [parse_paragraph(p) for p in tc.findall('w:p', NS)]
                     cell_content = "".join(tc_paragraphs) or "&nbsp;"
-                    cells_html.append(f'<td style="border: 1px solid #cbd5e1; padding: 8px 12px; vertical-align: top;">{cell_content}</td>')
+                    cells_html.append(f'<td style="border: 1px solid #cbd5e1; padding: 6pt 10pt; vertical-align: top;">{cell_content}</td>')
                 rows_html.append(f'<tr>{"".join(cells_html)}</tr>')
-            return f'<table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 11pt;">{"".join(rows_html)}</table>'
+            return f'<table style="width: 100%; border-collapse: collapse; margin: 14pt 0; font-size: 10.5pt;">{"".join(rows_html)}</table>'
+
+        # Extração opcional de cabeçalhos e rodapés oficiais
+        for name in names:
+            if name.startswith('word/header') and name.endswith('.xml'):
+                try:
+                    h_root = ET.fromstring(z.read(name))
+                    for p in h_root.findall('.//w:p', NS):
+                        pb = parse_paragraph(p, default_align='center')
+                        if pb:
+                            header_blocks.append(pb)
+                except Exception:
+                    pass
+            elif name.startswith('word/footer') and name.endswith('.xml'):
+                try:
+                    f_root = ET.fromstring(z.read(name))
+                    for p in f_root.findall('.//w:p', NS):
+                        pb = parse_paragraph(p, default_align='center')
+                        if pb:
+                            footer_blocks.append(pb)
+                except Exception:
+                    pass
 
         for child in body:
             tag = child.tag.split('}')[-1]
@@ -171,7 +279,14 @@ def extract_docx_to_rich_html(docx_path):
             elif tag == 'tbl':
                 html_blocks.append(parse_table(child))
 
-        return "\n".join(html_blocks)
+        final_blocks = []
+        if header_blocks:
+            final_blocks.append(f'<header class="document-header" style="text-align: center; margin-bottom: 16pt; padding-bottom: 8pt; border-bottom: 1px solid #e2e8f0; font-size: 10pt;">{" ".join(header_blocks)}</header>')
+        final_blocks.extend(html_blocks)
+        if footer_blocks:
+            final_blocks.append(f'<footer class="document-footer" style="text-align: center; margin-top: 20pt; padding-top: 8pt; border-top: 1px solid #e2e8f0; font-size: 9pt; color: #64748b;">{" ".join(footer_blocks)}</footer>')
+
+        return "\n".join(final_blocks)
 
 
 def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
@@ -267,17 +382,17 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                                 is_clause = paragraph_text.upper().startswith('CLÁUSULA') or paragraph_text.upper().startswith('CLAUSULA')
 
                                 if is_heading:
-                                    page_blocks.append(f'<h2 style="text-align: {align}; margin: 20px 0 12px 0; font-size: 15pt; font-weight: bold;">{paragraph_text}</h2>')
+                                    page_blocks.append(f'<h2 style="text-align: {align}; margin-top: 18pt; margin-bottom: 10pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{paragraph_text}</h2>')
                                 elif is_clause:
-                                    page_blocks.append(f'<p style="text-align: {align}; font-weight: bold; margin: 16px 0 8px 0; line-height: 1.5;">{paragraph_text}</p>')
+                                    page_blocks.append(f'<p style="text-align: {align}; font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>')
                                 else:
-                                    page_blocks.append(f'<p style="text-align: {align}; margin: 0 0 12px 0; line-height: 1.6;">{paragraph_text}</p>')
+                                    page_blocks.append(f'<p style="text-align: {align}; margin-top: 0; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>')
 
             # Se existirem imagens extraídas, insere no topo ou posição relevante
             if img_idx < len(images_b64):
                 img_src = images_b64[img_idx]
                 img_idx += 1
-                page_blocks.insert(0, f'<p style="text-align: center; margin: 15px 0;"><img src="{img_src}" style="max-width: 250px; max-height: 100px; height: auto;" /></p>')
+                page_blocks.insert(0, f'<p style="text-align: center; margin: 12pt 0;"><img src="{img_src}" style="max-width: 250px; max-height: 100px; height: auto;" /></p>')
 
             if page_blocks:
                 html_blocks.extend(page_blocks)
@@ -347,11 +462,11 @@ def extract_pdf_scanned_with_ocr(pdf_path, temp_dir):
             is_clause = par_text.upper().startswith('CLÁUSULA') or par_text.upper().startswith('CLAUSULA')
 
             if is_heading:
-                html_blocks.append(f'<h2 style="text-align: center; margin: 20px 0 12px 0; font-size: 15pt; font-weight: bold;">{par_text}</h2>')
+                html_blocks.append(f'<h2 style="text-align: center; margin-top: 18pt; margin-bottom: 10pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{par_text}</h2>')
             elif is_clause:
-                html_blocks.append(f'<p style="font-weight: bold; margin: 16px 0 8px 0; line-height: 1.5;">{par_text}</p>')
+                html_blocks.append(f'<p style="font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{par_text}</p>')
             else:
-                html_blocks.append(f'<p style="text-align: justify; line-height: 1.6; margin: 0 0 12px 0;">{par_text}</p>')
+                html_blocks.append(f'<p style="text-align: justify; line-height: 1.5; margin-top: 0; margin-bottom: 6pt; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{par_text}</p>')
 
         if page_num < len(page_images):
             html_blocks.append('<hr class="page-break" style="margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />')

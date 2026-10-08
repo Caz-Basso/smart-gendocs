@@ -228,7 +228,10 @@ export function ModelForm({
     const save = () => {
         setIsUpdateOpen(false);
 
-        const html = editorRef.current?.innerHTML ?? htmlContent;
+        const html =
+            data.extracted_text ||
+            editorRef.current?.innerHTML ||
+            htmlContent;
 
         transform((formData) => ({
             ...formData,
@@ -426,12 +429,12 @@ export function ModelForm({
 
                 {/* ---------- Pré-visualização e Edição Contínua ---------- */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[850px] items-center justify-between gap-4">
+                    <div className="mb-4 flex w-full max-w-[980px] items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-muted-foreground" />
 
                             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                                Documento Editável (Estilo Word)
+                                Documento Oficial (Folha A4)
                             </span>
                         </div>
 
@@ -443,7 +446,7 @@ export function ModelForm({
                         )}
                     </div>
 
-                    <div className="relative mx-auto w-full max-w-[850px]">
+                    <div className="relative mx-auto w-full max-w-[980px]">
                         {loading ? (
                             <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 rounded-sm border bg-white text-muted-foreground shadow-sm">
                                 <Loader2 className="h-6 w-6 animate-spin" />

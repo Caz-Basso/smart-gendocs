@@ -66,6 +66,7 @@ final class ModelRegistrationController
                 'name' => $model->name,
                 'fields' => $fields,
                 'preview' => $preview,
+                'extracted_text' => $model->extracted_text,
             ];
         });
 
