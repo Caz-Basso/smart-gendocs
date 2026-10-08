@@ -1,5 +1,5 @@
 import { Link, usePage } from "@inertiajs/react";
-import { ChevronDown, Menu, Bookmark } from "lucide-react";
+import { ChevronDown, Menu, Bookmark, Layers } from "lucide-react";
 import AppLogo from "@/components/app-logo";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,6 +24,7 @@ import { toNavGroups, type NavGroupWithItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { dashboard, model_registration } from "@/routes";
 import models from "@/routes/models";
+import documentElements from "@/routes/document-elements";
 import type { BreadcrumbItem, NavItem } from "@/types";
 
 type Props = {
@@ -222,6 +223,14 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                                             <Bookmark className="h-5 w-5" />
                                                             <span>Modelos</span>
                                                         </Link>
+                                                        <Link
+                                                            href={documentElements.index()}
+                                                            prefetch
+                                                            className="flex items-center space-x-2 font-medium"
+                                                        >
+                                                            <Layers className="h-5 w-5" />
+                                                            <span>Cabeçalhos e Rodapés</span>
+                                                        </Link>
                                                     </div>
                                                 </div>
                                             )}
@@ -258,28 +267,52 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 </li>
                             ))}
                             {isAdmin && (
-                                <li className="flex h-full items-center">
-                                    <div className="relative flex h-full items-center">
-                                        <Link
-                                            href={models.index()}
-                                            prefetch
-                                            className={cn(
-                                                navTriggerStyles,
-                                                whenCurrentUrl(
-                                                    models.index.url(),
-                                                    activeItemStyles,
-                                                ),
-                                                "cursor-pointer",
+                                <>
+                                    <li className="flex h-full items-center">
+                                        <div className="relative flex h-full items-center">
+                                            <Link
+                                                href={models.index()}
+                                                prefetch
+                                                className={cn(
+                                                    navTriggerStyles,
+                                                    whenCurrentUrl(
+                                                        models.index.url(),
+                                                        activeItemStyles,
+                                                    ),
+                                                    "cursor-pointer",
+                                                )}
+                                            >
+                                                <Bookmark className="mr-2 h-4 w-4" />
+                                                Modelos
+                                            </Link>
+                                            {isCurrentUrl(models.index.url()) && (
+                                                <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white" />
                                             )}
-                                        >
-                                            <Bookmark className="mr-2 h-4 w-4" />
-                                            Modelos
-                                        </Link>
-                                        {isCurrentUrl(models.index.url()) && (
-                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white" />
-                                        )}
-                                    </div>
-                                </li>
+                                        </div>
+                                    </li>
+                                    <li className="flex h-full items-center">
+                                        <div className="relative flex h-full items-center">
+                                            <Link
+                                                href={documentElements.index()}
+                                                prefetch
+                                                className={cn(
+                                                    navTriggerStyles,
+                                                    whenCurrentUrl(
+                                                        documentElements.index.url(),
+                                                        activeItemStyles,
+                                                    ),
+                                                    "cursor-pointer",
+                                                )}
+                                            >
+                                                <Layers className="mr-2 h-4 w-4" />
+                                                Cabeçalhos e Rodapés
+                                            </Link>
+                                            {isCurrentUrl(documentElements.index.url()) && (
+                                                <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white" />
+                                            )}
+                                        </div>
+                                    </li>
+                                </>
                             )}
                         </ul>
                     </nav>

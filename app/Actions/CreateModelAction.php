@@ -10,6 +10,10 @@ use Illuminate\Support\Str;
 
 final readonly class CreateModelAction
 {
+    public function __construct(
+        private SyncModelElements $syncModelElements = new SyncModelElements(),
+    ) {}
+
     public function handle(array $data, string $userId): DocumentModel
     {
         return DB::transaction(function () use ($data, $userId) {
@@ -38,7 +42,7 @@ final readonly class CreateModelAction
                 }
             }
 
-            return DocumentModel::create([
+            $model = DocumentModel::create([
                 'id' => Str::uuid(),
                 'name' => $data['name'],
                 'template_path' => $templatePath,
@@ -47,6 +51,12 @@ final readonly class CreateModelAction
                 'fields' => $data['fields'],
                 'user_id' => $userId,
             ]);
+
+            if (! empty($data['elements']) && is_array($data['elements'])) {
+                $this->syncModelElements->handle($model, $data['elements']);
+            }
+
+            return $model;
         });
     }
 }

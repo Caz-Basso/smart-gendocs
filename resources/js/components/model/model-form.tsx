@@ -39,8 +39,13 @@ import type {
     ModelData,
     ModelFormData,
 } from '@/types/model-template';
+import type {
+    DocumentElement,
+    ModelElementAttachment,
+} from '@/types/document-element';
 import { ConfirmDialog } from './confirm-dialog';
 import { FieldsPanel } from './fields-panel';
+import { HeaderFooterPanel } from './header-footer-panel';
 import { HelpDialog } from './help-dialog';
 import { HtmlEditor } from './html-editor';
 import { PdfPagination, PdfPreview } from './pdf-preview';
@@ -54,6 +59,7 @@ interface ModelFormProps {
     model?: ModelData;
     templateUrl?: string | null;
     templateIsPdf?: boolean;
+    availableElements?: DocumentElement[];
 }
 
 const createDefaultField = (): FieldItem => ({
@@ -69,6 +75,7 @@ export function ModelForm({
     model,
     templateUrl = null,
     templateIsPdf = false,
+    availableElements = [],
 }: ModelFormProps) {
     const isEdit = mode === 'edit';
     const editorRef = useRef<HTMLDivElement>(null);
@@ -81,6 +88,29 @@ export function ModelForm({
         [model],
     );
     const initialHtml = model?.extracted_text ?? '';
+
+    const initialElements: ModelElementAttachment[] = useMemo(() => {
+        if (model?.elements && model.elements.length > 0) {
+            return model.elements;
+        }
+        if (model?.model_elements && model.model_elements.length > 0) {
+            return model.model_elements.map((me: any) => ({
+                id: me.id,
+                element_id: me.document_element_id,
+                name: me.document_element?.name,
+                type: me.document_element?.type,
+                image_url: me.document_element?.image_url,
+                position_x: me.position_x !== null ? Number(me.position_x) : Number(me.document_element?.position_x ?? 0),
+                position_y: me.position_y !== null ? Number(me.position_y) : Number(me.document_element?.position_y ?? 0),
+                width: me.width !== null ? Number(me.width) : Number(me.document_element?.width ?? 210),
+                height: me.height !== null ? Number(me.height) : Number(me.document_element?.height ?? 35),
+                repeat_all_pages: Boolean(me.repeat_all_pages),
+                pages: me.pages ?? [1],
+                z_index: me.z_index ?? 10,
+            }));
+        }
+        return [];
+    }, [model]);
 
     const [templateFile, setTemplateFile] = useState<File | null>(null);
     const [documentStructure, setDocumentStructure] =
@@ -102,6 +132,7 @@ export function ModelForm({
                 : [createDefaultField()],
             extracted_text: initialHtml,
             document_structure: model?.document_structure ?? null,
+            elements: initialElements,
         });
 
     const { loading, loaded } = useTemplateLoader(
@@ -256,6 +287,16 @@ export function ModelForm({
             ...formData,
             extracted_text: html,
             document_structure: null,
+            elements: (formData.elements || []).map((el) => ({
+                element_id: el.element_id,
+                position_x: el.position_x,
+                position_y: el.position_y,
+                width: el.width,
+                height: el.height,
+                repeat_all_pages: el.repeat_all_pages,
+                pages: el.pages,
+                z_index: el.z_index,
+            })),
         }));
 
         const options: Parameters<typeof post>[1] = {
@@ -472,6 +513,14 @@ export function ModelForm({
 
                         <hr className="my-4 border-border" />
 
+                        <HeaderFooterPanel
+                            availableElements={availableElements}
+                            elements={data.elements ?? []}
+                            onChange={(els) => setData('elements', els)}
+                        />
+
+                        <hr className="my-4 border-border" />
+
                         <FieldsPanel
                             fields={data.fields}
                             typeOptions={fieldTypeOptions}
@@ -567,6 +616,7 @@ export function ModelForm({
                                 key={docVersion}
                                 editorRef={editorRef}
                                 html={htmlContent}
+                                elements={data.elements ?? []}
                                 onChange={(html) =>
                                     setData('extracted_text', html)
                                 }

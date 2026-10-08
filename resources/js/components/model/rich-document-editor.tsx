@@ -47,6 +47,8 @@ import {
     stripConfigComment,
 } from '@/lib/document-pagination';
 
+import type { ModelElementAttachment } from '@/types/document-element';
+
 export interface DocumentMargins {
     top: number; // em mm
     left: number; // em mm
@@ -78,6 +80,7 @@ interface RichDocumentEditorProps {
     onChange: (html: string) => void;
     onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
     onDrop?: (event: DragEvent<HTMLDivElement>) => void;
+    elements?: ModelElementAttachment[];
 }
 
 function parseConfigFromHtml(rawHtml: string) {
@@ -117,6 +120,7 @@ export function RichDocumentEditor({
     onChange,
     onDragOver,
     onDrop,
+    elements = [],
 }: RichDocumentEditorProps) {
     const initialConfig = parseConfigFromHtml(html);
 
@@ -927,6 +931,38 @@ export function RichDocumentEditor({
                                         title={`Área Útil: ${(dimensions.usableWidthMm / 10).toFixed(1)} × ${(dimensions.usableHeightMm / 10).toFixed(1)} cm`}
                                     />
                                 )}
+
+                                {/* Elementos Visuais Fixos (Cabeçalhos / Rodapés) */}
+                                {elements.map((el, elIdx) => {
+                                    const appliesToThisPage =
+                                        el.repeat_all_pages ||
+                                        (el.pages && el.pages.includes(pageNumber));
+                                    if (!appliesToThisPage || !el.image_url) {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <div
+                                            key={el.id || el.element_id || elIdx}
+                                            className="pointer-events-none absolute select-none"
+                                            style={{
+                                                left: `${el.position_x ?? 0}mm`,
+                                                top: `${el.position_y ?? 0}mm`,
+                                                width: `${el.width ?? 210}mm`,
+                                                height: `${el.height ?? 35}mm`,
+                                                zIndex: el.z_index ?? 10,
+                                            }}
+                                            title={`${el.name || 'Elemento'} (${el.type})`}
+                                        >
+                                            <img
+                                                src={el.image_url}
+                                                alt={el.name || 'Elemento'}
+                                                className="h-full w-full object-contain"
+                                                draggable={false}
+                                            />
+                                        </div>
+                                    );
+                                })}
 
                                 {/* Área de Conteúdo Editável da Folha com Margens Exatas */}
                                 <div

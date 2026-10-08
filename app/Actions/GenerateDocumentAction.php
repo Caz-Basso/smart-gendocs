@@ -13,7 +13,7 @@ final readonly class GenerateDocumentAction
 {
     public function handle(string $modelId, array $data): string
     {
-        $model = DocumentModel::findOrFail($modelId);
+        $model = DocumentModel::with(['modelElements.documentElement'])->findOrFail($modelId);
 
         if ($model->document_structure !== null && $model->template_path !== null && ! empty($model->document_structure['pages'] ?? [])) {
             return $this->generateFromStructure($model, $data);
@@ -28,6 +28,9 @@ final readonly class GenerateDocumentAction
                 $content = str_replace($placeholder, (string) $value, $content);
             }
         }
+
+        // Injeta os cabeçalhos e rodapés institucionais associados ao modelo
+        $content = $this->injectElementsIntoHtml($content, $model);
 
         // Extrair configurações de margens e tipografia se presentes no HTML
         $marginTop = 30;
@@ -190,6 +193,23 @@ final readonly class GenerateDocumentAction
                     'hidden',
                 );
             }
+
+            // Aplicar cabeçalhos e rodapés institucionais vinculados ao modelo
+            foreach ($model->modelElements as $modelElement) {
+                if ($modelElement->appliesToPage($pageIndex + 1)) {
+                    $element = $modelElement->documentElement;
+                    if ($element && $element->image_path) {
+                        $localPath = Storage::disk('public')->path($element->image_path);
+                        if (is_file($localPath)) {
+                            $x = $modelElement->getEffectivePositionX();
+                            $y = $modelElement->getEffectivePositionY();
+                            $w = $modelElement->getEffectiveWidth();
+                            $h = $modelElement->getEffectiveHeight();
+                            $mpdf->Image($localPath, $x, $y, $w, $h);
+                        }
+                    }
+                }
+            }
         }
 
         if ($pageCount > count($structure['pages'])) {
@@ -197,9 +217,101 @@ final readonly class GenerateDocumentAction
                 $mpdf->AddPage();
                 $templateId = $mpdf->ImportPage($pageNumber);
                 $mpdf->UseTemplate($templateId, 0, 0, null, null, true);
+
+                foreach ($model->modelElements as $modelElement) {
+                    if ($modelElement->appliesToPage($pageNumber)) {
+                        $element = $modelElement->documentElement;
+                        if ($element && $element->image_path) {
+                            $localPath = Storage::disk('public')->path($element->image_path);
+                            if (is_file($localPath)) {
+                                $x = $modelElement->getEffectivePositionX();
+                                $y = $modelElement->getEffectivePositionY();
+                                $w = $modelElement->getEffectiveWidth();
+                                $h = $modelElement->getEffectiveHeight();
+                                $mpdf->Image($localPath, $x, $y, $w, $h);
+                            }
+                        }
+                    }
+                }
             }
         }
 
         return $mpdf->Output('', 'S');
+    }
+
+    private function injectElementsIntoHtml(string $content, DocumentModel $model): string
+    {
+        $elements = $model->modelElements;
+        if ($elements->isEmpty()) {
+            return $content;
+        }
+
+        // Divide o conteúdo em páginas através dos delimitadores de quebra de página
+        $parts = preg_split('/(<(?:hr|div)[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>(?:\s*<\/div>)?|<!--\s*(?:a4-)?page-break\s*-->)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        if ($parts === false || count($parts) <= 1) {
+            $overlayHtml = $this->buildOverlayHtmlForPage($elements, 1);
+
+            return $overlayHtml.$content;
+        }
+
+        $result = '';
+        $pageNumber = 1;
+
+        foreach ($parts as $part) {
+            if (preg_match('/(?:class=["\'][^"\']*page-break[^"\']*["\']|<!--\s*(?:a4-)?page-break\s*-->)/i', $part)) {
+                $result .= $part;
+                $pageNumber++;
+            } else {
+                $overlayHtml = $this->buildOverlayHtmlForPage($elements, $pageNumber);
+                $result .= $overlayHtml.$part;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Collection<int, \App\Models\DocumentModelElement>  $elements
+     */
+    private function buildOverlayHtmlForPage(\Illuminate\Database\Eloquent\Collection $elements, int $pageNumber): string
+    {
+        $html = '';
+
+        foreach ($elements as $modelElement) {
+            if (! $modelElement->appliesToPage($pageNumber)) {
+                continue;
+            }
+
+            $element = $modelElement->documentElement;
+            if (! $element || ! $element->image_path) {
+                continue;
+            }
+
+            $localPath = Storage::disk('public')->path($element->image_path);
+            if (! is_file($localPath)) {
+                continue;
+            }
+
+            $x = $modelElement->getEffectivePositionX();
+            $y = $modelElement->getEffectivePositionY();
+            $w = $modelElement->getEffectiveWidth();
+            $h = $modelElement->getEffectiveHeight();
+            $zIndex = (int) $modelElement->z_index;
+
+            $html .= sprintf(
+                '<div style="position: absolute; left: %.2fmm; top: %.2fmm; width: %.2fmm; height: %.2fmm; z-index: %d; margin: 0; padding: 0;"><img src="%s" style="width: %.2fmm; height: %.2fmm; display: block;" /></div>',
+                $x,
+                $y,
+                $w,
+                $h,
+                $zIndex,
+                htmlspecialchars($localPath, ENT_QUOTES, 'UTF-8'),
+                $w,
+                $h
+            );
+        }
+
+        return $html;
     }
 }

@@ -188,6 +188,7 @@ export default function Dashboard({
                             extractedHtml={selectedModel?.extracted_text}
                             fields={selectedModel?.fields ?? []}
                             data={data}
+                            elements={selectedModel?.elements}
                         />
                     </div>
                 </div>
