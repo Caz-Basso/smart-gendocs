@@ -4,29 +4,23 @@ import {
     AlignLeft,
     AlignRight,
     Bold,
-    ChevronDown,
-    ChevronUp,
-    Copy,
+    ChevronLeft,
+    ChevronRight,
     Eye,
     EyeOff,
-    FilePlus,
     Indent,
     Italic,
-    List,
-    ListOrdered,
     Outdent,
     Plus,
     Quote,
     Redo,
     Scissors,
-    Sparkles,
-    Split,
     Strikethrough,
     Table as TableIcon,
     Trash2,
     Underline,
     Undo,
-} from 'lucide-react';
+} from "lucide-react";
 import {
     useCallback,
     useEffect,
@@ -34,18 +28,16 @@ import {
     useState,
     type DragEvent,
     type RefObject,
-} from 'react';
-import { Button } from '@/components/ui/button';
+} from "react";
+import { flushSync } from "react-dom";
+import { Button } from "@/components/ui/button";
 import {
     A4_HEIGHT_MM,
     A4_WIDTH_MM,
-    extractConfigComment,
     getPageDimensions,
     joinPagesIntoHtml,
     paginateDocument,
-    splitHtmlIntoPages,
-    stripConfigComment,
-} from '@/lib/document-pagination';
+} from "@/lib/document-pagination";
 
 export interface DocumentMargins {
     top: number; // em mm
@@ -59,15 +51,15 @@ export const MARGIN_PRESETS: Record<
     { label: string; margins: DocumentMargins }
 > = {
     abnt: {
-        label: 'ABNT Oficial (Sup 3cm, Esq 3cm, Dir 2cm, Inf 2cm)',
+        label: "ABNT Oficial (Sup 3cm, Esq 3cm, Dir 2cm, Inf 2cm)",
         margins: { top: 30, left: 30, right: 20, bottom: 20 },
     },
     normal: {
-        label: 'Padrão Simétrico (2,5 cm)',
+        label: "Padrão Simétrico (2,5 cm)",
         margins: { top: 25, left: 25, right: 25, bottom: 25 },
     },
     narrow: {
-        label: 'Margens Estreitas (1,5 cm)',
+        label: "Margens Estreitas (1,5 cm)",
         margins: { top: 15, left: 15, right: 15, bottom: 15 },
     },
 };
@@ -80,13 +72,16 @@ interface RichDocumentEditorProps {
     onDrop?: (event: DragEvent<HTMLDivElement>) => void;
 }
 
+// Liga/desliga o log de diagnóstico de estouro (roda a cada tecla).
+const DEBUG_PAGE_OVERFLOW = true;
+
 function parseConfigFromHtml(rawHtml: string) {
     const configMatch = rawHtml.match(/<!--\s*a4-config:\s*([^>]+)\s*-->/);
     if (!configMatch) {
         return {
             margins: { top: 30, left: 30, right: 20, bottom: 20 },
             fontFamily: "'Times New Roman', Times, serif",
-            lineHeight: '1.5',
+            lineHeight: "1.5",
         };
     }
 
@@ -97,7 +92,7 @@ function parseConfigFromHtml(rawHtml: string) {
     const bottom = str.match(/bottom=(\d+)/)?.[1];
     const font =
         str.match(/font="([^"]+)"/)?.[1] || "'Times New Roman', Times, serif";
-    const lineHeight = str.match(/lineHeight=([0-9.]+)/)?.[1] || '1.5';
+    const lineHeight = str.match(/lineHeight=([0-9.]+)/)?.[1] || "1.5";
 
     return {
         margins: {
@@ -109,6 +104,290 @@ function parseConfigFromHtml(rawHtml: string) {
         fontFamily: font,
         lineHeight,
     };
+}
+
+function getPaginationOptions(fontFamily: string, lineHeight: string) {
+    return {
+        className:
+            "a4-page-content text-[12pt] text-gray-900 " +
+            "[&_h1]:my-4 [&_h1]:text-center [&_h1]:text-[17pt] [&_h1]:font-bold " +
+            "[&_h2]:my-3 [&_h2]:text-[14pt] [&_h2]:font-bold " +
+            "[&_h3]:my-2 [&_h3]:text-[12pt] [&_h3]:font-bold " +
+            "[&_p]:my-1.5 [&_table]:my-3.5",
+        style: {
+            "font-family": fontFamily,
+            "font-size": "12pt",
+            "line-height": lineHeight,
+            "text-align": "justify",
+            "overflow-wrap": "anywhere",
+            "word-break": "break-word",
+        },
+    };
+}
+
+interface PageMetrics {
+    usableHeight: number; // px disponíveis para conteúdo (altura da folha - paddings)
+    contentHeight: number; // px realmente ocupados pelo conteúdo
+    overflowPx: number; // > 0 indica estouro
+}
+
+/**
+ * Mede a página pela geometria real do conteúdo, comparando com a ÁREA ÚTIL
+ * (clientHeight menos padding superior/inferior), e não com a altura da folha.
+ */
+function measurePage(el: HTMLElement): PageMetrics {
+    const cs = window.getComputedStyle(el);
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const padBottom = parseFloat(cs.paddingBottom) || 0;
+    const usableHeight = el.clientHeight - padTop - padBottom;
+
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const contentRect = range.getBoundingClientRect();
+
+    if (contentRect.height === 0) {
+        return { usableHeight, contentHeight: 0, overflowPx: -usableHeight };
+    }
+
+    const boxRect = el.getBoundingClientRect();
+    // scrollTop compensa a rolagem automática que o contentEditable faz
+    // quando o cursor passa do fim, mesmo com overflow hidden.
+    const contentBottom = contentRect.bottom + el.scrollTop;
+    const contentTop = boxRect.top + padTop;
+    const contentHeight = Math.max(0, contentBottom - contentTop);
+
+    return {
+        usableHeight,
+        contentHeight,
+        overflowPx: contentHeight - usableHeight,
+    };
+}
+
+function hasPageOverflow(element: HTMLElement): boolean {
+    return measurePage(element).overflowPx > 1;
+}
+
+// ---------------------------------------------------------------------------
+// Reflow entre páginas (transferência do conteúdo excedente)
+// ---------------------------------------------------------------------------
+
+interface CaretPos {
+    node: Node;
+    offset: number;
+}
+
+const SPLITTABLE_TAGS = new Set(["P", "DIV", "H1", "H2", "H3"]);
+
+const BLANK_PAGE_HTML =
+    '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>';
+
+function isBlankPage(el: HTMLElement): boolean {
+    return (
+        (el.textContent || "").trim() === "" &&
+        !el.querySelector("img,table,hr,header,footer")
+    );
+}
+
+function getTextNodes(root: Node): Text[] {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const out: Text[] = [];
+    let n: Node | null;
+    while ((n = walker.nextNode())) out.push(n as Text);
+    return out;
+}
+
+// Converte um deslocamento em caracteres (texto do bloco) em nó+offset do DOM
+function resolveTextPosition(root: Node, charOffset: number): CaretPos {
+    let remaining = charOffset;
+    const nodes = getTextNodes(root);
+    for (const t of nodes) {
+        const len = t.data.length;
+        if (remaining <= len) return { node: t, offset: remaining };
+        remaining -= len;
+    }
+    const last = nodes[nodes.length - 1];
+    if (last) return { node: last, offset: last.data.length };
+    return { node: root, offset: root.childNodes.length };
+}
+
+function charOffsetOf(root: Node, node: Node, offset: number): number {
+    const r = document.createRange();
+    r.setStart(root, 0);
+    r.setEnd(node, offset);
+    return r.toString().length;
+}
+
+// Limite inferior (coordenada de viewport) da área útil da página. Requer scrollTop = 0.
+function getUsableBottom(el: HTMLElement): number {
+    const cs = window.getComputedStyle(el);
+    const padBottom = parseFloat(cs.paddingBottom) || 0;
+    return el.getBoundingClientRect().top + el.clientHeight - padBottom;
+}
+
+/**
+ * Divide `block` no ponto em que ele ultrapassa `limitY`, devolvendo um clone
+ * do bloco (mesma tag e estilo) com o trecho excedente. A formatação inline é
+ * preservada por Range.extractContents(). Atualiza `caret` se ele estiver no bloco.
+ */
+function splitBlockAtLimit(
+    block: HTMLElement,
+    limitY: number,
+    caret: CaretPos | null,
+): HTMLElement | null {
+    const fullText = getTextNodes(block)
+        .map((t) => t.data)
+        .join("");
+    const total = fullText.length;
+    if (total === 0) return null;
+
+    const cs = window.getComputedStyle(block);
+    const fs = parseFloat(cs.fontSize) || 16;
+    const lhParsed = parseFloat(cs.lineHeight);
+    const lh = Number.isNaN(lhParsed) ? fs * 1.2 : lhParsed;
+
+    // O retângulo de texto não inclui o espaçamento entre linhas; soma a meia-folga
+    const fits = (k: number): boolean => {
+        const r = document.createRange();
+        r.setStart(block, 0);
+        const p = resolveTextPosition(block, k);
+        r.setEnd(p.node, p.offset);
+        const rects = r.getClientRects();
+        if (!rects.length) return true;
+        const lastRect = rects[rects.length - 1];
+        const extra = Math.max(0, (lh - lastRect.height) / 2);
+        return lastRect.bottom + extra <= limitY + 0.5;
+    };
+
+    // Maior k cujo texto [0, k) cabe na página
+    let lo = 0;
+    let hi = total;
+    while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (fits(mid)) lo = mid;
+        else hi = mid - 1;
+    }
+    let k = lo;
+
+    if (k >= total) {
+        // O texto cabe mas o bloco ainda estoura: empurra a última palavra
+        k = total;
+        while (k > 0 && /\s/.test(fullText[k - 1])) k--;
+        while (k > 0 && !/\s/.test(fullText[k - 1])) k--;
+        if (k <= 0 && total > 1) k = total - 1;
+    } else {
+        // Recua até o início de uma palavra (se houver espaço)
+        let kk = k;
+        while (kk > 0 && !/\s/.test(fullText[kk - 1])) kk--;
+        if (kk > 0) k = kk;
+    }
+    if (k <= 0) return null;
+
+    const caretOffset =
+        caret && block.contains(caret.node)
+            ? charOffsetOf(block, caret.node, caret.offset)
+            : -1;
+
+    const range = document.createRange();
+    const pos = resolveTextPosition(block, k);
+    range.setStart(pos.node, pos.offset);
+    range.setEnd(block, block.childNodes.length);
+    const frag = range.extractContents();
+
+    const tail = block.cloneNode(false) as HTMLElement;
+    tail.appendChild(frag);
+    tail.style.textIndent = "0cm"; // continuação do parágrafo não recebe recuo de 1ª linha
+
+    if (caret && caretOffset >= 0) {
+        const np =
+            caretOffset > k
+                ? resolveTextPosition(tail, caretOffset - k)
+                : resolveTextPosition(block, caretOffset);
+        caret.node = np.node;
+        caret.offset = np.offset;
+    }
+
+    return tail;
+}
+
+/**
+ * Move o excedente de `el` para o início de `nextEl` até `el` caber na área útil.
+ * Blocos que começam dentro da página são divididos; blocos fora dela são movidos inteiros.
+ */
+function moveOverflowToNext(
+    el: HTMLElement,
+    nextEl: HTMLElement,
+    caret: CaretPos | null,
+): boolean {
+    let movedAny = false;
+    let splitTail: HTMLElement | null = null;
+    let guard = 0;
+
+    while (guard++ < 2000) {
+        el.scrollTop = 0;
+        if (!hasPageOverflow(el)) break;
+
+        // Remove espaços em branco soltos no fim
+        while (
+            el.lastChild &&
+            el.lastChild.nodeType === Node.TEXT_NODE &&
+            (el.lastChild.textContent || "").trim() === ""
+        ) {
+            el.removeChild(el.lastChild);
+        }
+        const last = el.lastChild;
+        if (!last) break;
+
+        const significant = Array.from(el.childNodes).filter(
+            (n) =>
+                n.nodeType === Node.ELEMENT_NODE ||
+                (n.textContent || "").trim() !== "",
+        ).length;
+        const limitY = getUsableBottom(el);
+
+        if (
+            last instanceof HTMLElement &&
+            SPLITTABLE_TAGS.has(last.tagName) &&
+            last.getBoundingClientRect().top < limitY - 1
+        ) {
+            const tail = splitBlockAtLimit(last, limitY, caret);
+            if (tail) {
+                if (splitTail && nextEl.firstChild === splitTail) {
+                    // Mesma continuação de parágrafo: junta em vez de criar outro bloco
+                    while (tail.lastChild) {
+                        splitTail.insertBefore(
+                            tail.lastChild,
+                            splitTail.firstChild,
+                        );
+                    }
+                } else {
+                    nextEl.insertBefore(tail, nextEl.firstChild);
+                    splitTail = tail;
+                }
+                movedAny = true;
+                continue;
+            }
+        }
+
+        const lastRect =
+            last instanceof HTMLElement ? last.getBoundingClientRect() : null;
+
+        // Se o bloco começa fora da área útil, move-o inteiro.
+        if (lastRect && lastRect.top >= limitY - 1) {
+            nextEl.insertBefore(last, nextEl.firstChild);
+            movedAny = true;
+            continue;
+        }
+
+        if (significant > 1) {
+            nextEl.insertBefore(last, nextEl.firstChild);
+            movedAny = true;
+            continue;
+        }
+
+        break;
+    }
+
+    return movedAny;
 }
 
 export function RichDocumentEditor({
@@ -123,7 +402,7 @@ export function RichDocumentEditor({
     const [margins, setMargins] = useState<DocumentMargins>(
         initialConfig.margins,
     );
-    const [marginPreset, setMarginPreset] = useState<string>('abnt');
+    const [marginPreset, setMarginPreset] = useState<string>("abnt");
     const [fontFamily, setFontFamily] = useState<string>(
         initialConfig.fontFamily,
     );
@@ -134,22 +413,64 @@ export function RichDocumentEditor({
 
     // Páginas do documento
     const [pages, setPages] = useState<string[]>(() => {
-        return paginateDocument(html, initialConfig.margins);
+        return paginateDocument(
+            html,
+            initialConfig.margins,
+            getPaginationOptions(
+                initialConfig.fontFamily,
+                initialConfig.lineHeight,
+            ),
+        );
     });
     const [activePageIndex, setActivePageIndex] = useState(0);
+
+    const goToPreviousPage = () => {
+        setActivePageIndex((current) => Math.max(0, current - 1));
+    };
+
+    const goToNextPage = () => {
+        setActivePageIndex((current) =>
+            Math.min(pagesRef.current.length - 1, current + 1),
+        );
+    };
+    // Páginas cujo conteúdo excede a área útil (para sinalização visual)
+    const [overflowPages, setOverflowPages] = useState<boolean[]>([]);
+    const pagesRef = useRef<string[]>(pages);
 
     // Referências para os nós de conteúdo de cada folha
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+    // Config e onChange sempre atuais, para handlers estáveis (sem closures obsoletas)
+    const configRef = useRef({ margins, fontFamily, lineHeight });
+    configRef.current = { margins, fontFamily, lineHeight };
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+
     const dimensions = getPageDimensions(margins);
+
+    // Único ponto de escrita das páginas: mantém ref e estado sincronizados
+    const commitPages = useCallback((next: string[]) => {
+        pagesRef.current = next;
+        setPages(next);
+    }, []);
+
+    // Atualiza o flag de estouro de uma página só quando o valor muda (evita re-render a cada tecla)
+    const setOverflowFlag = useCallback((pageIndex: number, flag: boolean) => {
+        setOverflowPages((prev) => {
+            if (!!prev[pageIndex] === flag) return prev;
+            const next = [...prev];
+            next[pageIndex] = flag;
+            return next;
+        });
+    }, []);
 
     // Constrói o HTML consolidado e emite para o formulário pai
     const emitChange = useCallback(
         (
             updatedPages: string[],
-            curMargins = margins,
-            curFont = fontFamily,
-            curLineHeight = lineHeight,
+            curMargins: DocumentMargins = configRef.current.margins,
+            curFont: string = configRef.current.fontFamily,
+            curLineHeight: string = configRef.current.lineHeight,
         ) => {
             const configComment = `<!-- a4-config: top=${curMargins.top} left=${curMargins.left} right=${curMargins.right} bottom=${curMargins.bottom} font="${curFont}" lineHeight=${curLineHeight} -->`;
             const consolidatedHtml = joinPagesIntoHtml(
@@ -157,14 +478,97 @@ export function RichDocumentEditor({
                 configComment,
             );
 
-            // Mantém editorRef sincronizado com o HTML completo do documento
-            if (editorRef.current) {
-                editorRef.current.innerHTML = consolidatedHtml;
+            onChangeRef.current(consolidatedHtml);
+        },
+        [],
+    );
+
+    // Evita que o onBlur reescreva o HTML (e derrube o cursor) durante o reflow
+    const suppressBlurSyncRef = useRef(false);
+    const isComposingRef = useRef(false);
+
+    // Transfere o conteúdo excedente da página `startIndex` para as seguintes (em cascata)
+    const reflowFrom = useCallback(
+        (startIndex: number) => {
+            const first = pageRefs.current[startIndex];
+            if (!first || !hasPageOverflow(first)) return;
+
+            const sel = window.getSelection();
+            const caret: CaretPos | null =
+                sel && sel.rangeCount && sel.anchorNode
+                    ? { node: sel.anchorNode, offset: sel.anchorOffset }
+                    : null;
+
+            const touched = new Set<number>([startIndex]);
+            let i = startIndex;
+            let guard = 0;
+
+            while (guard++ < 50) {
+                const el = pageRefs.current[i];
+                if (!el) break;
+                el.scrollTop = 0;
+                if (!hasPageOverflow(el)) break;
+
+                if (i + 1 >= pagesRef.current.length) {
+                    pagesRef.current = [...pagesRef.current, BLANK_PAGE_HTML];
+                    // Renderiza a nova folha já, sem tocar no DOM das existentes
+                    flushSync(() =>
+                        setPages((prev) => [...prev, BLANK_PAGE_HTML]),
+                    );
+                }
+                const nextEl = pageRefs.current[i + 1];
+                if (!nextEl) break;
+
+                if (isBlankPage(nextEl)) nextEl.innerHTML = "";
+                const moved = moveOverflowToNext(el, nextEl, caret);
+                if (nextEl.innerHTML === "") nextEl.innerHTML = BLANK_PAGE_HTML;
+                touched.add(i + 1);
+                if (!moved) break;
+                i++;
             }
 
-            onChange(consolidatedHtml);
+            // Persiste o HTML das páginas alteradas
+            const nextPages = [...pagesRef.current];
+            touched.forEach((idx) => {
+                const n = pageRefs.current[idx];
+                if (n) nextPages[idx] = n.innerHTML;
+            });
+            pagesRef.current = nextPages;
+            emitChange(nextPages);
+            touched.forEach((idx) => {
+                const n = pageRefs.current[idx];
+                if (n) setOverflowFlag(idx, hasPageOverflow(n));
+            });
+
+            // Restaura o cursor na página onde ele foi parar
+            if (caret && caret.node.isConnected) {
+                const c = caret;
+                const host = pageRefs.current.findIndex(
+                    (p) => !!p && p.contains(c.node),
+                );
+                const hostEl = host >= 0 ? pageRefs.current[host] : null;
+                if (hostEl) {
+                    if (document.activeElement !== hostEl) {
+                        suppressBlurSyncRef.current = true;
+                        hostEl.focus();
+                        suppressBlurSyncRef.current = false;
+                    }
+                    const range = document.createRange();
+                    range.setStart(c.node, c.offset);
+                    range.collapse(true);
+                    const s = window.getSelection();
+                    s?.removeAllRanges();
+                    s?.addRange(range);
+                    setActivePageIndex(host);
+                    (
+                        (c.node instanceof HTMLElement
+                            ? c.node
+                            : c.node.parentElement) ?? hostEl
+                    ).scrollIntoView({ block: "nearest" });
+                }
+            }
         },
-        [margins, fontFamily, lineHeight, onChange, editorRef],
+        [emitChange, setOverflowFlag],
     );
 
     // Inicializa na primeira carga
@@ -172,19 +576,58 @@ export function RichDocumentEditor({
         if (editorRef.current) {
             const configComment = `<!-- a4-config: top=${margins.top} left=${margins.left} right=${margins.right} bottom=${margins.bottom} font="${fontFamily}" lineHeight=${lineHeight} -->`;
             editorRef.current.innerHTML = joinPagesIntoHtml(
-                pages,
+                pagesRef.current,
                 configComment,
             );
         }
     }, []);
 
-    // Atualiza conteúdo de uma página específica
-    const handlePageInput = (pageIndex: number, newHtml: string) => {
-        const nextPages = [...pages];
-        nextPages[pageIndex] = newHtml;
-        setPages(nextPages);
-        emitChange(nextPages);
-    };
+    // Atualiza conteúdo de uma página específica (não chama setPages: preserva o cursor)
+    const handlePageInput = useCallback(
+        (pageIndex: number, newHtml: string) => {
+            const nextPages = [...pagesRef.current];
+            nextPages[pageIndex] = newHtml;
+            pagesRef.current = nextPages;
+            emitChange(nextPages);
+
+            const pageElement = pageRefs.current[pageIndex];
+            if (pageElement) {
+                const m = measurePage(pageElement);
+                setOverflowFlag(pageIndex, m.overflowPx > 1);
+                if (DEBUG_PAGE_OVERFLOW) {
+                    console.log("Diagnóstico da página:", {
+                        pageIndex,
+                        usableHeight: Math.round(m.usableHeight),
+                        contentHeight: Math.round(m.contentHeight),
+                        overflowPx: Math.round(m.overflowPx),
+                        clientHeight: pageElement.clientHeight,
+                        scrollHeight: pageElement.scrollHeight,
+                        scrollTop: pageElement.scrollTop,
+                        hasOverflow: hasPageOverflow(pageElement),
+                    });
+                }
+            }
+
+            if (!isComposingRef.current) reflowFrom(pageIndex);
+        },
+        [emitChange, setOverflowFlag, reflowFrom],
+    );
+
+    // Reavalia o estouro de todas as páginas após render (páginas, margens, fonte, entrelinhas)
+    useEffect(() => {
+        const id = requestAnimationFrame(() => {
+            const flags = pageRefs.current
+                .slice(0, pages.length)
+                .map((el) => (el ? hasPageOverflow(el) : false));
+            setOverflowPages((prev) =>
+                prev.length === flags.length &&
+                prev.every((v, i) => v === flags[i])
+                    ? prev
+                    : flags,
+            );
+        });
+        return () => cancelAnimationFrame(id);
+    }, [pages, margins, fontFamily, lineHeight]);
 
     // Comando nativo de edição de texto
     const exec = useCallback(
@@ -196,7 +639,7 @@ export function RichDocumentEditor({
                 handlePageInput(activePageIndex, activeNode.innerHTML);
             }
         },
-        [activePageIndex, pages],
+        [activePageIndex, handlePageInput],
     );
 
     const applyBlockStyle = useCallback(
@@ -210,7 +653,7 @@ export function RichDocumentEditor({
             while (node && node !== activeNode && node !== document.body) {
                 if (
                     node instanceof HTMLElement &&
-                    ['P', 'H1', 'H2', 'H3', 'DIV', 'LI', 'TD'].includes(
+                    ["P", "H1", "H2", "H3", "DIV", "LI", "TD"].includes(
                         node.tagName,
                     )
                 ) {
@@ -223,12 +666,12 @@ export function RichDocumentEditor({
                 node = node.parentNode;
             }
 
-            exec('formatBlock', '<p>');
+            exec("formatBlock", "<p>");
             if (activeNode) {
                 handlePageInput(activePageIndex, activeNode.innerHTML);
             }
         },
-        [activePageIndex, exec],
+        [activePageIndex, exec, handlePageInput],
     );
 
     const applyInlineStyle = useCallback(
@@ -238,7 +681,7 @@ export function RichDocumentEditor({
                 return;
 
             const range = selection.getRangeAt(0);
-            const span = document.createElement('span');
+            const span = document.createElement("span");
             span.style.setProperty(cssProperty, value);
 
             try {
@@ -258,33 +701,33 @@ export function RichDocumentEditor({
                 handlePageInput(activePageIndex, activeNode.innerHTML);
             }
         },
-        [activePageIndex],
+        [activePageIndex, handlePageInput],
     );
 
     const applyFontFamily = (font: string) => {
         setFontFamily(font);
         const selection = window.getSelection();
         if (selection && !selection.isCollapsed) {
-            applyInlineStyle('font-family', font);
+            applyInlineStyle("font-family", font);
         } else {
-            applyBlockStyle('font-family', font);
+            applyBlockStyle("font-family", font);
         }
-        emitChange(pages, margins, font, lineHeight);
+        emitChange(pagesRef.current, margins, font, lineHeight);
     };
 
     const applyFontSize = (sizePt: string) => {
         const selection = window.getSelection();
         if (selection && !selection.isCollapsed) {
-            applyInlineStyle('font-size', sizePt);
+            applyInlineStyle("font-size", sizePt);
         } else {
-            applyBlockStyle('font-size', sizePt);
+            applyBlockStyle("font-size", sizePt);
         }
     };
 
     const applyLineSpacing = (spacing: string) => {
         setLineHeight(spacing);
-        applyBlockStyle('line-height', spacing);
-        emitChange(pages, margins, fontFamily, spacing);
+        applyBlockStyle("line-height", spacing);
+        emitChange(pagesRef.current, margins, fontFamily, spacing);
     };
 
     const applyFirstLineIndent = () => {
@@ -297,10 +740,10 @@ export function RichDocumentEditor({
         while (node && node !== activeNode && node !== document.body) {
             if (
                 node instanceof HTMLElement &&
-                ['P', 'DIV'].includes(node.tagName)
+                ["P", "DIV"].includes(node.tagName)
             ) {
                 const current = node.style.textIndent;
-                node.style.textIndent = current === '1.25cm' ? '0cm' : '1.25cm';
+                node.style.textIndent = current === "1.25cm" ? "0cm" : "1.25cm";
                 if (activeNode) {
                     handlePageInput(activePageIndex, activeNode.innerHTML);
                 }
@@ -320,15 +763,15 @@ export function RichDocumentEditor({
         while (node && node !== activeNode && node !== document.body) {
             if (
                 node instanceof HTMLElement &&
-                ['P', 'DIV'].includes(node.tagName)
+                ["P", "DIV"].includes(node.tagName)
             ) {
-                node.style.marginLeft = '4.0cm';
-                node.style.fontSize = '10pt';
-                node.style.lineHeight = '1.0';
-                node.style.textAlign = 'justify';
-                node.style.textIndent = '0cm';
-                node.style.marginTop = '8pt';
-                node.style.marginBottom = '8pt';
+                node.style.marginLeft = "4.0cm";
+                node.style.fontSize = "10pt";
+                node.style.lineHeight = "1.0";
+                node.style.textAlign = "justify";
+                node.style.textIndent = "0cm";
+                node.style.marginTop = "8pt";
+                node.style.marginBottom = "8pt";
                 if (activeNode) {
                     handlePageInput(activePageIndex, activeNode.innerHTML);
                 }
@@ -343,25 +786,28 @@ export function RichDocumentEditor({
         if (MARGIN_PRESETS[presetKey]) {
             const nextMargins = MARGIN_PRESETS[presetKey].margins;
             setMargins(nextMargins);
-            emitChange(pages, nextMargins, fontFamily, lineHeight);
+            emitChange(pagesRef.current, nextMargins, fontFamily, lineHeight);
         }
     };
 
     // Operações de Paginação
-    const insertNewBlankPage = (afterIndex = pages.length - 1) => {
-        const nextPages = [...pages];
+    const insertNewBlankPage = (afterIndex = pagesRef.current.length - 1) => {
+        const nextPages = [...pagesRef.current];
         const newPageHtml =
             '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>';
         nextPages.splice(afterIndex + 1, 0, newPageHtml);
-        setPages(nextPages);
+        commitPages(nextPages);
         setActivePageIndex(afterIndex + 1);
         emitChange(nextPages);
     };
 
     const removePage = (indexToRemove: number) => {
-        if (pages.length <= 1) return;
-        const nextPages = pages.filter((_, idx) => idx !== indexToRemove);
-        setPages(nextPages);
+        if (pagesRef.current.length <= 1) return;
+        const nextPages = pagesRef.current.filter(
+            (_, idx) => idx !== indexToRemove,
+        );
+        pageRefs.current.splice(indexToRemove, 1);
+        commitPages(nextPages);
         const nextActive = Math.min(activePageIndex, nextPages.length - 1);
         setActivePageIndex(nextActive);
         emitChange(nextPages);
@@ -384,37 +830,28 @@ export function RichDocumentEditor({
             preRange.selectNodeContents(activeNode);
             preRange.setEnd(range.startContainer, range.startOffset);
             const preFragment = preRange.cloneContents();
-            const preDiv = document.createElement('div');
+            const preDiv = document.createElement("div");
             preDiv.appendChild(preFragment);
-            const preHtml = preDiv.innerHTML.trim() || '<p><br/></p>';
+            const preHtml = preDiv.innerHTML.trim() || "<p><br/></p>";
 
             // Elementos após o cursor
             const postRange = document.createRange();
             postRange.selectNodeContents(activeNode);
             postRange.setStart(range.endContainer, range.endOffset);
             const postFragment = postRange.cloneContents();
-            const postDiv = document.createElement('div');
+            const postDiv = document.createElement("div");
             postDiv.appendChild(postFragment);
-            const postHtml = postDiv.innerHTML.trim() || '<p><br/></p>';
+            const postHtml = postDiv.innerHTML.trim() || "<p><br/></p>";
 
-            const nextPages = [...pages];
+            const nextPages = [...pagesRef.current];
             nextPages[activePageIndex] = preHtml;
             nextPages.splice(activePageIndex + 1, 0, postHtml);
-            setPages(nextPages);
+            commitPages(nextPages);
             setActivePageIndex(activePageIndex + 1);
             emitChange(nextPages);
         } catch {
             insertNewBlankPage(activePageIndex);
         }
-    };
-
-    // Auto-paginação completa de todo o documento
-    const handleAutoPaginate = () => {
-        const consolidated = joinPagesIntoHtml(pages);
-        const repaginated = paginateDocument(consolidated, margins);
-        setPages(repaginated);
-        setActivePageIndex(0);
-        emitChange(repaginated);
     };
 
     // Inserção de Elementos Oficiais
@@ -427,9 +864,9 @@ export function RichDocumentEditor({
         `;
         const activeNode = pageRefs.current[activePageIndex];
         if (activeNode) {
-            const nextPages = [...pages];
+            const nextPages = [...pagesRef.current];
             nextPages[activePageIndex] = headerHtml + activeNode.innerHTML;
-            setPages(nextPages);
+            commitPages(nextPages);
             emitChange(nextPages);
         }
     };
@@ -442,9 +879,9 @@ export function RichDocumentEditor({
         `;
         const activeNode = pageRefs.current[activePageIndex];
         if (activeNode) {
-            const nextPages = [...pages];
+            const nextPages = [...pagesRef.current];
             nextPages[activePageIndex] = activeNode.innerHTML + footerHtml;
-            setPages(nextPages);
+            commitPages(nextPages);
             emitChange(nextPages);
         }
     };
@@ -470,7 +907,7 @@ export function RichDocumentEditor({
                 </tbody>
             </table>
         `;
-        exec('insertHTML', tableHtml);
+        exec("insertHTML", tableHtml);
     };
 
     return (
@@ -488,7 +925,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0"
                         title="Desfazer"
-                        onClick={() => exec('undo')}
+                        onClick={() => exec("undo")}
                     >
                         <Undo className="h-4 w-4" />
                     </Button>
@@ -498,19 +935,46 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0"
                         title="Refazer"
-                        onClick={() => exec('redo')}
+                        onClick={() => exec("redo")}
                     >
                         <Redo className="h-4 w-4" />
                     </Button>
 
                     <div className="mx-1 h-5 w-px bg-border/80" />
 
-                    {/* Indicador de Página Ativa */}
-                    <div className="flex items-center gap-1 rounded bg-muted/60 px-2 py-1 text-xs font-semibold text-foreground">
-                        <span>
+                    <div className="flex items-center gap-1">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            title="Página anterior"
+                            disabled={activePageIndex === 0}
+                            onClick={goToPreviousPage}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+
+                        <span className="min-w-[90px] text-center text-xs font-medium">
                             Página {activePageIndex + 1} de {pages.length}
                         </span>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            title="Próxima página"
+                            disabled={activePageIndex >= pages.length - 1}
+                            onClick={goToNextPage}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
                     </div>
+
+                    <div className="mx-1 h-5 w-px bg-border/80" />
+
+                    <div className="mx-1 h-5 w-px bg-border/80" />
 
                     <Button
                         type="button"
@@ -566,12 +1030,16 @@ export function RichDocumentEditor({
                         className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus:ring-1 focus:ring-ring focus:outline-none"
                         title="Tamanho da Fonte"
                     >
-                        <option value="10pt">10pt (Citações / Notas ABNT)</option>
+                        <option value="10pt">
+                            10pt (Citações / Notas ABNT)
+                        </option>
                         <option value="11pt">11pt (Tabelas)</option>
                         <option value="12pt">12pt (Corpo Oficial ABNT)</option>
                         <option value="14pt">14pt (Subtítulo)</option>
                         <option value="16pt">16pt (Título Principal)</option>
-                        <option value="18pt">18pt (Cabeçalho Institucional)</option>
+                        <option value="18pt">
+                            18pt (Cabeçalho Institucional)
+                        </option>
                     </select>
 
                     <div className="mx-1 h-5 w-px bg-border/80" />
@@ -582,7 +1050,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0 font-bold"
                         title="Negrito"
-                        onClick={() => exec('bold')}
+                        onClick={() => exec("bold")}
                     >
                         <Bold className="h-4 w-4" />
                     </Button>
@@ -592,7 +1060,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0 italic"
                         title="Itálico"
-                        onClick={() => exec('italic')}
+                        onClick={() => exec("italic")}
                     >
                         <Italic className="h-4 w-4" />
                     </Button>
@@ -602,7 +1070,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0 underline"
                         title="Sublinhado"
-                        onClick={() => exec('underline')}
+                        onClick={() => exec("underline")}
                     >
                         <Underline className="h-4 w-4" />
                     </Button>
@@ -612,7 +1080,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0 line-through"
                         title="Tachado"
-                        onClick={() => exec('strikeThrough')}
+                        onClick={() => exec("strikeThrough")}
                     >
                         <Strikethrough className="h-4 w-4" />
                     </Button>
@@ -625,7 +1093,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0"
                         title="Justificar (Padrão Oficial ABNT)"
-                        onClick={() => exec('justifyFull')}
+                        onClick={() => exec("justifyFull")}
                     >
                         <AlignJustify className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
                     </Button>
@@ -635,7 +1103,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0"
                         title="Alinhar à Esquerda"
-                        onClick={() => exec('justifyLeft')}
+                        onClick={() => exec("justifyLeft")}
                     >
                         <AlignLeft className="h-4 w-4" />
                     </Button>
@@ -645,7 +1113,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0"
                         title="Centralizar"
-                        onClick={() => exec('justifyCenter')}
+                        onClick={() => exec("justifyCenter")}
                     >
                         <AlignCenter className="h-4 w-4" />
                     </Button>
@@ -655,7 +1123,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-8 w-8 p-0"
                         title="Alinhar à Direita"
-                        onClick={() => exec('justifyRight')}
+                        onClick={() => exec("justifyRight")}
                     >
                         <AlignRight className="h-4 w-4" />
                     </Button>
@@ -676,7 +1144,9 @@ export function RichDocumentEditor({
                         >
                             <option value="1.0">1.0 (Simples)</option>
                             <option value="1.15">1.15 (Compacto)</option>
-                            <option value="1.5">1.5 (Padrão ABNT Oficial)</option>
+                            <option value="1.5">
+                                1.5 (Padrão ABNT Oficial)
+                            </option>
                             <option value="2.0">2.0 (Duplo)</option>
                         </select>
                     </div>
@@ -714,7 +1184,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-7 w-7 p-0"
                         title="Diminuir Recuo"
-                        onClick={() => exec('outdent')}
+                        onClick={() => exec("outdent")}
                     >
                         <Outdent className="h-3.5 w-3.5" />
                     </Button>
@@ -724,7 +1194,7 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-7 w-7 p-0"
                         title="Aumentar Recuo"
-                        onClick={() => exec('indent')}
+                        onClick={() => exec("indent")}
                     >
                         <Indent className="h-3.5 w-3.5" />
                     </Button>
@@ -755,13 +1225,13 @@ export function RichDocumentEditor({
                     {/* Guia Visual da Área Útil */}
                     <Button
                         type="button"
-                        variant={showVisualGuide ? 'secondary' : 'ghost'}
+                        variant={showVisualGuide ? "secondary" : "ghost"}
                         size="sm"
                         className="h-7 px-2 text-xs"
                         title={
                             showVisualGuide
-                                ? 'Ocultar Guia Visual de Área Útil'
-                                : 'Exibir Guia Visual de Área Útil'
+                                ? "Ocultar Guia Visual de Área Útil"
+                                : "Exibir Guia Visual de Área Útil"
                         }
                         onClick={() => setShowVisualGuide(!showVisualGuide)}
                     >
@@ -773,42 +1243,8 @@ export function RichDocumentEditor({
                         Guia Útil
                     </Button>
 
-                    {/* Botão de Auto-Paginar */}
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
-                        title="Distribuir conteúdo automaticamente no limite de altura da folha A4"
-                        onClick={handleAutoPaginate}
-                    >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        Auto-paginar
-                    </Button>
-
                     <div className="mx-1 h-5 w-px bg-border/80" />
 
-                    {/* Elementos */}
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        title="Inserir Cabeçalho Institucional"
-                        onClick={insertHeader}
-                    >
-                        + Cabeçalho
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        title="Inserir Rodapé Oficial"
-                        onClick={insertFooter}
-                    >
-                        + Rodapé
-                    </Button>
                     <Button
                         type="button"
                         variant="ghost"
@@ -821,32 +1257,10 @@ export function RichDocumentEditor({
                         Tabela
                     </Button>
                 </div>
-
-                {/* Régua de Informações da Folha A4 */}
-                <div className="flex flex-wrap items-center justify-between border-t border-border/40 pt-1 text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-3">
-                        <span className="font-semibold text-foreground">
-                            Folha A4 Oficial (210 × 297 mm) • Total:{' '}
-                            {pages.length} {pages.length === 1 ? 'página' : 'páginas'}
-                        </span>
-                        <span>
-                            Margens: Sup {(margins.top / 10).toFixed(1)}cm • Esq{' '}
-                            {(margins.left / 10).toFixed(1)}cm • Dir{' '}
-                            {(margins.right / 10).toFixed(1)}cm • Inf{' '}
-                            {(margins.bottom / 10).toFixed(1)}cm
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">
-                            Área Útil: {(dimensions.usableWidthMm / 10).toFixed(1)}{' '}
-                            × {(dimensions.usableHeightMm / 10).toFixed(1)} cm
-                        </span>
-                    </div>
-                </div>
             </div>
 
             {/* Mesa de Trabalho (Desk) Contendo as Folhas A4 Independentes */}
-            <div className="flex w-full flex-col items-center gap-8 overflow-x-auto rounded-lg bg-slate-100 p-4 shadow-inner dark:bg-slate-900/60 sm:p-8">
+            <div className="relative flex w-full flex-col items-center gap-8 overflow-x-auto rounded-lg bg-slate-100 p-4 shadow-inner dark:bg-slate-900/60 sm:p-8">
                 {pages.map((pageHtml, index) => {
                     const pageNumber = index + 1;
                     const isLastPage = index === pages.length - 1;
@@ -855,6 +1269,17 @@ export function RichDocumentEditor({
                         <div
                             key={index}
                             className="flex flex-col items-center transition-all"
+                            style={
+                                index === activePageIndex
+                                    ? undefined
+                                    : {
+                                          position: "absolute",
+                                          top: 0,
+                                          left: 0,
+                                          visibility: "hidden",
+                                          pointerEvents: "none",
+                                      }
+                            }
                             onClick={() => setActivePageIndex(index)}
                         >
                             {/* Cabeçalho da Folha A4 com Ações da Página */}
@@ -905,13 +1330,17 @@ export function RichDocumentEditor({
 
                             {/* Folha A4 Real Independente (210mm x 297mm) */}
                             <div
-                                className="relative shrink-0 border border-slate-300 bg-white text-gray-900 shadow-2xl transition-all select-text dark:border-slate-700"
+                                className={`relative shrink-0 border bg-white text-gray-900 shadow-2xl transition-all select-text ${
+                                    overflowPages[index]
+                                        ? "border-red-500 ring-2 ring-red-400/70"
+                                        : "border-slate-300 dark:border-slate-700"
+                                }`}
                                 style={{
                                     width: `${A4_WIDTH_MM}mm`,
                                     height: `${A4_HEIGHT_MM}mm`,
-                                    maxWidth: '100%',
-                                    boxSizing: 'border-box',
-                                    position: 'relative',
+                                    maxWidth: "100%",
+                                    boxSizing: "border-box",
+                                    position: "relative",
                                 }}
                             >
                                 {/* Guia Visual da Área Útil Imprimível */}
@@ -945,6 +1374,23 @@ export function RichDocumentEditor({
                                             e.currentTarget.innerHTML,
                                         )
                                     }
+                                    onCompositionStart={() => {
+                                        isComposingRef.current = true;
+                                    }}
+                                    onCompositionEnd={() => {
+                                        isComposingRef.current = false;
+                                        const node = pageRefs.current[index];
+                                        if (node) {
+                                            handlePageInput(
+                                                index,
+                                                node.innerHTML,
+                                            );
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        if (suppressBlurSyncRef.current) return;
+                                        setPages([...pagesRef.current]);
+                                    }}
                                     onDragOver={onDragOver}
                                     onDrop={onDrop}
                                     style={{
@@ -953,17 +1399,30 @@ export function RichDocumentEditor({
                                         paddingRight: `${margins.right}mm`,
                                         paddingBottom: `${margins.bottom}mm`,
                                         fontFamily,
-                                        fontSize: '12pt',
+                                        fontSize: "12pt",
                                         lineHeight,
-                                        textAlign: 'justify',
-                                        width: '100%',
-                                        height: '100%',
+                                        textAlign: "justify",
+                                        overflowWrap: "anywhere",
+                                        wordBreak: "break-word",
+                                        width: "100%",
+                                        height: `${A4_HEIGHT_MM}mm`,
                                         maxHeight: `${A4_HEIGHT_MM}mm`,
-                                        overflow: 'auto',
-                                        boxSizing: 'border-box',
+                                        overflowY: "hidden",
+                                        overflowX: "hidden",
+                                        boxSizing: "border-box",
                                     }}
                                     className="a4-page-content text-[12pt] text-gray-900 outline-none select-text focus:outline-none [&_.document-footer]:mt-6 [&_.document-footer]:border-t [&_.document-footer]:border-slate-300 [&_.document-footer]:pt-2 [&_.document-footer]:text-center [&_.document-footer]:text-[9pt] [&_.document-footer]:text-slate-500 [&_.document-header]:mb-5 [&_.document-header]:border-b [&_.document-header]:border-slate-300 [&_.document-header]:pb-2 [&_.document-header]:text-center [&_.document-header]:text-[10.5pt] [&_h1]:my-4 [&_h1]:text-center [&_h1]:text-[17pt] [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-[14pt] [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-[12pt] [&_h3]:font-bold [&_img]:my-3 [&_img]:inline-block [&_p]:my-1.5 [&_table]:my-3.5"
                                 />
+
+                                {/* Aviso de conteúdo excedente na área útil */}
+                                {overflowPages[index] && (
+                                    <div
+                                        className="pointer-events-none absolute left-4 top-2 z-20 rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow"
+                                        aria-hidden="true"
+                                    >
+                                        Conteúdo excede a área útil
+                                    </div>
+                                )}
 
                                 {/* Rodapé com Número da Página Oficial */}
                                 <div
@@ -973,21 +1432,6 @@ export function RichDocumentEditor({
                                     Página {pageNumber} de {pages.length}
                                 </div>
                             </div>
-
-                            {/* Separador Visual de Quebra de Página entre as Folhas A4 */}
-                            {!isLastPage && (
-                                <div className="my-6 flex w-[210mm] max-w-full items-center justify-center gap-3">
-                                    <div className="h-px flex-1 border-t-2 border-dashed border-slate-300 dark:border-slate-700" />
-                                    <div className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                        <Scissors className="h-3 w-3 text-sky-600" />
-                                        <span>
-                                            QUEBRA DE PÁGINA • Página {pageNumber}{' '}
-                                            para {pageNumber + 1}
-                                        </span>
-                                    </div>
-                                    <div className="h-px flex-1 border-t-2 border-dashed border-slate-300 dark:border-slate-700" />
-                                </div>
-                            )}
                         </div>
                     );
                 })}
