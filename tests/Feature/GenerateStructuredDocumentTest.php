@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Actions\GenerateDocumentAction;
 use App\Models\DocumentModel;
 use App\Models\User;

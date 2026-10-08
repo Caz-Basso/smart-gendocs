@@ -7,6 +7,13 @@ const DOCX_MIME =
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 export type LoadedDocument =
+    | {
+          kind: 'rich_document';
+          html: string;
+          fieldsDetected: string[];
+          isScanned: boolean;
+          isDocx: boolean;
+      }
     | { kind: 'docx'; html: string }
     | {
           kind: 'pdf';
@@ -17,7 +24,67 @@ export type LoadedDocument =
       }
     | { kind: 'error'; message: string };
 
+async function parseFileViaServer(file: File): Promise<LoadedDocument | null> {
+    try {
+        const formData = new FormData();
+        formData.append('template', file);
+
+        const csrfToken =
+            document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content') || '';
+
+        const response = await fetch('/modelos/analisar', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                Accept: 'application/json',
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const payload = await response.json();
+        if (payload.kind === 'rich_document' && typeof payload.html === 'string') {
+            return {
+                kind: 'rich_document',
+                html: payload.html,
+                fieldsDetected: Array.isArray(payload.fieldsDetected)
+                    ? payload.fieldsDetected
+                    : [],
+                isScanned: Boolean(payload.isScanned),
+                isDocx: Boolean(payload.isDocx),
+            };
+        }
+
+        if (
+            payload.structure &&
+            Array.isArray(payload.pageImages) &&
+            payload.pageImages.length > 0
+        ) {
+            return {
+                kind: 'pdf',
+                source: 'file',
+                structure: payload.structure,
+                pageImages: payload.pageImages,
+            };
+        }
+    } catch (e) {
+        console.warn('Processamento no servidor indisponível, usando fallback local.', e);
+    }
+
+    return null;
+}
+
 async function parseFile(file: File): Promise<LoadedDocument> {
+    const serverResult = await parseFileViaServer(file);
+    if (serverResult) {
+        return serverResult;
+    }
+
     const name = file.name.toLowerCase();
     const buffer = await file.arrayBuffer();
 

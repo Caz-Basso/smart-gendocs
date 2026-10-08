@@ -26,6 +26,7 @@ import { FieldsPanel } from './fields-panel';
 import { HelpDialog } from './help-dialog';
 import { HtmlEditor } from './html-editor';
 import { PdfPagination, PdfPreview } from './pdf-preview';
+import { RichDocumentEditor } from './rich-document-editor';
 import { TemplateDropzone } from './template-dropzone';
 
 interface ModelFormProps {
@@ -99,6 +100,45 @@ export function ModelForm({
 
         if (loaded.kind === 'error') {
             toast.error(loaded.message);
+
+            return;
+        }
+
+        if (loaded.kind === 'rich_document') {
+            setDocumentStructure(null);
+            setPageImages([]);
+            setHtmlContent(loaded.html);
+            setDocVersion((version) => version + 1);
+            setData((previous) => ({
+                ...previous,
+                extracted_text: loaded.html,
+                document_structure: null,
+            }));
+
+            if (loaded.fieldsDetected && loaded.fieldsDetected.length > 0) {
+                const existingSlugs = new Set(data.fields.map((f) => f.slug));
+                const fieldsToAdd: FieldItem[] = [];
+
+                for (const slug of loaded.fieldsDetected) {
+                    if (!existingSlugs.has(slug)) {
+                        const name = slug
+                            .split('_')
+                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(' ');
+                        fieldsToAdd.push({
+                            id: crypto.randomUUID(),
+                            name,
+                            slug,
+                            type: 'text',
+                        });
+                        existingSlugs.add(slug);
+                    }
+                }
+
+                if (fieldsToAdd.length > 0) {
+                    setData('fields', [...data.fields, ...fieldsToAdd]);
+                }
+            }
 
             return;
         }
@@ -188,18 +228,12 @@ export function ModelForm({
     const save = () => {
         setIsUpdateOpen(false);
 
-        const structure = documentStructure
-            ? sanitizePdfDocumentStructure(documentStructure)
-            : null;
-
-        const html = structure
-            ? pdfDocumentStructureToHtml(structure)
-            : cleanHtml(editorRef.current?.innerHTML ?? htmlContent);
+        const html = editorRef.current?.innerHTML ?? htmlContent;
 
         transform((formData) => ({
             ...formData,
             extracted_text: html,
-            document_structure: structure,
+            document_structure: null,
         }));
 
         const options: Parameters<typeof post>[1] = {
@@ -270,8 +304,7 @@ export function ModelForm({
     };
 
     // ---------- Render ----------
-    const showPdf = documentStructure !== null && pageImages.length > 0;
-    const showEmpty = !isEdit && !templateFile;
+    const showEmpty = !isEdit && !templateFile && !htmlContent;
     const firstError = Object.values(errors).find(Boolean);
 
     return (
@@ -391,53 +424,35 @@ export function ModelForm({
                     )}
                 </div>
 
-                {/* ---------- Pré-visualização ---------- */}
+                {/* ---------- Pré-visualização e Edição Contínua ---------- */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
+                    <div className="mb-4 flex w-full max-w-[850px] items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-muted-foreground" />
 
                             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                                Pré-visualização
+                                Documento Editável (Estilo Word)
                             </span>
                         </div>
 
-                        {showPdf ? (
-                            <PdfPagination
-                                current={currentPage}
-                                total={pageImages.length}
-                                onChange={setCurrentPage}
-                            />
-                        ) : (
-                            !showEmpty && (
-                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                    <Edit3 className="h-3 w-3" />
-                                    Arraste a tag para o documento
-                                </span>
-                            )
+                        {!showEmpty && (
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Edit3 className="h-3 w-3" />
+                                Arraste ou clique nas tags para inserir no texto
+                            </span>
                         )}
                     </div>
 
-                    <div className="relative mx-auto w-full max-w-[850px] overflow-hidden rounded-sm border border-border/80 bg-white shadow-xl">
+                    <div className="relative mx-auto w-full max-w-[850px]">
                         {loading ? (
-                            <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 text-muted-foreground">
+                            <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 rounded-sm border bg-white text-muted-foreground shadow-sm">
                                 <Loader2 className="h-6 w-6 animate-spin" />
                                 <span className="text-sm">
-                                    Processando documento...
+                                    Reconstruindo documento estruturado...
                                 </span>
                             </div>
-                        ) : showPdf ? (
-                            <PdfPreview
-                                containerRef={editorRef}
-                                imageSrc={pageImages[currentPage]}
-                                pageIndex={currentPage}
-                                page={documentStructure?.pages[currentPage]}
-                                onTextChange={updatePdfText}
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                            />
                         ) : showEmpty ? (
-                            <div className="flex min-h-[841px] flex-col items-center justify-center text-center text-muted-foreground">
+                            <div className="flex min-h-[841px] flex-col items-center justify-center rounded-sm border border-border/80 bg-white text-center text-muted-foreground shadow-sm">
                                 <FileText className="mb-3 h-12 w-12 opacity-50" />
 
                                 <p className="text-sm font-medium">
@@ -446,11 +461,11 @@ export function ModelForm({
 
                                 <p className="mt-1 max-w-xs text-xs">
                                     Faça upload de um PDF ou DOCX para
-                                    visualizar o modelo.
+                                    visualizar e editar o documento livremente com reflow contínuo.
                                 </p>
                             </div>
                         ) : (
-                            <HtmlEditor
+                            <RichDocumentEditor
                                 key={docVersion}
                                 editorRef={editorRef}
                                 html={htmlContent}
