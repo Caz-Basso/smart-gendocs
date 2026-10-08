@@ -182,9 +182,10 @@ export default function Dashboard({
                         </Button>
                     </div>
 
-                    <div className="relative w-full max-w-[900px]">
+                    <div className="relative w-full max-w-[980px]">
                         <DocumentPreview
                             preview={selectedModel?.preview}
+                            extractedHtml={selectedModel?.extracted_text}
                             fields={selectedModel?.fields ?? []}
                             data={data}
                         />

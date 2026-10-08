@@ -17,6 +17,25 @@ final readonly class CreateModelAction
 
             if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
                 $templatePath = $data['template']->store('templates', 'public');
+
+                if (str_ends_with(mb_strtolower($templatePath), '.docx')) {
+                    $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($templatePath);
+                    $outputDir = dirname($fullPath);
+                    \Illuminate\Support\Facades\Process::timeout(120)->run([
+                        'libreoffice',
+                        '--headless',
+                        '--convert-to',
+                        'pdf',
+                        '--outdir',
+                        $outputDir,
+                        $fullPath,
+                    ]);
+                    $defaultConverted = $outputDir.'/'.pathinfo($fullPath, PATHINFO_FILENAME).'.pdf';
+                    $targetConverted = $fullPath.'.converted.pdf';
+                    if (is_file($defaultConverted) && $defaultConverted !== $targetConverted) {
+                        rename($defaultConverted, $targetConverted);
+                    }
+                }
             }
 
             return DocumentModel::create([

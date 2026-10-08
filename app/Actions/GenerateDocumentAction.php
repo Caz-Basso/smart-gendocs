@@ -15,33 +15,85 @@ final readonly class GenerateDocumentAction
     {
         $model = DocumentModel::findOrFail($modelId);
 
-        if ($model->document_structure !== null && $model->template_path !== null) {
+        if ($model->document_structure !== null && $model->template_path !== null && ! empty($model->document_structure['pages'] ?? [])) {
             return $this->generateFromStructure($model, $data);
         }
 
-        // Substituir os placeholders pelos dados
+        // Substituir os placeholders pelos dados no HTML rico estruturado
         $content = $model->extracted_text ?? '';
 
         foreach ($data as $key => $value) {
-            $placeholder = '{{'.$key.'}}';
-            $content = str_replace($placeholder, (string) $value, $content);
+            if (is_scalar($value)) {
+                $placeholder = '{{'.$key.'}}';
+                $content = str_replace($placeholder, (string) $value, $content);
+            }
         }
 
-        // Criar PDF com configurações básicas
+        // Extrair configurações de margens e tipografia se presentes no HTML
+        $marginTop = 30;
+        $marginLeft = 30;
+        $marginRight = 20;
+        $marginBottom = 20;
+
+        if (preg_match('/<!--\s*a4-config:\s*([^>]+)\s*-->/', $content, $matches)) {
+            if (preg_match('/top=(\d+)/', $matches[1], $topMatch)) {
+                $marginTop = (int) $topMatch[1];
+            }
+            if (preg_match('/left=(\d+)/', $matches[1], $leftMatch)) {
+                $marginLeft = (int) $leftMatch[1];
+            }
+            if (preg_match('/right=(\d+)/', $matches[1], $rightMatch)) {
+                $marginRight = (int) $rightMatch[1];
+            }
+            if (preg_match('/bottom=(\d+)/', $matches[1], $bottomMatch)) {
+                $marginBottom = (int) $bottomMatch[1];
+            }
+        }
+
+        // Criar PDF com mPDF suportando estilos de documento oficial/jurídico, tabelas, imagens e reflow
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
+            'margin_left' => $marginLeft,
+            'margin_right' => $marginRight,
+            'margin_top' => $marginTop,
+            'margin_bottom' => $marginBottom,
         ]);
 
-        // Processar conteúdo simples
-        $cleanContent = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cleanContent = strip_tags($cleanContent);
-        $cleanContent = mb_trim($cleanContent);
+        $styledHtml = '
+        <style>
+            body {
+                font-family: "DejaVu Serif", "Times New Roman", Times, Georgia, serif;
+                font-size: 12pt;
+                color: #111827;
+                line-height: 1.5;
+            }
+            h1, h2, h3 {
+                color: #0f172a;
+                font-family: "DejaVu Serif", "Times New Roman", serif;
+                margin-top: 14pt;
+                margin-bottom: 8pt;
+            }
+            h1 { font-size: 16pt; text-align: center; }
+            h2 { font-size: 14pt; }
+            h3 { font-size: 12pt; font-weight: bold; }
+            p {
+                margin-bottom: 6pt;
+                text-align: justify;
+                line-height: 1.5;
+            }
+            table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 10pt; }
+            td, th { border: 1px solid #94a3b8; padding: 6pt 8pt; vertical-align: top; }
+            img { max-width: 100%; height: auto; display: inline-block; }
+            .page-break { page-break-after: always; }
+            .document-header { margin-bottom: 16pt; text-align: center; font-size: 10.5pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 8pt; }
+            .document-footer { margin-top: 20pt; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
+            .citation-long { margin-left: 4.0cm; font-size: 10pt; line-height: 1.0; text-align: justify; margin-top: 8pt; margin-bottom: 8pt; }
+        </style>
+        '.$content;
 
-        // Escrever como texto simples
-        $mpdf->WriteHTML($cleanContent);
+        $mpdf->WriteHTML($styledHtml);
 
-        // Retornar o conteúdo do PDF
         return $mpdf->Output('', 'S');
     }
 
@@ -50,8 +102,31 @@ final readonly class GenerateDocumentAction
     {
         $templatePath = Storage::disk('public')->path($model->template_path);
 
+        if (str_ends_with(mb_strtolower($templatePath), '.docx')) {
+            $convertedPath = $templatePath.'.converted.pdf';
+            if (! is_file($convertedPath)) {
+                $outputDir = dirname($templatePath);
+                \Illuminate\Support\Facades\Process::timeout(120)->run([
+                    'libreoffice',
+                    '--headless',
+                    '--convert-to',
+                    'pdf',
+                    '--outdir',
+                    $outputDir,
+                    $templatePath,
+                ]);
+                $defaultConverted = $outputDir.'/'.pathinfo($templatePath, PATHINFO_FILENAME).'.pdf';
+                if (is_file($defaultConverted)) {
+                    rename($defaultConverted, $convertedPath);
+                }
+            }
+            if (is_file($convertedPath)) {
+                $templatePath = $convertedPath;
+            }
+        }
+
         if (! is_file($templatePath)) {
-            throw new RuntimeException('O PDF original deste modelo não foi encontrado.');
+            throw new RuntimeException('O arquivo original deste modelo não foi encontrado.');
         }
 
         $structure = $model->document_structure;

@@ -66,6 +66,7 @@ final class ModelRegistrationController
                 'name' => $model->name,
                 'fields' => $fields,
                 'preview' => $preview,
+                'extracted_text' => $model->extracted_text,
             ];
         });
 
@@ -114,6 +115,26 @@ final class ModelRegistrationController
             ->with('success', 'Modelo criado com sucesso!');
     }
 
+    public function analyze(
+        \Illuminate\Http\Request $request,
+        \App\Actions\ProcessDocumentTemplate $processDocument,
+    ): \Illuminate\Http\JsonResponse {
+        $validated = $request->validate([
+            'template' => 'required|file|mimes:pdf,docx|max:10240',
+        ]);
+
+        $result = $processDocument->handle($validated['template']);
+
+        return response()->json([
+            'kind' => 'rich_document',
+            'html' => $result['html'],
+            'fieldsDetected' => $result['fieldsDetected'] ?? [],
+            'documentType' => $result['documentType'] ?? 'document',
+            'isScanned' => $result['isScanned'] ?? false,
+            'isDocx' => $result['isDocx'] ?? false,
+        ]);
+    }
+
     public function edit(string $id): Response
     {
         $model = \App\Models\DocumentModel::findOrFail($id);
@@ -123,13 +144,22 @@ final class ModelRegistrationController
             'label' => $type->label(),
         ], FieldType::cases());
 
+        $hasConvertedPdf = $model->template_path !== null
+            && str_ends_with(mb_strtolower($model->template_path), '.docx')
+            && Storage::disk('public')->exists($model->template_path.'.converted.pdf');
+
+        $templateUrl = null;
+        if ($model->template_path !== null) {
+            $templateUrl = $hasConvertedPdf
+                ? Storage::disk('public')->url($model->template_path.'.converted.pdf')
+                : Storage::disk('public')->url($model->template_path);
+        }
+
         return Inertia::render('model-edit', [
             'model' => $model,
-            'templateUrl' => $model->template_path !== null
-                ? Storage::disk('public')->url($model->template_path)
-                : null,
+            'templateUrl' => $templateUrl,
             'templateIsPdf' => $model->template_path !== null
-                && str_ends_with(mb_strtolower($model->template_path), '.pdf'),
+                && (str_ends_with(mb_strtolower($model->template_path), '.pdf') || $hasConvertedPdf),
             'fieldTypeOptions' => $fieldTypeOptions,
         ]);
     }
