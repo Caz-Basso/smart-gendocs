@@ -14,7 +14,6 @@ import {
     sanitizePdfDocumentStructure,
     type PdfDocumentStructure,
 } from '@/lib/pdf-document';
-import { cleanHtml } from '@/lib/template-utils';
 import type {
     FieldItem,
     FieldTypeOption,
@@ -23,9 +22,6 @@ import type {
 } from '@/types/model-template';
 import { ConfirmDialog } from './confirm-dialog';
 import { FieldsPanel } from './fields-panel';
-import { HelpDialog } from './help-dialog';
-import { HtmlEditor } from './html-editor';
-import { PdfPagination, PdfPreview } from './pdf-preview';
 import { RichDocumentEditor } from './rich-document-editor';
 import { TemplateDropzone } from './template-dropzone';
 
@@ -346,7 +342,6 @@ export function ModelForm({
                                 Configuração do Modelo
                             </h2>
 
-                            <HelpDialog />
                         </div>
 
                         <div className="space-y-1.5">
