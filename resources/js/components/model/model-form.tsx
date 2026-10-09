@@ -194,12 +194,9 @@ export function ModelForm({
         setData('extracted_text', editorRef.current?.innerHTML ?? '');
     };
 
-    const { handleDragStart, handleDragOver, handleDrop } = useTagDrop(
-        editorRef,
-        handleInserted,
-    );
+    const { handleDragStart, handleDragOver, handleDrop } =
+    useTagDrop(handleInserted);
 
-    // ---------- Arquivo ----------
     const handleFileSelect = (file: File) => {
         setTemplateFile(file);
         setData('template', file);
