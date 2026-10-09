@@ -20,6 +20,8 @@ export interface DocumentElement {
 
 export interface ModelElementAttachment {
     id?: string;
+    /** Local-only key to uniquely identify each attachment instance (not sent to backend). */
+    _instanceKey?: string;
     element_id: string;
     element?: DocumentElement;
     name?: string;

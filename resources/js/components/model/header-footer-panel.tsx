@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
 import {
-    ChevronDown,
     ChevronUp,
     ExternalLink,
     Layers,
@@ -42,6 +41,7 @@ export function HeaderFooterPanel({
         if (!found) return;
 
         const newAttachment: ModelElementAttachment = {
+            _instanceKey: crypto.randomUUID(),
             element_id: found.id,
             element: found,
             name: found.name,
@@ -60,24 +60,25 @@ export function HeaderFooterPanel({
         setSelectedIdToAdd("");
     };
 
-    const handleRemove = (index: number) => {
-        const next = [...elements];
-        next.splice(index, 1);
-        onChange(next);
+    const handleRemove = (instanceKey: string) => {
+        onChange(elements.filter((el) => getKey(el) !== instanceKey));
     };
 
-    const handleUpdate = (index: number, partial: Partial<ModelElementAttachment>) => {
-        const next = [...elements];
-        next[index] = { ...next[index], ...partial };
-        onChange(next);
+    const handleUpdate = (instanceKey: string, partial: Partial<ModelElementAttachment>) => {
+        onChange(
+            elements.map((el) =>
+                getKey(el) === instanceKey ? { ...el, ...partial } : el,
+            ),
+        );
     };
 
-    const handleResetToDefault = (index: number) => {
-        const item = elements[index];
+    const handleResetToDefault = (instanceKey: string) => {
+        const item = elements.find((el) => getKey(el) === instanceKey);
+        if (!item) return;
         const original = availableElements.find((e) => e.id === item.element_id);
         if (!original) return;
 
-        handleUpdate(index, {
+        handleUpdate(instanceKey, {
             position_x: Number(original.position_x),
             position_y: Number(original.position_y),
             width: Number(original.width),
@@ -85,10 +86,10 @@ export function HeaderFooterPanel({
         });
     };
 
-    // Filter available elements that aren't already attached
-    const unattachedElements = availableElements.filter(
-        (avail) => !elements.some((el) => el.element_id === avail.id),
-    );
+    /** Returns a stable unique key per attachment instance. */
+    const getKey = (item: ModelElementAttachment): string =>
+        item._instanceKey ?? item.id ?? item.element_id;
+
 
     return (
         <div className="space-y-4">
@@ -127,7 +128,7 @@ export function HeaderFooterPanel({
             ) : (
                 <>
                     {/* Element Selector */}
-                    {unattachedElements.length > 0 && (
+                    {availableElements.length > 0 && (
                         <div className="flex gap-2">
                             <select
                                 value={selectedIdToAdd}
@@ -137,7 +138,7 @@ export function HeaderFooterPanel({
                                 <option value="" disabled>
                                     Selecionar cabeçalho ou rodapé...
                                 </option>
-                                {unattachedElements.map((el) => (
+                                {availableElements.map((el) => (
                                     <option key={el.id} value={el.id}>
                                         {el.type === "header" ? "🔝 [Cabeçalho]" : "🔻 [Rodapé]"}{" "}
                                         {el.name} ({el.width}×{el.height}mm)
@@ -164,13 +165,14 @@ export function HeaderFooterPanel({
                         </p>
                     ) : (
                         <div className="space-y-3">
-                            {elements.map((item, index) => {
-                                const isExpanded = expandedElementId === (item.id || item.element_id);
+                            {elements.map((item) => {
+                                const instanceKey = getKey(item);
+                                const isExpanded = expandedElementId === instanceKey;
                                 const isHeader = item.type === "header";
 
                                 return (
                                     <div
-                                        key={item.id || item.element_id || index}
+                                        key={instanceKey}
                                         className="rounded-lg border bg-card p-3 shadow-2xs space-y-3"
                                     >
                                         {/* Card Header */}
@@ -207,9 +209,7 @@ export function HeaderFooterPanel({
                                                     size="icon"
                                                     onClick={() =>
                                                         setExpandedElementId(
-                                                            isExpanded
-                                                                ? null
-                                                                : item.id || item.element_id,
+                                                            isExpanded ? null : instanceKey,
                                                         )
                                                     }
                                                     className="h-6 w-6 cursor-pointer text-muted-foreground hover:text-foreground"
@@ -226,7 +226,7 @@ export function HeaderFooterPanel({
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleRemove(index)}
+                                                    onClick={() => handleRemove(instanceKey)}
                                                     className="h-6 w-6 cursor-pointer text-destructive hover:bg-destructive/10"
                                                     title="Remover deste modelo"
                                                 >
@@ -243,13 +243,13 @@ export function HeaderFooterPanel({
                                             <RadioGroup
                                                 value={item.repeat_all_pages ? "all" : "specific"}
                                                 onValueChange={(val) => {
-                                                    handleUpdate(index, {
+                                                    handleUpdate(instanceKey, {
                                                         repeat_all_pages: val === "all",
                                                         pages: val === "all" ? undefined : (item.pages || [1]),
                                                     });
                                                     setRawPagesMap((prev) => {
                                                         const next = { ...prev };
-                                                        delete next[String(index)];
+                                                        delete next[instanceKey];
                                                         return next;
                                                     });
                                                 }}
@@ -258,11 +258,11 @@ export function HeaderFooterPanel({
                                                 <div className="flex items-center space-x-2">
                                                     <RadioGroupItem
                                                         value="all"
-                                                        id={`rep-all-${index}`}
+                                                        id={`rep-all-${instanceKey}`}
                                                         className="h-3.5 w-3.5"
                                                     />
                                                     <Label
-                                                        htmlFor={`rep-all-${index}`}
+                                                        htmlFor={`rep-all-${instanceKey}`}
                                                         className="text-xs cursor-pointer font-normal"
                                                     >
                                                         Todas as páginas
@@ -272,11 +272,11 @@ export function HeaderFooterPanel({
                                                 <div className="flex items-center space-x-2">
                                                     <RadioGroupItem
                                                         value="specific"
-                                                        id={`rep-spec-${index}`}
+                                                        id={`rep-spec-${instanceKey}`}
                                                         className="h-3.5 w-3.5"
                                                     />
                                                     <Label
-                                                        htmlFor={`rep-spec-${index}`}
+                                                        htmlFor={`rep-spec-${instanceKey}`}
                                                         className="text-xs cursor-pointer font-normal"
                                                     >
                                                         Páginas específicas (ex: apenas pág. 1)
@@ -287,24 +287,24 @@ export function HeaderFooterPanel({
                                             {!item.repeat_all_pages && (
                                                 <div className="pl-5 pt-1 space-y-1">
                                                     <Label
-                                                        htmlFor={`pages-${index}`}
+                                                        htmlFor={`pages-${instanceKey}`}
                                                         className="text-[10px] text-muted-foreground"
                                                     >
                                                         Números das páginas (separados por vírgula):
                                                     </Label>
                                                     <Input
-                                                        id={`pages-${index}`}
+                                                        id={`pages-${instanceKey}`}
                                                         type="text"
                                                         placeholder="Ex: 1 ou 1, 2"
                                                         value={
-                                                            String(index) in rawPagesMap
-                                                                ? rawPagesMap[String(index)]
+                                                            instanceKey in rawPagesMap
+                                                                ? rawPagesMap[instanceKey]
                                                                 : (item.pages || []).join(", ")
                                                         }
                                                         onChange={(e) => {
                                                             setRawPagesMap((prev) => ({
                                                                 ...prev,
-                                                                [String(index)]: e.target.value,
+                                                                [instanceKey]: e.target.value,
                                                             }));
                                                         }}
                                                         onBlur={(e) => {
@@ -313,10 +313,10 @@ export function HeaderFooterPanel({
                                                                 .split(",")
                                                                 .map((p) => parseInt(p.trim(), 10))
                                                                 .filter((n) => !isNaN(n) && n > 0);
-                                                            handleUpdate(index, { pages: parsed });
+                                                            handleUpdate(instanceKey, { pages: parsed });
                                                             setRawPagesMap((prev) => {
                                                                 const next = { ...prev };
-                                                                delete next[String(index)];
+                                                                delete next[instanceKey];
                                                                 return next;
                                                             });
                                                         }}
@@ -335,7 +335,7 @@ export function HeaderFooterPanel({
                                                     </span>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleResetToDefault(index)}
+                                                        onClick={() => handleResetToDefault(instanceKey)}
                                                         className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline cursor-pointer"
                                                         title="Restaurar dimensões originais do elemento"
                                                     >
@@ -354,7 +354,7 @@ export function HeaderFooterPanel({
                                                             step="0.5"
                                                             value={item.position_x ?? 0}
                                                             onChange={(e) =>
-                                                                handleUpdate(index, {
+                                                                handleUpdate(instanceKey, {
                                                                     position_x: parseFloat(e.target.value) || 0,
                                                                 })
                                                             }
@@ -371,7 +371,7 @@ export function HeaderFooterPanel({
                                                             step="0.5"
                                                             value={item.position_y ?? 0}
                                                             onChange={(e) =>
-                                                                handleUpdate(index, {
+                                                                handleUpdate(instanceKey, {
                                                                     position_y: parseFloat(e.target.value) || 0,
                                                                 })
                                                             }
@@ -388,7 +388,7 @@ export function HeaderFooterPanel({
                                                             step="0.5"
                                                             value={item.width ?? 210}
                                                             onChange={(e) =>
-                                                                handleUpdate(index, {
+                                                                handleUpdate(instanceKey, {
                                                                     width: parseFloat(e.target.value) || 10,
                                                                 })
                                                             }
@@ -405,7 +405,7 @@ export function HeaderFooterPanel({
                                                             step="0.5"
                                                             value={item.height ?? 35}
                                                             onChange={(e) =>
-                                                                handleUpdate(index, {
+                                                                handleUpdate(instanceKey, {
                                                                     height: parseFloat(e.target.value) || 5,
                                                                 })
                                                             }

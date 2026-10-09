@@ -91,11 +91,15 @@ export function ModelForm({
 
     const initialElements: ModelElementAttachment[] = useMemo(() => {
         if (model?.elements && model.elements.length > 0) {
-            return model.elements;
+            return model.elements.map((el: any) => ({
+                ...el,
+                _instanceKey: el._instanceKey ?? el.id ?? crypto.randomUUID(),
+            }));
         }
         if (model?.model_elements && model.model_elements.length > 0) {
             return model.model_elements.map((me: any) => ({
                 id: me.id,
+                _instanceKey: me.id ?? crypto.randomUUID(),
                 element_id: me.document_element_id,
                 name: me.document_element?.name,
                 type: me.document_element?.type,
