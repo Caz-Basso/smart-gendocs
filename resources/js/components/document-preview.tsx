@@ -107,7 +107,7 @@ export default function DocumentPreview({
                             dangerouslySetInnerHTML={{
                                 __html: documentHtml,
                             }}
-                            className="document-editor min-h-full w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
+                            className="document-editor min-h-full w-full outline-none"
                         />
                     </div>
                 ) : (

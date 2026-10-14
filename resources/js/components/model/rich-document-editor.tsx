@@ -35,9 +35,13 @@ import { Button } from "@/components/ui/button";
 import {
     A4_HEIGHT_MM,
     A4_WIDTH_MM,
+    countWords,
     getPageDimensions,
+    isManualPageBreak,
     joinPagesIntoHtml,
+    MANUAL_PAGE_BREAK_HTML,
     paginateDocument,
+    sliceWords,
 } from "@/lib/document-pagination";
 
 export interface DocumentMargins {
@@ -372,6 +376,127 @@ function moveOverflowToNext(
     return movedAny;
 }
 
+function splitBlockToFit(
+    block: HTMLElement,
+    targetPage: HTMLElement,
+    caret: CaretPos | null,
+): HTMLElement | null {
+    const totalWords = countWords(block);
+    if (totalWords <= 1) return null;
+
+    let lo = 1;
+    let hi = totalWords - 1;
+    let bestK = 0;
+
+    while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        const slice = sliceWords(block, 0, mid);
+        targetPage.appendChild(slice);
+        const fits = !hasPageOverflow(targetPage);
+        targetPage.removeChild(slice);
+
+        if (fits) {
+            bestK = mid;
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+
+    if (bestK <= 0) return null;
+
+    const caretOffset =
+        caret && block.contains(caret.node)
+            ? charOffsetOf(block, caret.node, caret.offset)
+            : -1;
+
+    const head = sliceWords(block, 0, bestK);
+    const tail = sliceWords(block, bestK, Infinity);
+
+    block.replaceChildren(...Array.from(tail.childNodes));
+
+    if (caret && caretOffset >= 0) {
+        const headCharLen = (head.textContent || "").length;
+        if (caretOffset < headCharLen) {
+            const np = resolveTextPosition(head, caretOffset);
+            caret.node = np.node;
+            caret.offset = np.offset;
+        } else {
+            const np = resolveTextPosition(
+                block,
+                Math.max(0, caretOffset - headCharLen),
+            );
+            caret.node = np.node;
+            caret.offset = np.offset;
+        }
+    }
+
+    return head as HTMLElement;
+}
+
+function moveUnderflowFromNext(
+    el: HTMLElement,
+    nextEl: HTMLElement,
+    caret: CaretPos | null,
+): boolean {
+    if (isBlankPage(nextEl)) return false;
+
+    if (
+        el.querySelector('[data-manual-break="true"], .manual-page-break') ||
+        nextEl.querySelector(
+            '[data-manual-break="true"], .manual-page-break',
+        ) ||
+        nextEl.hasAttribute("data-manual-page")
+    ) {
+        return false;
+    }
+
+    let movedAny = false;
+    let guard = 0;
+
+    while (guard++ < 500) {
+        el.scrollTop = 0;
+        nextEl.scrollTop = 0;
+
+        const m = measurePage(el);
+        if (m.overflowPx > -15) break;
+
+        while (
+            nextEl.firstChild &&
+            nextEl.firstChild.nodeType === Node.TEXT_NODE &&
+            (nextEl.firstChild.textContent || "").trim() === ""
+        ) {
+            nextEl.removeChild(nextEl.firstChild);
+        }
+
+        const first = nextEl.firstElementChild;
+        if (!first || !(first instanceof HTMLElement)) break;
+
+        el.appendChild(first);
+        const fitsEntirely = !hasPageOverflow(el);
+
+        if (fitsEntirely) {
+            movedAny = true;
+            continue;
+        }
+
+        el.removeChild(first);
+        nextEl.insertBefore(first, nextEl.firstChild);
+
+        if (SPLITTABLE_TAGS.has(first.tagName)) {
+            const head = splitBlockToFit(first, el, caret);
+            if (head && (head.textContent || "").trim().length > 0) {
+                el.appendChild(head);
+                movedAny = true;
+            }
+        }
+
+        break;
+    }
+
+    return movedAny;
+}
+
 export function RichDocumentEditor({
     editorRef,
     html,
@@ -549,10 +674,35 @@ export function RichDocumentEditor({
     const suppressBlurSyncRef = useRef(false);
     const isComposingRef = useRef(false);
 
+    const repaginateAll = useCallback(
+        (
+            newMargins: DocumentMargins = configRef.current.margins,
+            newFont: string = configRef.current.fontFamily,
+            newLineHeight: string = configRef.current.lineHeight,
+        ) => {
+            const fullHtml = joinPagesIntoHtml(pagesRef.current);
+            const options = getPaginationOptions(newFont, newLineHeight);
+            const newPages = paginateDocument(fullHtml, newMargins, options);
+
+            pagesRef.current = newPages;
+            setPages(newPages);
+            setActivePageIndex((prev) => Math.min(prev, newPages.length - 1));
+            emitChange(newPages, newMargins, newFont, newLineHeight);
+        },
+        [emitChange],
+    );
+
     const reflowFrom = useCallback(
         (startIndex: number) => {
             const first = pageRefs.current[startIndex];
-            if (!first || !hasPageOverflow(first)) return;
+            if (!first) return;
+
+            const firstMetrics = measurePage(first);
+            const needsForward = firstMetrics.overflowPx > 1;
+            const needsBackward =
+                firstMetrics.overflowPx < -15 && pagesRef.current.length > 1;
+
+            if (!needsForward && !needsBackward) return;
 
             const sel = window.getSelection();
             const caret: CaretPos | null =
@@ -564,7 +714,8 @@ export function RichDocumentEditor({
             let i = startIndex;
             let guard = 0;
 
-            while (guard++ < 50) {
+            // 1. Paginação para frente: desloca conteúdo excedente para a próxima página
+            while (guard++ < 50 && i < pagesRef.current.length) {
                 const el = pageRefs.current[i];
                 if (!el) break;
                 el.scrollTop = 0;
@@ -582,8 +733,46 @@ export function RichDocumentEditor({
                 if (isBlankPage(nextEl)) nextEl.innerHTML = "";
                 const moved = moveOverflowToNext(el, nextEl, caret);
                 if (nextEl.innerHTML === "") nextEl.innerHTML = BLANK_PAGE_HTML;
+                touched.add(i);
                 touched.add(i + 1);
                 if (!moved) break;
+                i++;
+            }
+
+            // 2. Paginação para trás: traz conteúdo da página seguinte quando há espaço
+            i = startIndex;
+            guard = 0;
+            while (guard++ < 50 && i < pagesRef.current.length - 1) {
+                const el = pageRefs.current[i];
+                const nextEl = pageRefs.current[i + 1];
+                if (!el || !nextEl) break;
+
+                const m = measurePage(el);
+                if (m.overflowPx < -15) {
+                    const moved = moveUnderflowFromNext(el, nextEl, caret);
+                    if (moved) {
+                        touched.add(i);
+                        touched.add(i + 1);
+                    }
+                }
+
+                // Remove páginas excedentes ou vazias quando redistribuídas
+                if (
+                    isBlankPage(nextEl) &&
+                    !nextEl.hasAttribute("data-manual-page") &&
+                    pagesRef.current.length > 1
+                ) {
+                    pagesRef.current.splice(i + 1, 1);
+                    pageRefs.current.splice(i + 1, 1);
+                    flushSync(() => {
+                        setPages([...pagesRef.current]);
+                    });
+                    setActivePageIndex((prev) =>
+                        Math.min(prev, pagesRef.current.length - 1),
+                    );
+                    continue;
+                }
+
                 i++;
             }
 
@@ -759,18 +948,23 @@ export function RichDocumentEditor({
 
     const applyFontFamily = (font: string) => {
         setFontFamily(font);
+        restoreSelection();
+
         const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) {
+
+        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
             applyInlineStyle("font-family", font);
         } else {
             applyBlockStyle("font-family", font);
         }
-        emitChange(pagesRef.current, margins, font, lineHeight);
     };
 
     const applyFontSize = (sizePt: string) => {
+        restoreSelection();
+
         const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) {
+
+        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
             applyInlineStyle("font-size", sizePt);
         } else {
             applyBlockStyle("font-size", sizePt);
@@ -779,8 +973,14 @@ export function RichDocumentEditor({
 
     const applyLineSpacing = (spacing: string) => {
         setLineHeight(spacing);
-        applyBlockStyle("line-height", spacing);
-        emitChange(pagesRef.current, margins, fontFamily, spacing);
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) {
+            applyBlockStyle("line-height", spacing);
+            reflowFrom(activePageIndex);
+        } else {
+            applyBlockStyle("line-height", spacing);
+            repaginateAll(margins, fontFamily, spacing);
+        }
     };
 
     const applyFirstLineIndent = () => {
@@ -839,12 +1039,19 @@ export function RichDocumentEditor({
         if (MARGIN_PRESETS[presetKey]) {
             const nextMargins = MARGIN_PRESETS[presetKey].margins;
             setMargins(nextMargins);
-            emitChange(pagesRef.current, nextMargins, fontFamily, lineHeight);
+            repaginateAll(nextMargins, fontFamily, lineHeight);
         }
     };
 
     const insertNewBlankPage = (afterIndex = pagesRef.current.length - 1) => {
         const nextPages = [...pagesRef.current];
+        if (
+            nextPages[afterIndex] &&
+            !isManualPageBreak(nextPages[afterIndex])
+        ) {
+            nextPages[afterIndex] =
+                `${nextPages[afterIndex]}\n${MANUAL_PAGE_BREAK_HTML}`;
+        }
         const newPageHtml =
             '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>';
         nextPages.splice(afterIndex + 1, 0, newPageHtml);
@@ -863,6 +1070,9 @@ export function RichDocumentEditor({
         const nextActive = Math.min(activePageIndex, nextPages.length - 1);
         setActivePageIndex(nextActive);
         emitChange(nextPages);
+        setTimeout(() => {
+            reflowFrom(Math.max(0, nextActive - 1));
+        }, 50);
     };
 
     const insertPageBreakAtCursor = () => {
@@ -893,7 +1103,8 @@ export function RichDocumentEditor({
             const postHtml = postDiv.innerHTML.trim() || "<p><br/></p>";
 
             const nextPages = [...pagesRef.current];
-            nextPages[activePageIndex] = preHtml;
+            nextPages[activePageIndex] =
+                `${preHtml}\n${MANUAL_PAGE_BREAK_HTML}`;
             nextPages.splice(activePageIndex + 1, 0, postHtml);
             commitPages(nextPages);
             setActivePageIndex(activePageIndex + 1);
@@ -1010,8 +1221,10 @@ export function RichDocumentEditor({
                         <ToolbarSeparator />
 
                         {/* Família e Tamanho da Fonte */}
+
                         <select
                             value={fontFamily}
+                            onMouseDown={saveSelection}
                             onChange={(e) => applyFontFamily(e.target.value)}
                             title="Família da fonte"
                             aria-label="Família da fonte"
@@ -1029,6 +1242,7 @@ export function RichDocumentEditor({
 
                         <select
                             defaultValue="12pt"
+                            onMouseDown={saveSelection}
                             onChange={(e) => applyFontSize(e.target.value)}
                             title="Tamanho da fonte"
                             aria-label="Tamanho da fonte"
@@ -1509,6 +1723,15 @@ export function RichDocumentEditor({
                                             e.currentTarget.innerHTML,
                                         )
                                     }
+                                    onKeyDown={(e) => {
+                                        if (
+                                            e.key === "Enter" &&
+                                            (e.ctrlKey || e.metaKey)
+                                        ) {
+                                            e.preventDefault();
+                                            insertPageBreakAtCursor();
+                                        }
+                                    }}
                                     onKeyUp={updateActiveStates}
                                     onMouseUp={updateActiveStates}
                                     onCompositionStart={() => {
@@ -1548,7 +1771,7 @@ export function RichDocumentEditor({
                                         overflowX: "hidden",
                                         boxSizing: "border-box",
                                     }}
-                                    className="a4-page-content text-[12pt] text-gray-900 outline-none select-text focus:outline-none [&_.document-footer]:mt-6 [&_.document-footer]:border-t [&_.document-footer]:border-slate-300 [&_.document-footer]:pt-2 [&_.document-footer]:text-center [&_.document-footer]:text-[9pt] [&_.document-footer]:text-slate-500 [&_.document-header]:mb-5 [&_.document-header]:border-b [&_.document-header]:border-slate-300 [&_.document-header]:pb-2 [&_.document-header]:text-center [&_.document-header]:text-[10.5pt] [&_h1]:my-4 [&_h1]:text-center [&_h1]:text-[17pt] [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-[14pt] [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-[12pt] [&_h3]:font-bold [&_img]:my-3 [&_img]:inline-block [&_p]:my-1.5 [&_table]:my-3.5"
+                                    className="a4-page-content text-[12pt] text-gray-900 outline-none select-text focus:outline-none [&_.document-footer]:mt-6 [&_.document-footer]:border-t [&_.document-footer]:border-slate-300 [&_.document-footer]:pt-2 [&_.document-footer]:text-center [&_.document-footer]:text-[9pt] [&_.document-footer]:text-slate-500 [&_.document-header]:mb-5 [&_.document-header]:border-b [&_.document-header]:border-slate-300 [&_.document-header]:pb-2 [&_.document-header]:text-center [&_.document-header]:text-[10.5pt] [&_h1]:my-4 [&_h1]:text-center [&_h1]:text-[17pt] [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-[14pt] [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-[12pt] [&_h3]:font-bold [&_img]:my-3 [&_img]:inline-block [&_p]:my-1.5 [&_table]:my-3.5 [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-solid [&_table]:border-slate-400 [&_th]:border [&_th]:border-solid [&_th]:border-slate-400 [&_td]:border [&_td]:border-solid [&_td]:border-slate-300"
                                 />
 
                                 {/* Indicador de Transbordo */}
