@@ -3,6 +3,12 @@ import type { DocumentMargins } from '@/components/model/rich-document-editor';
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
 export const MM_TO_PX_96DPI = 96 / 25.4; // ~3.7795 px por mm
+const CM_TO_PX_96DPI = 96 / 2.54;
+
+export interface HeaderFooterSpacing {
+    headerSpacingCm: number;
+    footerSpacingCm: number;
+}
 
 export const PAGE_BREAK_REGEX =
     /(?:<hr[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>|<div[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>(?:\s*<\/div>)?|<!--\s*(?:a4-)?page-break\s*-->)/gi;
@@ -97,7 +103,7 @@ export function joinPagesIntoHtml(
     }
 
     const pageBreakHtml =
-        '\n<div class="page-break" style="page-break-after: always;"></div>\n<hr class="page-break" style="page-break-after: always; margin: 25px 0; border: none; border-top: 2px dashed #94a3b8; display: none;" />\n';
+        '\n<div class="page-break" style="page-break-after: always;"></div>\n';
 
     const joined = validPages.join(pageBreakHtml);
 
@@ -107,14 +113,23 @@ export function joinPagesIntoHtml(
 /**
  * Estima a altura em pixels de um elemento HTML para cálculo de quebra natural de página
  */
-function estimateElementHeightPx(tag: string, text: string, htmlContent: string): number {
+function estimateElementHeightPx(
+    tag: string,
+    text: string,
+    htmlContent: string,
+    spacing: HeaderFooterSpacing,
+): number {
     const lowerTag = tag.toLowerCase();
 
     if (lowerTag === 'h1') return 52;
     if (lowerTag === 'h2') return 42;
     if (lowerTag === 'h3') return 34;
-    if (lowerTag === 'header') return 70;
-    if (lowerTag === 'footer') return 55;
+    if (lowerTag === 'header') {
+        return 48 + spacing.headerSpacingCm * CM_TO_PX_96DPI;
+    }
+    if (lowerTag === 'footer') {
+        return 30 + spacing.footerSpacingCm * CM_TO_PX_96DPI;
+    }
 
     if (lowerTag === 'table') {
         const rowCount = (htmlContent.match(/<tr\b/gi) || []).length || 1;
@@ -141,6 +156,7 @@ function estimateElementHeightPx(tag: string, text: string, htmlContent: string)
 export function autoPaginateExceededPage(
     pageHtml: string,
     usableHeightPx: number,
+    spacing: HeaderFooterSpacing = { headerSpacingCm: 0.6, footerSpacingCm: 0.8 },
 ): string[] {
     // Quebra o HTML em blocos principais (p, h1, h2, h3, table, header, footer, etc.)
     const blockRegex = /<(p|h1|h2|h3|table|header|footer|div|blockquote)[^>]*>[\s\S]*?<\/\1>|<(hr|br)[^>]*\/?>/gi;
@@ -158,7 +174,12 @@ export function autoPaginateExceededPage(
         const fullBlock = match[0];
         const tag = match[1] || match[2] || 'p';
         const textContent = fullBlock.replace(/<[^>]*>/g, '').trim();
-        const blockHeight = estimateElementHeightPx(tag, textContent, fullBlock);
+        const blockHeight = estimateElementHeightPx(
+            tag,
+            textContent,
+            fullBlock,
+            spacing,
+        );
 
         // Se o bloco atual faz a página estourar a altura útil e já temos blocos na página atual
         if (currentHeight + blockHeight > usableHeightPx && currentBlocks.length > 0) {
@@ -186,6 +207,7 @@ export function autoPaginateExceededPage(
 export function paginateDocument(
     rawHtml: string,
     margins: DocumentMargins,
+    spacing: HeaderFooterSpacing = { headerSpacingCm: 0.6, footerSpacingCm: 0.8 },
 ): string[] {
     const explicitPages = splitHtmlIntoPages(rawHtml);
     const { usableHeightPx } = getPageDimensions(margins);
@@ -193,7 +215,7 @@ export function paginateDocument(
     const paginatedPages: string[] = [];
 
     for (const page of explicitPages) {
-        const subPages = autoPaginateExceededPage(page, usableHeightPx);
+        const subPages = autoPaginateExceededPage(page, usableHeightPx, spacing);
         paginatedPages.push(...subPages);
     }
 

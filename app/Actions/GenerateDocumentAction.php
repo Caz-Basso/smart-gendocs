@@ -34,19 +34,59 @@ final readonly class GenerateDocumentAction
         $marginLeft = 30;
         $marginRight = 20;
         $marginBottom = 20;
+        $headerMarginBottom = '16pt';
+        $footerMarginTop = '20pt';
 
         if (preg_match('/<!--\s*a4-config:\s*([^>]+)\s*-->/', $content, $matches)) {
-            if (preg_match('/top=(\d+)/', $matches[1], $topMatch)) {
-                $marginTop = (int) $topMatch[1];
+            if (preg_match(
+                '/top=([\d]+(?:[.,][\d]+)?)/',
+                $matches[1],
+                $topMatch,
+            )) {
+                $marginTop = (float) str_replace(',', '.', $topMatch[1]);
             }
-            if (preg_match('/left=(\d+)/', $matches[1], $leftMatch)) {
-                $marginLeft = (int) $leftMatch[1];
+            if (preg_match(
+                '/left=([\d]+(?:[.,][\d]+)?)/',
+                $matches[1],
+                $leftMatch,
+            )) {
+                $marginLeft = (float) str_replace(',', '.', $leftMatch[1]);
             }
-            if (preg_match('/right=(\d+)/', $matches[1], $rightMatch)) {
-                $marginRight = (int) $rightMatch[1];
+            if (preg_match(
+                '/right=([\d]+(?:[.,][\d]+)?)/',
+                $matches[1],
+                $rightMatch,
+            )) {
+                $marginRight = (float) str_replace(',', '.', $rightMatch[1]);
             }
-            if (preg_match('/bottom=(\d+)/', $matches[1], $bottomMatch)) {
-                $marginBottom = (int) $bottomMatch[1];
+            if (preg_match(
+                '/bottom=([\d]+(?:[.,][\d]+)?)/',
+                $matches[1],
+                $bottomMatch,
+            )) {
+                $marginBottom = (float) str_replace(',', '.', $bottomMatch[1]);
+            }
+            if (preg_match(
+                '/headerSpacing=([\d]+(?:[.,][\d]+)?)/',
+                $matches[1],
+                $headerSpacingMatch,
+            )) {
+                $headerMarginBottom = (float) str_replace(
+                    ',',
+                    '.',
+                    $headerSpacingMatch[1],
+                ).'cm';
+            }
+            if (preg_match(
+                '/footerSpacing=([\d]+(?:[.,][\d]+)?)/',
+                $matches[1],
+                $footerSpacingMatch,
+            )) {
+                $footerMarginTop = (float) str_replace(
+                    ',',
+                    '.',
+                    $footerSpacingMatch[1],
+                ).'cm';
             }
         }
 
@@ -86,8 +126,8 @@ final readonly class GenerateDocumentAction
             td, th { border: 1px solid #94a3b8; padding: 6pt 8pt; vertical-align: top; }
             img { max-width: 100%; height: auto; display: inline-block; }
             .page-break { page-break-after: always; }
-            .document-header { margin-bottom: 16pt; text-align: center; font-size: 10.5pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 8pt; }
-            .document-footer { margin-top: 20pt; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
+            .document-header { margin-bottom: '.$headerMarginBottom.' !important; text-align: center; font-size: 10.5pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 8pt; }
+            .document-footer { margin-top: '.$footerMarginTop.' !important; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
             .citation-long { margin-left: 4.0cm; font-size: 10pt; line-height: 1.0; text-align: justify; margin-top: 8pt; margin-bottom: 8pt; }
         </style>
         '.$content;

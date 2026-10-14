@@ -20,6 +20,47 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 
+def is_short_uppercase_heading(text, max_characters=60, max_words=8):
+    normalized_text = text.strip()
+    word_count = len(re.findall(r'\w+', normalized_text, re.UNICODE))
+
+    return (
+        normalized_text.isupper()
+        and len(normalized_text) <= max_characters
+        and word_count <= max_words
+    )
+
+
+def is_pdf_heading(text, line_font_sizes):
+    if is_short_uppercase_heading(text):
+        return True
+
+    if len(text) > 140 or not line_font_sizes:
+        return False
+
+    large_lines = sum(font_size >= 19.5 for font_size in line_font_sizes)
+
+    return large_lines / len(line_font_sizes) >= 0.8
+
+
+def is_docx_heading(style_id, text, total_characters, large_font_characters):
+    normalized_style = style_id.lower().replace(' ', '')
+    has_heading_style = normalized_style.startswith('heading') or normalized_style in {
+        'title',
+        'titulo',
+        'título',
+    }
+
+    if has_heading_style:
+        return True
+
+    return (
+        total_characters > 0
+        and len(text.strip()) <= 120
+        and large_font_characters / total_characters >= 0.8
+    )
+
+
 def run_command(cmd, timeout=120):
     try:
         result = subprocess.run(
@@ -95,6 +136,7 @@ def extract_docx_to_rich_html(docx_path):
         def parse_paragraph(p_elem, default_align='justify'):
             align = default_align
             pPr = p_elem.find('w:pPr', NS)
+            style_id = ''
             first_line_indent = None
             left_indent = None
             line_height = 1.5
@@ -103,6 +145,13 @@ def extract_docx_to_rich_html(docx_path):
             font_family = "'Times New Roman', Times, serif"
 
             if pPr is not None:
+                paragraph_style = pPr.find('w:pStyle', NS)
+                if paragraph_style is not None:
+                    style_id = paragraph_style.attrib.get(
+                        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val',
+                        '',
+                    )
+
                 jc = pPr.find('w:jc', NS)
                 if jc is not None:
                     val = jc.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val', '')
@@ -161,7 +210,9 @@ def extract_docx_to_rich_html(docx_path):
 
             # Processa runs de texto
             runs_text = []
-            is_title = False
+            plain_text_parts = []
+            total_characters = 0
+            large_font_characters = 0
             for r in p_elem.findall('w:r', NS):
                 for br in r.findall('w:br', NS):
                     if br.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type') == 'page':
@@ -171,6 +222,8 @@ def extract_docx_to_rich_html(docx_path):
 
                 t = r.find('w:t', NS)
                 if t is not None and t.text:
+                    total_characters += len(t.text)
+                    plain_text_parts.append(t.text)
                     txt = t.text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                     is_b = r.find('.//w:b', NS) is not None
                     is_i = r.find('.//w:i', NS) is not None
@@ -195,12 +248,19 @@ def extract_docx_to_rich_html(docx_path):
 
                     if sz is not None:
                         val = sz.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
-                        if val and int(val) >= 28:
-                            is_title = True
+                        if val and int(val) >= 32:
+                            large_font_characters += len(t.text)
 
                     runs_text.append(formatted)
 
             combined_text = "".join(runs_text)
+            plain_text = ''.join(plain_text_parts).strip()
+            is_title = is_docx_heading(
+                style_id,
+                plain_text,
+                total_characters,
+                large_font_characters,
+            )
 
             if img_html:
                 img_block = f'<p style="text-align: {align}; margin: 12pt 0;">{" ".join(img_html)}</p>'
@@ -329,8 +389,9 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
     total_words = 0
     img_idx = 0
 
-    for page in root.iter():
-        if page.tag.endswith('page'):
+    pdf_pages = [page for page in root.iter() if page.tag.endswith('page')]
+
+    for page_index, page in enumerate(pdf_pages):
             page_w = float(page.get('width', '595'))
             page_blocks = []
 
@@ -340,7 +401,7 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                         if block.tag.endswith('block'):
                             block_lines = []
                             line_widths = []
-                            max_font_size = 0.0
+                            line_font_sizes = []
 
                             for line in block.iter():
                                 if line.tag.endswith('line'):
@@ -359,10 +420,11 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                                     if words:
                                         block_lines.append(" ".join(words))
                                         line_widths.append((xMin, xMax, line_h))
-                                        max_font_size = max(max_font_size, line_h * 0.9)
+                                        line_font_sizes.append(line_h * 0.9)
 
                             if block_lines:
-                                paragraph_text = " ".join(block_lines).strip()
+                                plain_text = " ".join(block_lines).strip()
+                                paragraph_text = plain_text
                                 paragraph_text = paragraph_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
                                 # Determina alinhamento baseado na posição horizontal média
@@ -377,14 +439,14 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                                 elif first_xMin > (page_w * 0.55):
                                     align = 'right'
 
-                                # Detecção de título ou cláusula
-                                is_heading = max_font_size >= 14.0 or paragraph_text.isupper() and len(paragraph_text) < 80
-                                is_clause = paragraph_text.upper().startswith('CLÁUSULA') or paragraph_text.upper().startswith('CLAUSULA')
+                                # Usa o tamanho da maioria das linhas; uma única linha grande não converte o bloco todo.
+                                is_heading = is_pdf_heading(plain_text, line_font_sizes)
+                                is_clause = plain_text.upper().startswith(('CLÁUSULA', 'CLAUSULA'))
 
-                                if is_heading:
-                                    page_blocks.append(f'<h2 style="text-align: {align}; margin-top: 18pt; margin-bottom: 10pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{paragraph_text}</h2>')
-                                elif is_clause:
+                                if is_clause:
                                     page_blocks.append(f'<p style="text-align: {align}; font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>')
+                                elif is_heading:
+                                    page_blocks.append(f'<h2 style="text-align: {align}; margin-top: 4pt; margin-bottom: 2pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{paragraph_text}</h2>')
                                 else:
                                     page_blocks.append(f'<p style="text-align: {align}; margin-top: 0; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>')
 
@@ -396,6 +458,10 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
 
             if page_blocks:
                 html_blocks.extend(page_blocks)
+            else:
+                html_blocks.append('<p><br/></p>')
+
+            if page_index < len(pdf_pages) - 1:
                 html_blocks.append('<hr class="page-break" style="margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />')
 
     if total_words < 5:
@@ -458,13 +524,14 @@ def extract_pdf_scanned_with_ocr(pdf_path, temp_dir):
             par_text = " ".join(words).strip()
             par_text = par_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
-            is_heading = par_text.isupper() and len(par_text) < 70
-            is_clause = par_text.upper().startswith('CLÁUSULA') or par_text.upper().startswith('CLAUSULA')
+            plain_text = " ".join(words).strip()
+            is_heading = is_short_uppercase_heading(plain_text)
+            is_clause = plain_text.upper().startswith(('CLÁUSULA', 'CLAUSULA'))
 
-            if is_heading:
-                html_blocks.append(f'<h2 style="text-align: center; margin-top: 18pt; margin-bottom: 10pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{par_text}</h2>')
-            elif is_clause:
+            if is_clause:
                 html_blocks.append(f'<p style="font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{par_text}</p>')
+            elif is_heading:
+                html_blocks.append(f'<h2 style="text-align: center; margin-top: 18pt; margin-bottom: 10pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{par_text}</h2>')
             else:
                 html_blocks.append(f'<p style="text-align: justify; line-height: 1.5; margin-top: 0; margin-bottom: 6pt; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{par_text}</p>')
 

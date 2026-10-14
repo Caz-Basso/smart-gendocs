@@ -30,6 +30,7 @@ final class GeneratedDocumentController
     public function edit(string $document): Response
     {
         $savedDocument = $this->findOwnedDocument($document);
+        $model = $savedDocument->documentModel;
 
         return Inertia::render('documents/edit', [
             'document' => [
@@ -37,6 +38,8 @@ final class GeneratedDocumentController
                 'name' => $savedDocument->name,
                 'data' => $savedDocument->data,
                 'fields' => $savedDocument->fields,
+                'preview' => $savedDocument->preview,
+                'extracted_html' => $model?->extracted_text,
                 'created_at' => $savedDocument->created_at,
             ],
         ]);

@@ -81,33 +81,52 @@ interface RichDocumentEditorProps {
 }
 
 function parseConfigFromHtml(rawHtml: string) {
+    const parseConfiguredNumber = (
+        value: string | undefined,
+        fallback: number,
+    ) => {
+        if (!value) return fallback;
+
+        const parsed = Number.parseFloat(value.replace(',', '.'));
+
+        return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
     const configMatch = rawHtml.match(/<!--\s*a4-config:\s*([^>]+)\s*-->/);
     if (!configMatch) {
         return {
             margins: { top: 30, left: 30, right: 20, bottom: 20 },
             fontFamily: "'Times New Roman', Times, serif",
             lineHeight: '1.5',
+            headerSpacing: 0.6,
+            footerSpacing: 0.8,
         };
     }
 
     const str = configMatch[1];
-    const top = str.match(/top=(\d+)/)?.[1];
-    const left = str.match(/left=(\d+)/)?.[1];
-    const right = str.match(/right=(\d+)/)?.[1];
-    const bottom = str.match(/bottom=(\d+)/)?.[1];
+    const top = str.match(/top=([\d]+(?:[.,][\d]+)?)/)?.[1];
+    const left = str.match(/left=([\d]+(?:[.,][\d]+)?)/)?.[1];
+    const right = str.match(/right=([\d]+(?:[.,][\d]+)?)/)?.[1];
+    const bottom = str.match(/bottom=([\d]+(?:[.,][\d]+)?)/)?.[1];
     const font =
         str.match(/font="([^"]+)"/)?.[1] || "'Times New Roman', Times, serif";
-    const lineHeight = str.match(/lineHeight=([0-9.]+)/)?.[1] || '1.5';
+    const lineHeight =
+        str.match(/lineHeight=([\d]+(?:[.,][\d]+)?)/)?.[1]?.replace(',', '.') ||
+        '1.5';
+    const headerSpacing = str.match(/headerSpacing=([\d]+(?:[.,][\d]+)?)/)?.[1];
+    const footerSpacing = str.match(/footerSpacing=([\d]+(?:[.,][\d]+)?)/)?.[1];
 
     return {
         margins: {
-            top: top ? parseInt(top, 10) : 30,
-            left: left ? parseInt(left, 10) : 30,
-            right: right ? parseInt(right, 10) : 20,
-            bottom: bottom ? parseInt(bottom, 10) : 20,
+            top: parseConfiguredNumber(top, 30),
+            left: parseConfiguredNumber(left, 30),
+            right: parseConfiguredNumber(right, 20),
+            bottom: parseConfiguredNumber(bottom, 20),
         },
         fontFamily: font,
         lineHeight,
+        headerSpacing: parseConfiguredNumber(headerSpacing, 0.6),
+        footerSpacing: parseConfiguredNumber(footerSpacing, 0.8),
     };
 }
 
@@ -124,6 +143,18 @@ export function RichDocumentEditor({
         initialConfig.margins,
     );
     const [marginPreset, setMarginPreset] = useState<string>('abnt');
+    const [headerSpacing, setHeaderSpacing] = useState(
+        initialConfig.headerSpacing,
+    );
+    const [footerSpacing, setFooterSpacing] = useState(
+        initialConfig.footerSpacing,
+    );
+    const [headerSpacingInput, setHeaderSpacingInput] = useState(
+        initialConfig.headerSpacing.toString().replace('.', ','),
+    );
+    const [footerSpacingInput, setFooterSpacingInput] = useState(
+        initialConfig.footerSpacing.toString().replace('.', ','),
+    );
     const [fontFamily, setFontFamily] = useState<string>(
         initialConfig.fontFamily,
     );
@@ -134,14 +165,74 @@ export function RichDocumentEditor({
 
     // Páginas do documento
     const [pages, setPages] = useState<string[]>(() => {
-        return paginateDocument(html, initialConfig.margins);
+        const pagesWithExplicitBreaks = splitHtmlIntoPages(html);
+
+        const spacing = {
+            headerSpacingCm: initialConfig.headerSpacing,
+            footerSpacingCm: initialConfig.footerSpacing,
+        };
+
+        if (pagesWithExplicitBreaks.length > 1) {
+            return pagesWithExplicitBreaks.flatMap((page) =>
+                /<(?:header|footer)\b/i.test(page)
+                    ? paginateDocument(page, initialConfig.margins, spacing)
+                    : [page],
+            );
+        }
+
+        return paginateDocument(html, initialConfig.margins, spacing);
     });
     const [activePageIndex, setActivePageIndex] = useState(0);
 
     // Referências para os nós de conteúdo de cada folha
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const savedSelectionRange = useRef<Range | null>(null);
+    const visiblePageRatios = useRef(new Map<number, number>());
 
     const dimensions = getPageDimensions(margins);
+
+    useEffect(() => {
+        const pageRatios = visiblePageRatios.current;
+        pageRatios.clear();
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    const pageIndex = Number(
+                        (entry.target as HTMLElement).dataset.pageIndex,
+                    );
+
+                    if (Number.isInteger(pageIndex)) {
+                        pageRatios.set(
+                            pageIndex,
+                            entry.isIntersecting ? entry.intersectionRatio : 0,
+                        );
+                    }
+                }
+
+                const mostVisiblePage = Array.from(pageRatios.entries()).sort(
+                    (first, second) => second[1] - first[1],
+                )[0];
+
+                if (mostVisiblePage && mostVisiblePage[1] > 0) {
+                    setActivePageIndex(mostVisiblePage[0]);
+                }
+            },
+            { threshold: [0.25, 0.5, 0.75] },
+        );
+
+        pageRefs.current.forEach((page, index) => {
+            if (!page) return;
+
+            page.dataset.pageIndex = String(index);
+            observer.observe(page);
+        });
+
+        return () => {
+            observer.disconnect();
+            pageRatios.clear();
+        };
+    }, [pages.length]);
 
     // Constrói o HTML consolidado e emite para o formulário pai
     const emitChange = useCallback(
@@ -150,8 +241,10 @@ export function RichDocumentEditor({
             curMargins = margins,
             curFont = fontFamily,
             curLineHeight = lineHeight,
+            curHeaderSpacing = headerSpacing,
+            curFooterSpacing = footerSpacing,
         ) => {
-            const configComment = `<!-- a4-config: top=${curMargins.top} left=${curMargins.left} right=${curMargins.right} bottom=${curMargins.bottom} font="${curFont}" lineHeight=${curLineHeight} -->`;
+            const configComment = `<!-- a4-config: top=${curMargins.top} left=${curMargins.left} right=${curMargins.right} bottom=${curMargins.bottom} font="${curFont}" lineHeight=${curLineHeight} headerSpacing=${curHeaderSpacing} footerSpacing=${curFooterSpacing} -->`;
             const consolidatedHtml = joinPagesIntoHtml(
                 updatedPages,
                 configComment,
@@ -164,13 +257,21 @@ export function RichDocumentEditor({
 
             onChange(consolidatedHtml);
         },
-        [margins, fontFamily, lineHeight, onChange, editorRef],
+        [
+            margins,
+            fontFamily,
+            lineHeight,
+            headerSpacing,
+            footerSpacing,
+            onChange,
+            editorRef,
+        ],
     );
 
     // Inicializa na primeira carga
     useEffect(() => {
         if (editorRef.current) {
-            const configComment = `<!-- a4-config: top=${margins.top} left=${margins.left} right=${margins.right} bottom=${margins.bottom} font="${fontFamily}" lineHeight=${lineHeight} -->`;
+            const configComment = `<!-- a4-config: top=${margins.top} left=${margins.left} right=${margins.right} bottom=${margins.bottom} font="${fontFamily}" lineHeight=${lineHeight} headerSpacing=${headerSpacing} footerSpacing=${footerSpacing} -->`;
             editorRef.current.innerHTML = joinPagesIntoHtml(
                 pages,
                 configComment,
@@ -184,6 +285,37 @@ export function RichDocumentEditor({
         nextPages[pageIndex] = newHtml;
         setPages(nextPages);
         emitChange(nextPages);
+    };
+
+    const saveSelectionRange = () => {
+        const selection = window.getSelection();
+        const activePage = pageRefs.current[activePageIndex];
+
+        if (
+            selection?.rangeCount &&
+            activePage?.contains(
+                selection.getRangeAt(0).commonAncestorContainer,
+            )
+        ) {
+            savedSelectionRange.current = selection.getRangeAt(0).cloneRange();
+        }
+    };
+
+    const restoreSelectionRange = () => {
+        const range = savedSelectionRange.current;
+        const activePage = pageRefs.current[activePageIndex];
+
+        if (!range || !activePage?.contains(range.commonAncestorContainer)) {
+            return false;
+        }
+
+        const selection = window.getSelection();
+        if (!selection) return false;
+
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        return true;
     };
 
     // Comando nativo de edição de texto
@@ -273,9 +405,35 @@ export function RichDocumentEditor({
     };
 
     const applyFontSize = (sizePt: string) => {
+        restoreSelectionRange();
+
         const selection = window.getSelection();
+        const activePage = pageRefs.current[activePageIndex];
+
+        if (
+            !selection?.rangeCount ||
+            !activePage?.contains(
+                selection.getRangeAt(0).commonAncestorContainer,
+            )
+        ) {
+            return;
+        }
+
         if (selection && !selection.isCollapsed) {
-            applyInlineStyle('font-size', sizePt);
+            document.execCommand('fontSize', false, '7');
+
+            activePage.querySelectorAll('font[size="7"]').forEach((font) => {
+                const span = document.createElement('span');
+                span.style.fontSize = sizePt;
+
+                while (font.firstChild) {
+                    span.appendChild(font.firstChild);
+                }
+
+                font.replaceWith(span);
+            });
+
+            handlePageInput(activePageIndex, activePage.innerHTML);
         } else {
             applyBlockStyle('font-size', sizePt);
         }
@@ -342,9 +500,65 @@ export function RichDocumentEditor({
         setMarginPreset(presetKey);
         if (MARGIN_PRESETS[presetKey]) {
             const nextMargins = MARGIN_PRESETS[presetKey].margins;
+            const nextPages = paginateDocument(
+                joinPagesIntoHtml(pages),
+                nextMargins,
+                {
+                    headerSpacingCm: headerSpacing,
+                    footerSpacingCm: footerSpacing,
+                },
+            );
             setMargins(nextMargins);
-            emitChange(pages, nextMargins, fontFamily, lineHeight);
+            setPages(nextPages);
+            setActivePageIndex((index) => Math.min(index, nextPages.length - 1));
+            emitChange(nextPages, nextMargins, fontFamily, lineHeight);
         }
+    };
+
+    const applyHeaderFooterSpacing = (
+        position: 'header' | 'footer',
+        value: string,
+    ) => {
+        const normalizedValue = value.trim().replace(',', '.');
+
+        if (!/^\d+(?:\.\d+)?$/.test(normalizedValue)) {
+            return;
+        }
+
+        const centimeters = Number.parseFloat(normalizedValue);
+        if (centimeters < 0 || centimeters > 10) {
+            return;
+        }
+
+        const nextHeaderSpacing =
+            position === 'header' ? centimeters : headerSpacing;
+        const nextFooterSpacing =
+            position === 'footer' ? centimeters : footerSpacing;
+        const nextPages = paginateDocument(
+            joinPagesIntoHtml(pages),
+            margins,
+            {
+                headerSpacingCm: nextHeaderSpacing,
+                footerSpacingCm: nextFooterSpacing,
+            },
+        );
+
+        if (position === 'header') {
+            setHeaderSpacing(nextHeaderSpacing);
+        } else {
+            setFooterSpacing(nextFooterSpacing);
+        }
+
+        setPages(nextPages);
+        setActivePageIndex((index) => Math.min(index, nextPages.length - 1));
+        emitChange(
+            nextPages,
+            margins,
+            fontFamily,
+            lineHeight,
+            nextHeaderSpacing,
+            nextFooterSpacing,
+        );
     };
 
     // Operações de Paginação
@@ -411,7 +625,10 @@ export function RichDocumentEditor({
     // Auto-paginação completa de todo o documento
     const handleAutoPaginate = () => {
         const consolidated = joinPagesIntoHtml(pages);
-        const repaginated = paginateDocument(consolidated, margins);
+        const repaginated = paginateDocument(consolidated, margins, {
+            headerSpacingCm: headerSpacing,
+            footerSpacingCm: footerSpacing,
+        });
         setPages(repaginated);
         setActivePageIndex(0);
         emitChange(repaginated);
@@ -429,8 +646,14 @@ export function RichDocumentEditor({
         if (activeNode) {
             const nextPages = [...pages];
             nextPages[activePageIndex] = headerHtml + activeNode.innerHTML;
-            setPages(nextPages);
-            emitChange(nextPages);
+            const repaginatedPages = paginateDocument(
+                joinPagesIntoHtml(nextPages),
+                margins,
+                { headerSpacingCm: headerSpacing, footerSpacingCm: footerSpacing },
+            );
+            setPages(repaginatedPages);
+            setActivePageIndex((index) => Math.min(index, repaginatedPages.length - 1));
+            emitChange(repaginatedPages);
         }
     };
 
@@ -444,8 +667,14 @@ export function RichDocumentEditor({
         if (activeNode) {
             const nextPages = [...pages];
             nextPages[activePageIndex] = activeNode.innerHTML + footerHtml;
-            setPages(nextPages);
-            emitChange(nextPages);
+            const repaginatedPages = paginateDocument(
+                joinPagesIntoHtml(nextPages),
+                margins,
+                { headerSpacingCm: headerSpacing, footerSpacingCm: footerSpacing },
+            );
+            setPages(repaginatedPages);
+            setActivePageIndex((index) => Math.min(index, repaginatedPages.length - 1));
+            emitChange(repaginatedPages);
         }
     };
 
@@ -475,6 +704,7 @@ export function RichDocumentEditor({
 
     return (
         <div className="flex w-full flex-col items-center">
+            <style>{`.a4-page-content .document-header { margin-bottom: ${headerSpacing}cm !important; }.a4-page-content .document-footer { margin-top: ${footerSpacing}cm !important; }`}</style>
             {/* Contêiner invisível mantendo editorRef compatível com submissão */}
             <div ref={editorRef} className="hidden" aria-hidden="true" />
 
@@ -506,7 +736,10 @@ export function RichDocumentEditor({
                     <div className="mx-1 h-5 w-px bg-border/80" />
 
                     {/* Indicador de Página Ativa */}
-                    <div className="flex items-center gap-1 rounded bg-muted/60 px-2 py-1 text-xs font-semibold text-foreground">
+                    <div
+                        aria-live="polite"
+                        className="flex items-center gap-1 rounded bg-muted/60 px-2 py-1 text-xs font-semibold text-foreground"
+                    >
                         <span>
                             Página {activePageIndex + 1} de {pages.length}
                         </span>
@@ -562,16 +795,22 @@ export function RichDocumentEditor({
                     {/* Tamanho da Fonte */}
                     <select
                         defaultValue="12pt"
+                        onMouseDown={saveSelectionRange}
+                        onKeyDown={saveSelectionRange}
                         onChange={(e) => applyFontSize(e.target.value)}
                         className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus:ring-1 focus:ring-ring focus:outline-none"
                         title="Tamanho da Fonte"
                     >
-                        <option value="10pt">10pt (Citações / Notas ABNT)</option>
+                        <option value="10pt">
+                            10pt (Citações / Notas ABNT)
+                        </option>
                         <option value="11pt">11pt (Tabelas)</option>
                         <option value="12pt">12pt (Corpo Oficial ABNT)</option>
                         <option value="14pt">14pt (Subtítulo)</option>
                         <option value="16pt">16pt (Título Principal)</option>
-                        <option value="18pt">18pt (Cabeçalho Institucional)</option>
+                        <option value="18pt">
+                            18pt (Cabeçalho Institucional)
+                        </option>
                     </select>
 
                     <div className="mx-1 h-5 w-px bg-border/80" />
@@ -676,7 +915,9 @@ export function RichDocumentEditor({
                         >
                             <option value="1.0">1.0 (Simples)</option>
                             <option value="1.15">1.15 (Compacto)</option>
-                            <option value="1.5">1.5 (Padrão ABNT Oficial)</option>
+                            <option value="1.5">
+                                1.5 (Padrão ABNT Oficial)
+                            </option>
                             <option value="2.0">2.0 (Duplo)</option>
                         </select>
                     </div>
@@ -749,8 +990,38 @@ export function RichDocumentEditor({
                             </option>
                             <option value="normal">Padrão (2,5 cm)</option>
                             <option value="narrow">Estreita (1,5 cm)</option>
+                            <option value="custom">Personalizada</option>
                         </select>
                     </div>
+
+                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        Espaço após cabeçalho (cm)
+                        <input
+                            aria-label="Espaço após cabeçalho em centímetros"
+                            inputMode="decimal"
+                            value={headerSpacingInput}
+                            onChange={(event) => {
+                                const value = event.target.value;
+                                setHeaderSpacingInput(value);
+                                applyHeaderFooterSpacing('header', value);
+                            }}
+                            className="h-7 w-14 rounded border border-input bg-background px-1.5 text-xs text-foreground"
+                        />
+                    </label>
+                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        Espaço antes do rodapé (cm)
+                        <input
+                            aria-label="Espaço antes do rodapé em centímetros"
+                            inputMode="decimal"
+                            value={footerSpacingInput}
+                            onChange={(event) => {
+                                const value = event.target.value;
+                                setFooterSpacingInput(value);
+                                applyHeaderFooterSpacing('footer', value);
+                            }}
+                            className="h-7 w-14 rounded border border-input bg-background px-1.5 text-xs text-foreground"
+                        />
+                    </label>
 
                     {/* Guia Visual da Área Útil */}
                     <Button
@@ -827,7 +1098,8 @@ export function RichDocumentEditor({
                     <div className="flex items-center gap-3">
                         <span className="font-semibold text-foreground">
                             Folha A4 Oficial (210 × 297 mm) • Total:{' '}
-                            {pages.length} {pages.length === 1 ? 'página' : 'páginas'}
+                            {pages.length}{' '}
+                            {pages.length === 1 ? 'página' : 'páginas'}
                         </span>
                         <span>
                             Margens: Sup {(margins.top / 10).toFixed(1)}cm • Esq{' '}
@@ -838,15 +1110,16 @@ export function RichDocumentEditor({
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">
-                            Área Útil: {(dimensions.usableWidthMm / 10).toFixed(1)}{' '}
-                            × {(dimensions.usableHeightMm / 10).toFixed(1)} cm
+                            Área Útil:{' '}
+                            {(dimensions.usableWidthMm / 10).toFixed(1)} ×{' '}
+                            {(dimensions.usableHeightMm / 10).toFixed(1)} cm
                         </span>
                     </div>
                 </div>
             </div>
 
             {/* Mesa de Trabalho (Desk) Contendo as Folhas A4 Independentes */}
-            <div className="flex w-full flex-col items-center gap-8 overflow-x-auto rounded-lg bg-slate-100 p-4 shadow-inner dark:bg-slate-900/60 sm:p-8">
+            <div className="flex w-full flex-col items-center gap-8 overflow-x-auto rounded-lg bg-slate-100 p-4 shadow-inner sm:p-8 dark:bg-slate-900/60">
                 {pages.map((pageHtml, index) => {
                     const pageNumber = index + 1;
                     const isLastPage = index === pages.length - 1;
@@ -932,13 +1205,16 @@ export function RichDocumentEditor({
                                 <div
                                     ref={(el) => {
                                         pageRefs.current[index] = el;
+
+                                        if (el && el.innerHTML !== pageHtml) {
+                                            el.innerHTML = pageHtml;
+                                        }
                                     }}
                                     contentEditable
                                     suppressContentEditableWarning
-                                    dangerouslySetInnerHTML={{
-                                        __html: pageHtml,
-                                    }}
                                     onFocus={() => setActivePageIndex(index)}
+                                    onMouseUp={saveSelectionRange}
+                                    onKeyUp={saveSelectionRange}
                                     onInput={(e) =>
                                         handlePageInput(
                                             index,
@@ -967,7 +1243,7 @@ export function RichDocumentEditor({
 
                                 {/* Rodapé com Número da Página Oficial */}
                                 <div
-                                    className="pointer-events-none absolute bottom-2 right-4 text-[10px] text-slate-400"
+                                    className="pointer-events-none absolute right-4 bottom-2 text-[10px] text-slate-400"
                                     aria-hidden="true"
                                 >
                                     Página {pageNumber} de {pages.length}
@@ -981,8 +1257,8 @@ export function RichDocumentEditor({
                                     <div className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                         <Scissors className="h-3 w-3 text-sky-600" />
                                         <span>
-                                            QUEBRA DE PÁGINA • Página {pageNumber}{' '}
-                                            para {pageNumber + 1}
+                                            QUEBRA DE PÁGINA • Página{' '}
+                                            {pageNumber} para {pageNumber + 1}
                                         </span>
                                     </div>
                                     <div className="h-px flex-1 border-t-2 border-dashed border-slate-300 dark:border-slate-700" />

@@ -9,7 +9,7 @@ import type { DynamicField } from '@/types/document';
 import { PreviewText } from './preview-text';
 
 interface DocumentPreviewProps {
-    preview?: string[];
+    preview?: (string | null)[];
     fields: DynamicField[];
     data: Record<string, string>;
     extractedHtml?: string | null;
@@ -58,7 +58,8 @@ function interpolateHtml(
     let result = cleanHtmlWithoutConfig(html);
 
     for (const field of fields) {
-        const val = data[field.slug];
+        const rawValue = data[field.slug];
+        const val = typeof rawValue === 'string' ? rawValue : '';
         const placeholderRegex = new RegExp(`\\{\\{${field.slug}\\}\\}`, 'g');
         if (val !== undefined && val.trim() !== '') {
             result = result.replace(
@@ -82,6 +83,9 @@ export function DocumentPreview({
     data,
     extractedHtml,
 }: DocumentPreviewProps) {
+    const previewParagraphs =
+        preview?.map((paragraph) => paragraph ?? '') ?? [];
+
     if (extractedHtml) {
         const config = parseConfigFromHtml(extractedHtml);
         const { margins, fontFamily, lineHeight } = config;
@@ -116,7 +120,7 @@ export function DocumentPreview({
                 </div>
 
                 {/* Mesa de Trabalho (Desk) com Múltiplas Folhas A4 Independentes */}
-                <div className="flex w-full flex-col items-center gap-8 overflow-x-auto rounded-lg bg-slate-100 p-4 shadow-inner dark:bg-slate-900/60 sm:p-8">
+                <div className="flex w-full flex-col items-center gap-8 overflow-x-auto rounded-lg bg-slate-100 p-4 shadow-inner sm:p-8 dark:bg-slate-900/60">
                     {pages.map((pageHtml, index) => {
                         const pageNumber = index + 1;
                         const isLastPage = index === pages.length - 1;
@@ -155,7 +159,7 @@ export function DocumentPreview({
 
                                     {/* Indicador de página oficial */}
                                     <div
-                                        className="pointer-events-none absolute bottom-2 right-4 text-[10px] text-slate-400"
+                                        className="pointer-events-none absolute right-4 bottom-2 text-[10px] text-slate-400"
                                         aria-hidden="true"
                                     >
                                         Página {pageNumber} de {pages.length}
@@ -187,23 +191,20 @@ export function DocumentPreview({
     return (
         <div className="relative mx-auto w-full max-w-[850px] overflow-hidden rounded-sm border border-border/80 bg-white shadow-xl">
             <div className="min-h-[841px] w-full px-[48px] py-[42px] text-gray-900">
-                {preview?.length ? (
-                    preview.map((paragraph, index) => {
+                {previewParagraphs.length > 0 ? (
+                    previewParagraphs.map((paragraph, index) => {
                         if (paragraph === '') {
                             return <div key={index} className="h-4" />;
                         }
 
-                        const isTitle = index === 0;
                         const isClause = paragraph
                             .trim()
                             .toUpperCase()
                             .startsWith('CLÁUSULA');
 
-                        const className = isTitle
-                            ? 'mb-8 text-center text-base font-bold tracking-wide uppercase'
-                            : isClause
-                              ? 'mt-5 mb-2 text-xs font-bold tracking-wide uppercase'
-                              : 'mb-3 text-justify font-serif text-[12pt] leading-[1.6] text-[#222]';
+                        const className = isClause
+                            ? 'mt-5 mb-2 text-xs font-bold tracking-wide uppercase'
+                            : 'mb-3 text-justify font-serif text-[12pt] leading-[1.6] text-[#222]';
 
                         return (
                             <p key={index} className={className}>

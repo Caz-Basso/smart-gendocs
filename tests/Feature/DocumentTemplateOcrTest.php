@@ -13,7 +13,14 @@ use Mpdf\Mpdf;
 
 it('extracts rich continuous document from digital pdf without ocr', function (): void {
     $digitalMpdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4']);
-    $digitalMpdf->WriteHTML('<h1>Contrato Digital Teste</h1><p>Contratante: {{nome}}</p>');
+    $digitalMpdf->WriteHTML(
+        '<h1>Contrato Digital Teste</h1>'.
+        '<p style="font-size: 12pt;">TODOS OS DOCUMENTOS DEVERAO SER ENTREGUES NO SETOR RESPONSAVEL DENTRO DO PRAZO ESTABELECIDO PELA INSTITUICAO.</p>'.
+        '<p style="font-size: 18pt;">TITULO EM DESTAQUE</p>'.
+        '<p>Contratante: {{nome}}</p>'.
+        '<div style="page-break-after: always;"></div>'.
+        '<p>Conteúdo da segunda página.</p>',
+    );
     $pdfPath = tempnam(sys_get_temp_dir(), 'test_digital_').'.pdf';
     $digitalMpdf->Output($pdfPath, 'F');
 
@@ -25,6 +32,10 @@ it('extracts rich continuous document from digital pdf without ocr', function ()
         ->and($result['isScanned'])->toBeFalse()
         ->and($result['isDocx'])->toBeFalse()
         ->and($result['html'])->toContain('Contrato Digital Teste')
+        ->and($result['html'])->toContain('TITULO EM DESTAQUE')
+        ->and(preg_match('/<h2\b[^>]*>TITULO EM DESTAQUE<\/h2>/', $result['html']))->toBe(1)
+        ->and(preg_match('/<h2\b[^>]*>TODOS OS DOCUMENTOS DEVERAO SER ENTREGUES/', $result['html']))->toBe(0)
+        ->and(preg_match_all('/class=["\'][^"\']*page-break[^"\']*["\']/', $result['html']))->toBe(1)
         ->and($result['fieldsDetected'])->toContain('nome');
 
     @unlink($pdfPath);
