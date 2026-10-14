@@ -39,7 +39,7 @@ export function FieldsPanel({
                 </span>
             </div>
 
-            <div className="-mr-2 max-h-[420px] space-y-3 overflow-y-auto pr-2">
+            <div className="-mr-2 max-h-[750px] space-y-3 overflow-y-auto pr-2">
                 {fields.map((field, index) => (
                     <FieldCard
                         key={field.id}

@@ -76,7 +76,6 @@ interface RichDocumentEditorProps {
 const TOOLBAR_SELECT_CLASS =
     "h-8 min-w-0 rounded-md border border-input bg-transparent px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:bg-background focus:ring-1 focus:ring-ring focus:outline-none cursor-pointer";
 
-// Divisor vertical sutil
 function ToolbarSeparator() {
     return (
         <div

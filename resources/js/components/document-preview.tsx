@@ -65,9 +65,7 @@ export default function DocumentPreview({
                             variant="ghost"
                             size="icon"
                             onClick={nextPage}
-                            disabled={
-                                currentPage >= pageImages.length - 1
-                            }
+                            disabled={currentPage >= pageImages.length - 1}
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -82,9 +80,9 @@ export default function DocumentPreview({
                 )}
             </div>
 
-            <div className="w-full max-w-[850px] overflow-hidden rounded-sm border bg-white shadow-xl">
+            <div className="aspect-[210/297] w-full max-w-[794px] shrink-0 overflow-hidden rounded-sm border bg-white shadow-xl">
                 {loading ? (
-                    <div className="flex min-h-[841px] flex-col items-center justify-center gap-3 text-muted-foreground">
+                    <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
                         <Loader2 className="h-7 w-7 animate-spin" />
 
                         <span className="text-sm">
@@ -99,7 +97,7 @@ export default function DocumentPreview({
                         draggable={false}
                     />
                 ) : templateFile ? (
-                    <div className="min-h-[841px] px-[48px] py-[42px]">
+                    <div className="h-full w-full overflow-hidden px-[48px] py-[42px]">
                         <div
                             ref={editorRef}
                             contentEditable
@@ -109,11 +107,11 @@ export default function DocumentPreview({
                             dangerouslySetInnerHTML={{
                                 __html: documentHtml,
                             }}
-                            className="document-editor min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
+                            className="document-editor min-h-full w-full font-sans text-[13px] leading-[1.7] text-[#333] outline-none"
                         />
                     </div>
                 ) : (
-                    <div className="flex min-h-[841px] flex-col items-center justify-center text-center text-muted-foreground">
+                    <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
                         <FileText className="mb-3 h-12 w-12 opacity-50" />
 
                         <p className="text-sm font-medium">
