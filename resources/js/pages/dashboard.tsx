@@ -165,13 +165,13 @@ export default function Dashboard({
                     </div>
                     <div className="flex shrink-0 justify-end p-6">
                         <Button
-                            type="button"
-                            className="shrink-0 gap-2 bg-emerald-700 text-white hover:bg-emerald-800"
+                            type="submit"
                             onClick={handleDownload}
                             disabled={isGenerating || processing}
+                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold tracking-wider text-white uppercase shadow-sm hover:bg-emerald-800"
                         >
                             <Download className="h-4 w-4" />
-                            {isGenerating ? "Salvando..." : "Salvar e baixar"}
+                            {isGenerating ? "Salvando..." : "Baixar"}
                         </Button>
                     </div>
                 </div>

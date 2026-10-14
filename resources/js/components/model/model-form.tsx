@@ -90,7 +90,6 @@ export function ModelForm({
         setData('fields', fields),
     );
 
-    // ---------- Sincroniza o resultado do loader com o estado do editor ----------
     useEffect(() => {
         if (!loaded) return;
 
@@ -156,7 +155,6 @@ export function ModelForm({
         setPageImages(loaded.pageImages);
         setCurrentPage(0);
 
-        // PDF original já salvo: mantém a estrutura editada do modelo
         if (loaded.source === 'file' || !initialStructure) {
             setDocumentStructure(loaded.structure);
             setData((previous) => ({
@@ -165,10 +163,8 @@ export function ModelForm({
                 extracted_text: pdfDocumentStructureToHtml(loaded.structure),
             }));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loaded]);
 
-    // ---------- Edição de conteúdo ----------
     const updatePdfText = (elementIndex: number, text: string) => {
         if (!documentStructure) return;
 
@@ -217,7 +213,6 @@ export function ModelForm({
         }));
     };
 
-    // ---------- Envio ----------
     const save = () => {
         setIsUpdateOpen(false);
 
@@ -299,7 +294,6 @@ export function ModelForm({
         }
     };
 
-    // ---------- Render ----------
     const showEmpty = !isEdit && !templateFile && !htmlContent;
     const firstError = Object.values(errors).find(Boolean);
 
@@ -331,7 +325,7 @@ export function ModelForm({
                 onSubmit={handleSubmit}
                 className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
             >
-                {/* ---------- Painel esquerdo ---------- */}
+                
                 <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-sm lg:col-span-4">
                     <div className="space-y-5">
                         <div className="flex items-center justify-between">
@@ -419,7 +413,6 @@ export function ModelForm({
                     )}
                 </div>
 
-                {/* ---------- Pré-visualização e Edição Contínua ---------- */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
 
                     <div className="relative mx-auto w-full max-w-[980px]">
