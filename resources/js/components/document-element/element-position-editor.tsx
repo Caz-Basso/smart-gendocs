@@ -367,17 +367,20 @@ export function ElementPositionEditor({
                             <div className="relative">
                                 <Input
                                     id="position_x"
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min={0}
                                     max={210}
                                     step="0.5"
                                     value={values.position_x}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(',', '.');
+                                        const num = parseFloat(value);
                                         onChange({
                                             ...values,
-                                            position_x: Math.max(0, parseFloat(e.target.value) || 0),
-                                        })
-                                    }
+                                            position_x: Math.max(0, isNaN(num) ? 0 : num),
+                                        });
+                                    }}
                                     className="pr-9 font-mono"
                                 />
                                 <span className="absolute right-3 top-2.5 text-xs text-neutral-400 pointer-events-none">
@@ -393,17 +396,20 @@ export function ElementPositionEditor({
                             <div className="relative">
                                 <Input
                                     id="position_y"
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min={0}
                                     max={297}
                                     step="0.5"
                                     value={values.position_y}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(',', '.');
+                                        const num = parseFloat(value);
                                         onChange({
                                             ...values,
-                                            position_y: Math.max(0, parseFloat(e.target.value) || 0),
-                                        })
-                                    }
+                                            position_y: Math.max(0, isNaN(num) ? 0 : num),
+                                        });
+                                    }}
                                     className="pr-9 font-mono"
                                 />
                                 <span className="absolute right-3 top-2.5 text-xs text-neutral-400 pointer-events-none">
@@ -419,17 +425,20 @@ export function ElementPositionEditor({
                             <div className="relative">
                                 <Input
                                     id="width"
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min={5}
                                     max={210}
                                     step="0.5"
                                     value={values.width}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(',', '.');
+                                        const num = parseFloat(value);
                                         onChange({
                                             ...values,
-                                            width: Math.max(5, parseFloat(e.target.value) || 5),
-                                        })
-                                    }
+                                            width: Math.max(5, isNaN(num) ? 5 : num),
+                                        });
+                                    }}
                                     className="pr-9 font-mono"
                                 />
                                 <span className="absolute right-3 top-2.5 text-xs text-neutral-400 pointer-events-none">
@@ -445,17 +454,20 @@ export function ElementPositionEditor({
                             <div className="relative">
                                 <Input
                                     id="height"
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min={5}
                                     max={297}
                                     step="0.5"
                                     value={values.height}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(',', '.');
+                                        const num = parseFloat(value);
                                         onChange({
                                             ...values,
-                                            height: Math.max(5, parseFloat(e.target.value) || 5),
-                                        })
-                                    }
+                                            height: Math.max(5, isNaN(num) ? 5 : num),
+                                        });
+                                    }}
                                     className="pr-9 font-mono"
                                 />
                                 <span className="absolute right-3 top-2.5 text-xs text-neutral-400 pointer-events-none">

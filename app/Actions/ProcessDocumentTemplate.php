@@ -44,7 +44,7 @@ final readonly class ProcessDocumentTemplate
 
         if (! $result->successful()) {
             throw new RuntimeException(
-                'Falha ao processar documento: '.($result->error() ?: $result->output())
+                'Falha ao processar documento: '.($result->errorOutput() ?: $result->output())
             );
         }
 
