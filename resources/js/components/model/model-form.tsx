@@ -22,7 +22,7 @@ import type {
 } from '@/types/model-template';
 import { ConfirmDialog } from './confirm-dialog';
 import { FieldsPanel } from './fields-panel';
-import { RichDocumentEditor } from './rich-document-editor';
+import { RichDocumentEditor } from './rich-document-editor/rich-document-editor';
 import { TemplateDropzone } from './template-dropzone';
 
 interface ModelFormProps {

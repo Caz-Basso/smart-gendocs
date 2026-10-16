@@ -2,7 +2,7 @@ import type { DocumentMargins } from "@/components/model/rich-document-editor";
 
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
-export const MM_TO_PX_96DPI = 96 / 25.4; // ~3.7795 px por mm
+export const MM_TO_PX_96DPI = 96 / 25.4;
 
 export const PAGE_BREAK_REGEX =
     /(?:<hr[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>|<div[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>(?:\s*<\/div>)?|<!--\s*(?:a4-)?page-break\s*-->)/gi;
@@ -44,21 +44,11 @@ export interface PageDimensions {
     usableWidthPx: number;
 }
 
-/**
- * Opções de medição. Devem reproduzir o contexto de estilo em que o HTML
- * é exibido na preview (fonte, tamanho, line-height, classe do conteúdo).
- * `className` deve ser a classe do elemento que contém o conteúdo da página
- * (SEM o padding das margens: a largura útil já é aplicada pela paginação).
- */
 export interface PaginationOptions {
     className?: string;
-    /** Propriedades CSS em kebab-case, ex.: { 'font-family': 'Arial', 'line-height': '1.5' } */
     style?: Record<string, string>;
 }
 
-/**
- * Calcula as dimensões e área útil real da folha A4 com base nas margens
- */
 export function getPageDimensions(margins: DocumentMargins): PageDimensions {
     const usableHeightMm = Math.max(
         50,
@@ -80,25 +70,16 @@ export function getPageDimensions(margins: DocumentMargins): PageDimensions {
     };
 }
 
-/**
- * Extrai a configuração gravada nos comentários do HTML
- */
 export function extractConfigComment(rawHtml: string): string {
     const match = rawHtml.match(/<!--\s*a4-config:\s*[^>]*-->/);
 
     return match ? match[0] : "";
 }
 
-/**
- * Remove comentários de configuração para processar apenas o conteúdo do documento
- */
 export function stripConfigComment(rawHtml: string): string {
     return rawHtml.replace(/<!--\s*a4-config:\s*[^>]*-->\s*/g, "");
 }
 
-/**
- * Divide o HTML em páginas respeitando as quebras de página explícitas
- */
 export function splitHtmlIntoPages(rawHtml: string): string[] {
     const clean = stripConfigComment(rawHtml).trim();
 
@@ -106,7 +87,6 @@ export function splitHtmlIntoPages(rawHtml: string): string[] {
         return [EMPTY_PAGE_HTML];
     }
 
-    // Divide pelas quebras de página explícitas
     const rawPages = clean.split(PAGE_BREAK_REGEX);
 
     const pages = rawPages.map((p) => p.trim()).filter((p) => p.length > 0);
@@ -130,9 +110,6 @@ export function splitHtmlIntoManualSections(rawHtml: string): string[] {
     return sections.length > 0 ? sections : [EMPTY_PAGE_HTML];
 }
 
-/**
- * Une as páginas individuais gerando o HTML consolidado com quebras e metadados
- */
 export function joinPagesIntoHtml(
     pages: string[],
     configComment = "",
@@ -161,10 +138,6 @@ export function joinPagesIntoHtml(
 
     return configComment ? `${configComment}\n${joined}` : joined;
 }
-
-/* -------------------------------------------------------------------------- */
-/*  Paginação automática baseada em medição real do DOM                        */
-/* -------------------------------------------------------------------------- */
 
 const INLINE_TAGS = new Set([
     "a",
@@ -216,15 +189,10 @@ function hasBlockChildren(el: Element): boolean {
     );
 }
 
-/** Elemento cujo conteúdo é só texto/inline: pode ser dividido por palavras. */
 function isTextBlock(el: Element): boolean {
     return !hasBlockChildren(el) && el.tagName.toLowerCase() !== "table";
 }
 
-/**
- * Converte os filhos de um nó em blocos. Sequências de texto/inline soltas
- * são agrupadas em um wrapper de bloco para poderem ser medidas e movidas.
- */
 function toBlocks(parent: Node, runTag: "p" | "span"): Element[] {
     const out: Element[] = [];
     let run: Node[] = [];
@@ -278,10 +246,6 @@ export function countWords(node: Node): number {
     return total;
 }
 
-/**
- * Devolve uma cópia de `root` contendo apenas as palavras [from, to),
- * preservando a marcação inline (strong, span, links...).
- */
 export function sliceWords(root: Element, from: number, to: number): Element {
     let counter = 0;
 
@@ -293,8 +257,7 @@ export function sliceWords(root: Element, from: number, to: number): Element {
                 if (token === "") continue;
 
                 if (/^\s+$/.test(token)) {
-                    // espaço só é mantido depois de uma palavra incluída
-                    if (counter > from && counter <= to) out += token;
+                    if (counter > from && counter < to) out += token;
                     continue;
                 }
 
@@ -311,11 +274,9 @@ export function sliceWords(root: Element, from: number, to: number): Element {
         const clone = el.cloneNode(false) as Element;
         const isVoid = el.childNodes.length === 0;
 
-        // continuação: elementos que reaparecem em outra página não repetem o id
         if (from > 0) clone.removeAttribute("id");
 
         if (isVoid) {
-            // img, br, etc.: pertencem ao trecho em que sua posição cai
             return counter >= from && counter < to ? clone : null;
         }
 
@@ -331,7 +292,6 @@ export function sliceWords(root: Element, from: number, to: number): Element {
         (walk(root) as Element | null) ?? (root.cloneNode(false) as Element);
 
     if (from > 0) {
-        // continuação do mesmo bloco: sem id duplicado, recuo ou marcador de lista
         result.removeAttribute("id");
         (result as HTMLElement).style.textIndent = "0";
 
@@ -343,7 +303,6 @@ export function sliceWords(root: Element, from: number, to: number): Element {
     return result;
 }
 
-/** Maior n em [0, total-1] tal que o trecho [0, n) cabe segundo `fits`. */
 function maxWordsFitting(
     el: Element,
     total: number,
@@ -362,10 +321,6 @@ function maxWordsFitting(
     return lo;
 }
 
-/**
- * Container invisível com a largura útil da página e os mesmos estilos do
- * conteúdo exibido na preview. Mede alturas reais via getBoundingClientRect.
- */
 class Measurer {
     readonly page: HTMLElement;
     private readonly scratch: HTMLElement;
@@ -394,7 +349,7 @@ class Measurer {
 
             box.style.setProperty("width", `${widthPx}px`);
             box.style.setProperty("box-sizing", "content-box");
-            box.style.setProperty("display", "flow-root"); // evita colapso de margem com o container
+            box.style.setProperty("display", "flow-root"); 
             box.style.setProperty("padding", "0");
             box.style.setProperty("margin", "0");
             box.style.setProperty("border", "0");
@@ -424,7 +379,6 @@ class Measurer {
     }
 }
 
-/** Divide um bloco de texto em partes que cabem, cada uma, em uma página vazia. */
 function splitText(el: Element, m: Measurer): Element[] {
     const total = countWords(el);
 
@@ -441,7 +395,6 @@ function splitText(el: Element, m: Measurer): Element[] {
             break;
         }
 
-        // maior n tal que [from, n) cabe sozinho; no mínimo 1 palavra
         let lo = from + 1;
         let hi = total - 1;
 
@@ -459,7 +412,6 @@ function splitText(el: Element, m: Measurer): Element[] {
     return pieces;
 }
 
-/** Divide uma tabela por linhas, repetindo colgroup e thead em cada parte. */
 function splitTable(table: Element, m: Measurer): Element[] {
     const rows = Array.from(
         table.querySelectorAll(":scope > tbody > tr, :scope > tr"),
@@ -479,7 +431,6 @@ function splitTable(table: Element, m: Measurer): Element[] {
 
         if (thead) t.appendChild(thead.cloneNode(true));
 
-        // só a primeira parte mantém o id (evita ids duplicados)
         if (groups.length > 0) {
             t.removeAttribute("id");
             t.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
@@ -511,7 +462,6 @@ function splitTable(table: Element, m: Measurer): Element[] {
     return groups;
 }
 
-/** Divide um container (div, ul, ol, blockquote, li...) agrupando seus filhos. */
 function splitContainer(el: Element, m: Measurer): Element[] {
     const children = toBlocks(el, "span");
     const pieces = children.flatMap((c) =>
@@ -524,7 +474,6 @@ function splitContainer(el: Element, m: Measurer): Element[] {
 
     const makeShell = () => {
         const s = el.cloneNode(false) as HTMLElement;
-        // só o primeiro grupo mantém o id (evita ids duplicados)
         if (groups.length > 0) s.removeAttribute("id");
         if (isOl) s.setAttribute("start", String(baseStart + liSeen));
 
@@ -561,10 +510,6 @@ function splitContainer(el: Element, m: Measurer): Element[] {
     return groups;
 }
 
-/**
- * Quebra um elemento que não cabe sozinho numa página em partes menores.
- * Retorna [el] quando ele não pode ser dividido (ex.: imagem mais alta que a página).
- */
 function explode(el: Element, m: Measurer): Element[] {
     if (el.tagName.toLowerCase() === "table") return splitTable(el, m);
     if (isTextBlock(el)) return splitText(el, m);
@@ -579,7 +524,6 @@ function serializePage(page: HTMLElement): string {
         .replace(new RegExp(`\\s${RUN_ATTR}=""`, "g"), "");
 }
 
-/** Pagina o conteúdo de UMA página delimitada por quebras explícitas. */
 function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
     const parsed = new DOMParser().parseFromString(pageHtml, "text/html");
     const blocks = toBlocks(parsed.body, "p");
@@ -596,14 +540,12 @@ function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
     };
 
     const place = (el: Element): void => {
-        // 1) Se o bloco inteiro cabe, mantém na página atual
         page.appendChild(el);
 
         if (m.fits(page)) return;
 
         el.remove();
 
-        // 2) Se for texto, aproveita o espaço restante dividindo por palavras
         const total = isTextBlock(el) ? countWords(el) : 0;
 
         if (total > 1 && page.childNodes.length > 0) {
@@ -622,8 +564,6 @@ function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
             }
         }
 
-        // 3) Tenta dividir listas, contêineres e tabelas antes de
-        // transferir o bloco inteiro para a próxima página.
         const pieces = explode(el, m);
 
         if (pieces.length > 1) {
@@ -631,8 +571,6 @@ function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
             return;
         }
 
-        // 4) Se não for possível dividir para aproveitar o espaço atual,
-        // começa uma nova página.
         if (page.childNodes.length > 0) {
             flush();
 
@@ -643,7 +581,6 @@ function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
             el.remove();
         }
 
-        // 5) Se o bloco excede uma página vazia, tenta dividi-lo.
         const overflowPieces = explode(el, m);
 
         if (overflowPieces.length > 1) {
@@ -651,7 +588,6 @@ function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
             return;
         }
 
-        // 6) Conteúdo indivisível: mantém em uma página própria.
         page.appendChild(el);
         flush();
     };
@@ -662,10 +598,6 @@ function paginateExplicitPage(pageHtml: string, m: Measurer): string[] {
     return pages.length > 0 ? pages : [pageHtml];
 }
 
-/**
- * Divide, via medição real do DOM, uma página que excede a altura útil da folha A4.
- * Sem DOM (SSR) devolve a página inalterada.
- */
 export function autoPaginateExceededPage(
     pageHtml: string,
     margins: DocumentMargins,
@@ -683,12 +615,6 @@ export function autoPaginateExceededPage(
     }
 }
 
-/**
- * Pagina integralmente um documento (única fonte de verdade das páginas):
- * 1. Respeita as quebras explícitas manuais (sempre iniciam nova página)
- * 2. Distribui continuamente o conteúdo pela altura REAL medida no navegador,
- *    permitindo fluxo bidirecional e adaptando-se a fontes, entrelinhas e margens.
- */
 export function paginateDocument(
     rawHtml: string,
     margins: DocumentMargins,
@@ -715,11 +641,6 @@ export function paginateDocument(
     }
 }
 
-/**
- * Aguarda fontes e imagens do HTML carregarem (com timeout) para que a medição
- * não use alturas de imagens/fontes ainda não carregadas. Depois, chame
- * paginateDocument de novo (ver DocumentPreview).
- */
 export async function waitForLayoutAssets(
     html: string,
     timeoutMs = 3000,
