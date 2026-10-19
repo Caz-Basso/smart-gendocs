@@ -1,4 +1,4 @@
-import type { DocumentMargins } from "@/components/model/rich-document-editor";
+import { DocumentMargins } from "@/components/model/rich-document-editor/utils/editor-config";
 
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
@@ -193,6 +193,7 @@ function isTextBlock(el: Element): boolean {
     return !hasBlockChildren(el) && el.tagName.toLowerCase() !== "table";
 }
 
+
 function toBlocks(parent: Node, runTag: "p" | "span"): Element[] {
     const out: Element[] = [];
     let run: Node[] = [];
@@ -208,7 +209,9 @@ function toBlocks(parent: Node, runTag: "p" | "span"): Element[] {
             const wrapper = document.createElement(runTag);
             wrapper.setAttribute(RUN_ATTR, "");
 
-            if (runTag === "span") wrapper.style.display = "block";
+            if (runTag === "span") {
+                wrapper.style.display = "block";
+            }
 
             run.forEach((n) => wrapper.appendChild(n.cloneNode(true)));
             out.push(wrapper);
