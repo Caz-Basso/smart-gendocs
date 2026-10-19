@@ -14,7 +14,7 @@ enum FieldType: string
 
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::TEXT => 'Texto',
             self::TEXTAREA => 'Texto longo',
             self::NUMBER => 'Número',

@@ -36,6 +36,7 @@ export interface DocumentModel {
     fields: DynamicField[];
     defaultData?: Record<string, string>;
     preview?: string[];
+    extracted_text?: string | null;
 }
 
 const option = (value: string, label: string): FieldOption => ({

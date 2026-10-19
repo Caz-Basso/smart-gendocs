@@ -46,6 +46,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/', [ModelRegistrationController::class, 'store'])
             ->middleware('role_or_permission:admin|super-admin')
             ->name('models.store');
+        Route::post('/analisar', [ModelRegistrationController::class, 'analyze'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.analyze');
         Route::post('/gerar', [ModelRegistrationController::class, 'generate'])
             ->middleware('role_or_permission:user|admin|super-admin')
             ->name('documents.generate');

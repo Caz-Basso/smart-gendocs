@@ -1,26 +1,26 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { Download, Plus, Users } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { DocumentPreview } from '@/components/document/document-preview';
-import { DynamicFieldInput } from '@/components/document/dynamic-field-input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { DocumentModel } from '@/types/document';
+import { Head, Link, useForm, usePage } from "@inertiajs/react";
+import { Download, Plus, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { DocumentPreview } from "@/components/document/document-preview";
+import { DynamicFieldInput } from "@/components/document/dynamic-field-input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { DocumentModel } from "@/types/document";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select';
-import { useGenerateDocument } from '@/hooks/use-generate-document';
-import AppLayout from '@/layouts/app-layout';
-import { getInitialData, groupFieldsBySection } from '@/lib/document-fields';
-import { dashboard, model_registration } from '@/routes';
-import type { BreadcrumbItem } from '@/types';
+} from "@/components/ui/select";
+import { useGenerateDocument } from "@/hooks/use-generate-document";
+import AppLayout from "@/layouts/app-layout";
+import { getInitialData, groupFieldsBySection } from "@/lib/document-fields";
+import { dashboard, model_registration } from "@/routes";
+import type { BreadcrumbItem } from "@/types";
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Gerador de Documentos', href: dashboard() },
+    { title: "Gerador de Documentos", href: dashboard() },
 ];
 
 interface DashboardProps {
@@ -37,7 +37,7 @@ export default function Dashboard({
     const models = customModels;
 
     const [selectedModelId, setSelectedModelId] = useState<string>(
-        models[0]?.id ?? '',
+        models[0]?.id ?? "",
     );
 
     const selectedModel = useMemo(
@@ -89,7 +89,7 @@ export default function Dashboard({
 
                             <div className="flex w-full min-w-0 items-center gap-2">
                                 <Select
-                                    value={selectedModel?.id ?? ''}
+                                    value={selectedModel?.id ?? ""}
                                     onValueChange={setSelectedModelId}
                                 >
                                     <SelectTrigger
@@ -152,7 +152,7 @@ export default function Dashboard({
                                             <DynamicFieldInput
                                                 key={field.id}
                                                 field={field}
-                                                value={data[field.slug] ?? ''}
+                                                value={data[field.slug] ?? ""}
                                                 onChange={(value) =>
                                                     setData(field.slug, value)
                                                 }
@@ -163,28 +163,24 @@ export default function Dashboard({
                             ))
                         )}
                     </div>
+                    <div className="flex shrink-0 justify-end p-6">
+                        <Button
+                            type="submit"
+                            onClick={handleDownload}
+                            disabled={isGenerating || processing}
+                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold tracking-wider text-white uppercase shadow-sm hover:bg-emerald-800"
+                        >
+                            <Download className="h-4 w-4" />
+                            {isGenerating ? "Salvando..." : "Baixar"}
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[900px] items-center justify-between gap-4">
-                        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                            Pré-visualização do Documento
-                        </span>
-
-                        <Button
-                            type="button"
-                            className="shrink-0 gap-2 bg-emerald-700 text-white hover:bg-emerald-800"
-                            onClick={handleDownload}
-                            disabled={isGenerating || processing}
-                        >
-                            <Download className="h-4 w-4" />
-                            {isGenerating ? 'Salvando...' : 'Salvar e baixar'}
-                        </Button>
-                    </div>
-
-                    <div className="relative w-full max-w-[900px]">
+                    <div className="relative w-full max-w-[980px]">
                         <DocumentPreview
                             preview={selectedModel?.preview}
+                            extractedHtml={selectedModel?.extracted_text}
                             fields={selectedModel?.fields ?? []}
                             data={data}
                         />
