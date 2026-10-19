@@ -48,6 +48,16 @@ final class StoreModelRequest extends FormRequest
             'document_structure.pages.*.elements.*.fontSize' => 'required|numeric|min:1|max:200',
             'document_structure.pages.*.elements.*.text' => 'nullable|string|max:10000',
             'document_structure.pages.*.elements.*.originalText' => 'nullable|string|max:10000',
+            'elements' => ['nullable', 'array'],
+            'elements.*.element_id' => ['required', 'string', 'exists:document_elements,id'],
+            'elements.*.position_x' => ['nullable', 'numeric', 'min:0', 'max:210'],
+            'elements.*.position_y' => ['nullable', 'numeric', 'min:0', 'max:297'],
+            'elements.*.width' => ['nullable', 'numeric', 'min:5', 'max:210'],
+            'elements.*.height' => ['nullable', 'numeric', 'min:5', 'max:297'],
+            'elements.*.repeat_all_pages' => ['nullable', 'boolean'],
+            'elements.*.pages' => ['nullable', 'array'],
+            'elements.*.pages.*' => ['integer', 'min:1'],
+            'elements.*.z_index' => ['nullable', 'integer'],
         ];
     }
 

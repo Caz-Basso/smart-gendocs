@@ -1,4 +1,5 @@
 import type { PdfDocumentStructure } from '@/lib/pdf-document';
+import type { ModelElementAttachment } from './document-element';
 
 export interface FieldItem {
     id: string;
@@ -18,6 +19,8 @@ export interface ModelData {
     fields: FieldItem[];
     extracted_text: string | null;
     document_structure: PdfDocumentStructure | null;
+    elements?: ModelElementAttachment[];
+    model_elements?: any[];
 }
 
 // `type` (e não `interface`) para ser compatível com o generic do useForm.
@@ -27,4 +30,5 @@ export type ModelFormData = {
     fields: FieldItem[];
     extracted_text: string;
     document_structure: PdfDocumentStructure | null;
+    elements?: ModelElementAttachment[];
 };

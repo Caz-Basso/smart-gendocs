@@ -26,6 +26,7 @@ export function DocumentPage({
     setPages,
     onDragOver,
     onDrop,
+    elements = [],
 }: DocumentPageProps) {
     return (
         <div className="relative flex w-full flex-col items-center gap-8 pb-4">
@@ -118,6 +119,39 @@ export function DocumentPage({
                                     title={`Área Útil: ${(dimensions.usableWidthMm / 10).toFixed(1)} × ${(dimensions.usableHeightMm / 10).toFixed(1)} cm`}
                                 />
                             )}
+
+                            {/* Elementos Visuais Fixos (Cabeçalhos / Rodapés) */}
+                            {elements.map((el, elIdx) => {
+                                const appliesToThisPage =
+                                    el.repeat_all_pages ||
+                                    (el.pages && el.pages.includes(pageNumber));
+                                const imageUrl = el.image_url || el.element?.image_url;
+                                if (!appliesToThisPage || !imageUrl) {
+                                    return null;
+                                }
+
+                                return (
+                                    <div
+                                        key={el._instanceKey || el.id || el.element_id || elIdx}
+                                        className="pointer-events-none absolute select-none"
+                                        style={{
+                                            left: `${el.position_x ?? 0}mm`,
+                                            top: `${el.position_y ?? 0}mm`,
+                                            width: `${el.width ?? 210}mm`,
+                                            height: `${el.height ?? 35}mm`,
+                                            zIndex: el.z_index ?? 10,
+                                        }}
+                                        title={`${el.name || "Elemento"} (${el.type})`}
+                                    >
+                                        <img
+                                            src={imageUrl}
+                                            alt={el.name || "Elemento"}
+                                            className="h-full w-full object-contain"
+                                            draggable={false}
+                                        />
+                                    </div>
+                                );
+                            })}
 
                             <div
                                 ref={(el) => {

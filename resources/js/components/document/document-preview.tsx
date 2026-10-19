@@ -6,15 +6,17 @@ import {
     getPageDimensions,
     paginateDocument,
     waitForLayoutAssets,
-} from "@/lib/document-pagination";
-import type { DynamicField } from "@/types/document";
-import { PreviewText } from "./preview-text";
+} from '@/lib/document-pagination';
+import type { DynamicField } from '@/types/document';
+import type { ModelElementAttachment } from '@/types/document-element';
+import { PreviewText } from './preview-text';
 
 interface DocumentPreviewProps {
     preview?: string[];
     fields: DynamicField[];
     data: Record<string, string>;
     extractedHtml?: string | null;
+    elements?: ModelElementAttachment[];
 }
 
 function parseConfigFromHtml(rawHtml: string) {
@@ -83,6 +85,7 @@ export function DocumentPreview({
     fields,
     data,
     extractedHtml,
+    elements = [],
 }: DocumentPreviewProps) {
     const [currentPage, setCurrentPage] = useState(0);
     const [layoutVersion, setLayoutVersion] = useState(0);
@@ -205,6 +208,38 @@ export function DocumentPreview({
                             position: "relative",
                         }}
                     >
+                        {/* Elementos Visuais Fixos (Cabeçalhos / Rodapés) */}
+                        {elements.map((el, elIdx) => {
+                            const appliesToThisPage =
+                                el.repeat_all_pages ||
+                                (el.pages && el.pages.includes(currentPage + 1));
+                            if (!appliesToThisPage || !el.image_url) {
+                                return null;
+                            }
+
+                            return (
+                                <div
+                                    key={el.id || el.element_id || elIdx}
+                                    className="pointer-events-none absolute select-none"
+                                    style={{
+                                        left: `${el.position_x ?? 0}mm`,
+                                        top: `${el.position_y ?? 0}mm`,
+                                        width: `${el.width ?? 210}mm`,
+                                        height: `${el.height ?? 35}mm`,
+                                        zIndex: el.z_index ?? 10,
+                                    }}
+                                    title={`${el.name || 'Elemento'} (${el.type})`}
+                                >
+                                    <img
+                                        src={el.image_url}
+                                        alt={el.name || 'Elemento'}
+                                        className="h-full w-full object-contain"
+                                        draggable={false}
+                                    />
+                                </div>
+                            );
+                        })}
+
                         <div
                             dangerouslySetInnerHTML={{
                                 __html: pages[currentPage],

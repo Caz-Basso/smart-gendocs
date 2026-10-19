@@ -54,6 +54,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             ->name('documents.generate');
     });
 
+    Route::prefix('elementos')->name('document-elements.')->middleware('role_or_permission:admin|super-admin')->group(function (): void {
+        Route::get('/', [\App\Http\Controllers\DocumentElementController::class, 'index'])->name('index');
+        Route::get('/cadastro', [\App\Http\Controllers\DocumentElementController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\DocumentElementController::class, 'store'])->name('store');
+        Route::get('/{element}/editar', [\App\Http\Controllers\DocumentElementController::class, 'edit'])->name('edit');
+        Route::match(['put', 'post'], '/{element}', [\App\Http\Controllers\DocumentElementController::class, 'update'])->name('update');
+        Route::delete('/{element}', [\App\Http\Controllers\DocumentElementController::class, 'destroy'])->name('destroy');
+        Route::patch('/{element}/toggle-ativo', [\App\Http\Controllers\DocumentElementController::class, 'toggleActive'])->name('toggle-active');
+    });
+
     Route::prefix('documentos')->name('documents.')->middleware('role_or_permission:user|admin|super-admin')->group(function (): void {
         Route::get('/', [GeneratedDocumentController::class, 'index'])->name('index');
         Route::get('/{document}/editar', [GeneratedDocumentController::class, 'edit'])->name('edit');

@@ -8,9 +8,12 @@ use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Actions\GenerateSampleDocumentAction;
 use App\Actions\StoreGeneratedDocumentAction;
+use App\Actions\SyncModelElements;
 use App\Enums\FieldType;
 use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
+use App\Models\DocumentElement;
+use App\Models\DocumentModel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 final class ModelRegistrationController
 {
@@ -25,9 +29,9 @@ final class ModelRegistrationController
     {
         // Se for admin, mostra todos os modelos. Se for user, mostra apenas os próprios
         if (Auth::user()->hasRole('admin') || Auth::user()->hasRole('super-admin')) {
-            $documentModels = \App\Models\DocumentModel::latest()->get();
+            $documentModels = DocumentModel::with(['modelElements.documentElement'])->latest()->get();
         } else {
-            $documentModels = \App\Models\DocumentModel::where('user_id', Auth::id())
+            $documentModels = DocumentModel::with(['modelElements.documentElement'])->where('user_id', Auth::id())
                 ->latest()
                 ->get();
         }
@@ -67,6 +71,22 @@ final class ModelRegistrationController
                 'fields' => $fields,
                 'preview' => $preview,
                 'extracted_text' => $model->extracted_text,
+                'elements' => $model->modelElements->map(function ($me) {
+                    return [
+                        'id' => $me->id,
+                        'element_id' => $me->document_element_id,
+                        'name' => $me->documentElement?->name,
+                        'type' => $me->documentElement?->type->value,
+                        'image_url' => $me->documentElement?->image_url,
+                        'position_x' => $me->getEffectivePositionX(),
+                        'position_y' => $me->getEffectivePositionY(),
+                        'width' => $me->getEffectiveWidth(),
+                        'height' => $me->getEffectiveHeight(),
+                        'repeat_all_pages' => $me->repeat_all_pages,
+                        'pages' => $me->pages,
+                        'z_index' => $me->z_index,
+                    ];
+                })->toArray(),
             ];
         });
 
@@ -79,10 +99,7 @@ final class ModelRegistrationController
 
     public function index(): Response
     {
-        $models = \App\Models\DocumentModel::where('user_id', Auth::id())
-            ->latest()
-            ->get();
-        $query = \App\Models\DocumentModel::with('user')->latest();
+        $query = DocumentModel::with('user')->latest();
 
         if (! Auth::user()->hasRole('admin') && ! Auth::user()->hasRole('super-admin')) {
             $query->where('user_id', Auth::id());
@@ -102,8 +119,14 @@ final class ModelRegistrationController
             'label' => $type->label(),
         ], FieldType::cases());
 
+        $availableElements = DocumentElement::where('is_active', true)
+            ->orderBy('type')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('model-registration', [
             'fieldTypeOptions' => $fieldTypeOptions,
+            'availableElements' => $availableElements,
         ]);
     }
 
@@ -123,26 +146,41 @@ final class ModelRegistrationController
             'template' => 'required|file|mimes:pdf,docx|max:10240',
         ]);
 
-        $result = $processDocument->handle($validated['template']);
+        try {
+            $result = $processDocument->handle($validated['template']);
 
-        return response()->json([
-            'kind' => 'rich_document',
-            'html' => $result['html'],
-            'fieldsDetected' => $result['fieldsDetected'] ?? [],
-            'documentType' => $result['documentType'] ?? 'document',
-            'isScanned' => $result['isScanned'] ?? false,
-            'isDocx' => $result['isDocx'] ?? false,
-        ]);
+            return response()->json([
+                'kind' => 'rich_document',
+                'html' => $result['html'],
+                'fieldsDetected' => $result['fieldsDetected'] ?? [],
+                'documentType' => $result['documentType'] ?? 'document',
+                'isScanned' => $result['isScanned'] ?? false,
+                'isDocx' => $result['isDocx'] ?? false,
+                'wasConvertedFromPdf' => $result['wasConvertedFromPdf'] ?? false,
+                'headersFootersIgnored' => $result['headersFootersIgnored'] ?? false,
+                'headersFootersCount' => $result['headersFootersCount'] ?? 0,
+                'warnings' => $result['warnings'] ?? [],
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     public function edit(string $id): Response
     {
-        $model = \App\Models\DocumentModel::findOrFail($id);
+        $model = DocumentModel::with(['modelElements.documentElement'])->findOrFail($id);
 
         $fieldTypeOptions = array_map(fn ($type) => [
             'value' => $type->value,
             'label' => $type->label(),
         ], FieldType::cases());
+
+        $availableElements = DocumentElement::where('is_active', true)
+            ->orderBy('type')
+            ->orderBy('name')
+            ->get();
 
         $hasConvertedPdf = $model->template_path !== null
             && str_ends_with(mb_strtolower($model->template_path), '.docx')
@@ -161,19 +199,57 @@ final class ModelRegistrationController
             'templateIsPdf' => $model->template_path !== null
                 && (str_ends_with(mb_strtolower($model->template_path), '.pdf') || $hasConvertedPdf),
             'fieldTypeOptions' => $fieldTypeOptions,
+            'availableElements' => $availableElements,
         ]);
     }
 
-    public function update(StoreModelRequest $request, string $id): RedirectResponse
-    {
-        $model = \App\Models\DocumentModel::findOrFail($id);
+    public function update(
+        StoreModelRequest $request,
+        string $id,
+        SyncModelElements $syncModelElements,
+        \App\Actions\ConvertPdfToDocx $convertPdfToDocx,
+    ): RedirectResponse {
+        $model = DocumentModel::findOrFail($id);
 
-        // Handle update logic here if needed, for now just update basic fields
         $data = $request->validated();
         $templatePath = $model->template_path;
 
         if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
             $templatePath = $data['template']->store('templates', 'public');
+
+            if (str_ends_with(mb_strtolower($templatePath), '.pdf')) {
+                $fullPath = Storage::disk('public')->path($templatePath);
+                $conversion = $convertPdfToDocx->handle($fullPath);
+                $docxFullPath = $conversion['docxPath'];
+
+                $relativeDocx = 'templates/'.pathinfo($templatePath, PATHINFO_FILENAME).'.docx';
+                Storage::disk('public')->put($relativeDocx, file_get_contents($docxFullPath));
+
+                $targetConverted = Storage::disk('public')->path($relativeDocx).'.converted.pdf';
+                copy($fullPath, $targetConverted);
+
+                Storage::disk('public')->delete($templatePath);
+                @unlink($docxFullPath);
+
+                $templatePath = $relativeDocx;
+            } elseif (str_ends_with(mb_strtolower($templatePath), '.docx')) {
+                $fullPath = Storage::disk('public')->path($templatePath);
+                $outputDir = dirname($fullPath);
+                \Illuminate\Support\Facades\Process::timeout(120)->run([
+                    'libreoffice',
+                    '--headless',
+                    '--convert-to',
+                    'pdf',
+                    '--outdir',
+                    $outputDir,
+                    $fullPath,
+                ]);
+                $defaultConverted = $outputDir.'/'.pathinfo($fullPath, PATHINFO_FILENAME).'.pdf';
+                $targetConverted = $fullPath.'.converted.pdf';
+                if (is_file($defaultConverted) && $defaultConverted !== $targetConverted) {
+                    rename($defaultConverted, $targetConverted);
+                }
+            }
         }
 
         $model->update([
@@ -186,13 +262,17 @@ final class ModelRegistrationController
             'fields' => $data['fields'],
         ]);
 
+        if (array_key_exists('elements', $data)) {
+            $syncModelElements->handle($model, $data['elements'] ?? []);
+        }
+
         return redirect()->route('models.index')
             ->with('success', 'Modelo atualizado com sucesso!');
     }
 
     public function destroy(string $id): RedirectResponse
     {
-        $model = \App\Models\DocumentModel::findOrFail($id);
+        $model = DocumentModel::findOrFail($id);
         $templatePath = $model->template_path;
 
         $model->delete();
@@ -215,7 +295,7 @@ final class ModelRegistrationController
         $model = null;
 
         if (Str::isUuid($modelId)) {
-            $model = \App\Models\DocumentModel::findOrFail($modelId);
+            $model = DocumentModel::findOrFail($modelId);
             $pdfContent = $generateDocument->handle($modelId, $data['data']);
             $fields = $model->fields ?? [];
         } else {

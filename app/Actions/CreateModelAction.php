@@ -10,6 +10,11 @@ use Illuminate\Support\Str;
 
 final readonly class CreateModelAction
 {
+    public function __construct(
+        private SyncModelElements $syncModelElements = new SyncModelElements(),
+        private ConvertPdfToDocx $convertPdfToDocx = new ConvertPdfToDocx(),
+    ) {}
+
     public function handle(array $data, string $userId): DocumentModel
     {
         return DB::transaction(function () use ($data, $userId) {
@@ -18,7 +23,22 @@ final readonly class CreateModelAction
             if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
                 $templatePath = $data['template']->store('templates', 'public');
 
-                if (str_ends_with(mb_strtolower($templatePath), '.docx')) {
+                if (str_ends_with(mb_strtolower($templatePath), '.pdf')) {
+                    $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($templatePath);
+                    $conversion = $this->convertPdfToDocx->handle($fullPath);
+                    $docxFullPath = $conversion['docxPath'];
+
+                    $relativeDocx = 'templates/'.pathinfo($templatePath, PATHINFO_FILENAME).'.docx';
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($relativeDocx, file_get_contents($docxFullPath));
+
+                    $targetConverted = \Illuminate\Support\Facades\Storage::disk('public')->path($relativeDocx).'.converted.pdf';
+                    copy($fullPath, $targetConverted);
+
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($templatePath);
+                    @unlink($docxFullPath);
+
+                    $templatePath = $relativeDocx;
+                } elseif (str_ends_with(mb_strtolower($templatePath), '.docx')) {
                     $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($templatePath);
                     $outputDir = dirname($fullPath);
                     \Illuminate\Support\Facades\Process::timeout(120)->run([
@@ -38,7 +58,7 @@ final readonly class CreateModelAction
                 }
             }
 
-            return DocumentModel::create([
+            $model = DocumentModel::create([
                 'id' => Str::uuid(),
                 'name' => $data['name'],
                 'template_path' => $templatePath,
@@ -47,6 +67,12 @@ final readonly class CreateModelAction
                 'fields' => $data['fields'],
                 'user_id' => $userId,
             ]);
+
+            if (! empty($data['elements']) && is_array($data['elements'])) {
+                $this->syncModelElements->handle($model, $data['elements']);
+            }
+
+            return $model;
         });
     }
 }
