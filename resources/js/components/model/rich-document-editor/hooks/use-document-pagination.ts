@@ -53,6 +53,16 @@ export function useDocumentPagination({
                     : null;
 
             const touched = new Set<number>([startIndex]);
+
+            const syncTouched = () => {
+                const next = [...pagesRef.current];
+                touched.forEach((idx) => {
+                    const n = pageRefs.current[idx];
+                    if (n) next[idx] = n.innerHTML;
+                });
+                pagesRef.current = next;
+            };
+
             let i = startIndex;
             let guard = 0;
 
@@ -78,6 +88,25 @@ export function useDocumentPagination({
                 touched.add(i + 1);
                 if (!moved) break;
                 i++;
+                if (
+                    isBlankPage(nextEl) &&
+                    !nextEl.hasAttribute("data-manual-page") &&
+                    pagesRef.current.length > 1
+                ) {
+                    syncTouched();
+                    pagesRef.current.splice(i + 1, 1);
+                    pageRefs.current.splice(i + 1, 1);
+                    [...touched].forEach((idx) => {
+                        if (idx > i) touched.delete(idx);
+                    });
+                    flushSync(() => {
+                        setPages([...pagesRef.current]);
+                    });
+                    setActivePageIndex((prev) =>
+                        Math.min(prev, pagesRef.current.length - 1),
+                    );
+                    continue;
+                }
             }
 
             i = startIndex;

@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { wrapRangeWithStyle } from "../utils/inline-style";
 
 interface UseEditorFormattingOptions {
     pageRefs: { current: (HTMLDivElement | null)[] };
@@ -125,13 +126,17 @@ export function useEditorFormatting({
             span.style.setProperty(cssProperty, value);
 
             try {
-                const contents = range.extractContents();
-                span.appendChild(contents);
-                range.insertNode(span);
+                const wrapped = wrapRangeWithStyle(
+                    activeNode,
+                    range,
+                    cssProperty,
+                    value,
+                );
+                if (wrapped.length === 0) return;
 
                 const newRange = document.createRange();
-                newRange.selectNodeContents(span);
-
+                newRange.setStartBefore(wrapped[0]);
+                newRange.setEndAfter(wrapped[wrapped.length - 1]);
                 selection.removeAllRanges();
                 selection.addRange(newRange);
 
