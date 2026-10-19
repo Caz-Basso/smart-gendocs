@@ -1,4 +1,4 @@
-import type { DragEvent, RefObject } from 'react';
+import type { DragEvent } from 'react';
 
 function getCaretRange(event: DragEvent<HTMLElement>): Range | null {
     const { clientX, clientY } = event;
@@ -13,7 +13,6 @@ function getCaretRange(event: DragEvent<HTMLElement>): Range | null {
         if (!position) return null;
 
         const range = document.createRange();
-
         range.setStart(position.offsetNode, position.offset);
         range.collapse(true);
 
@@ -23,16 +22,13 @@ function getCaretRange(event: DragEvent<HTMLElement>): Range | null {
     return null;
 }
 
-/**
- * Arrastar `{{tag}}` do painel de campos para dentro do editor.
- * `onInserted` recebe o nó de texto criado, para a página decidir
- * o que sincronizar (HTML do editor ou estrutura do PDF).
- */
 export function useTagDrop(
-    editorRef: RefObject<HTMLDivElement | null>,
     onInserted: (node: Text) => void,
 ) {
-    const handleDragStart = (event: DragEvent<HTMLElement>, slug: string) => {
+    const handleDragStart = (
+        event: DragEvent<HTMLElement>,
+        slug: string,
+    ) => {
         if (!slug) return;
 
         event.dataTransfer.setData('text/plain', `{{${slug}}}`);
@@ -47,14 +43,16 @@ export function useTagDrop(
     const handleDrop = (event: DragEvent<HTMLElement>) => {
         event.preventDefault();
 
-        const editor = editorRef.current;
+        const editor = event.currentTarget;
         const text = event.dataTransfer.getData('text/plain');
 
-        if (!editor || !text) return;
+        if (!text || !editor.isContentEditable) return;
 
         const range = getCaretRange(event);
 
-        if (!range || !editor.contains(range.commonAncestorContainer)) return;
+        if (!range || !editor.contains(range.commonAncestorContainer)) {
+            return;
+        }
 
         const node = document.createTextNode(text);
 
@@ -62,16 +60,20 @@ export function useTagDrop(
         range.insertNode(node);
 
         const cursor = document.createRange();
-
         cursor.setStartAfter(node);
         cursor.collapse(true);
 
         const selection = window.getSelection();
-
         selection?.removeAllRanges();
         selection?.addRange(cursor);
 
+        // Atualiza a estrutura do PDF, quando aplicável.
         onInserted(node);
+
+        // Notifica o editor para sincronizar o HTML e a paginação.
+        editor.dispatchEvent(
+            new Event('input', { bubbles: true }),
+        );
     };
 
     return { handleDragStart, handleDragOver, handleDrop };

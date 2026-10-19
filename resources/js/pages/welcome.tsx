@@ -127,47 +127,6 @@ export default function Welcome({
                             )}
                         </div>
                     </section>
-
-                    <section className="mx-auto mt-16 w-full max-w-5xl">
-                        <div className="mb-6 text-center">
-                            <h2 className="text-sm font-semibold">
-                                Como funciona
-                            </h2>
-
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                Um fluxo simples para gerar seus documentos.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            {steps.map(
-                                ({ icon: Icon, title, text }, index) => (
-                                    <div
-                                        key={title}
-                                        className="rounded-lg border border-border bg-card p-5 shadow-sm"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
-                                                <span className="text-xs font-semibold text-muted-foreground">
-                                                    {index + 1}
-                                                </span>
-                                            </div>
-
-                                            <Icon className="h-4 w-4 text-muted-foreground" />
-                                        </div>
-
-                                        <h3 className="mt-4 text-sm font-semibold">
-                                            {title}
-                                        </h3>
-
-                                        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                                            {text}
-                                        </p>
-                                    </div>
-                                ),
-                            )}
-                        </div>
-                    </section>
                 </main>
             </div>
         </>

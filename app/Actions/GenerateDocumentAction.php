@@ -37,6 +37,8 @@ final readonly class GenerateDocumentAction
         $marginLeft = 30;
         $marginRight = 20;
         $marginBottom = 20;
+        $fontFamily = "'Times New Roman', Times, serif";
+        $lineHeight = '1.5';
 
         if (preg_match('/<!--\s*a4-config:\s*([^>]+)\s*-->/', $content, $matches)) {
             if (preg_match('/top=(\d+)/', $matches[1], $topMatch)) {
@@ -51,7 +53,16 @@ final readonly class GenerateDocumentAction
             if (preg_match('/bottom=(\d+)/', $matches[1], $bottomMatch)) {
                 $marginBottom = (int) $bottomMatch[1];
             }
+            if (preg_match('/font="([^"]+)"/', $matches[1], $fontMatch)) {
+                $fontFamily = $fontMatch[1];
+            }
+            if (preg_match('/lineHeight=([0-9.]+)/', $matches[1], $lhMatch)) {
+                $lineHeight = $lhMatch[1];
+            }
         }
+
+        // Remover quebras <hr> legadas que duplicam a quebra da <div class="page-break">
+        $cleanContent = preg_replace('/<hr[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>/i', '', $content);
 
         // Criar PDF com mPDF suportando estilos de documento oficial/jurídico, tabelas, imagens e reflow
         $mpdf = new Mpdf([
@@ -66,14 +77,14 @@ final readonly class GenerateDocumentAction
         $styledHtml = '
         <style>
             body {
-                font-family: "DejaVu Serif", "Times New Roman", Times, Georgia, serif;
+                font-family: '.$fontFamily.', "Times New Roman", Times, Georgia, serif;
                 font-size: 12pt;
                 color: #111827;
-                line-height: 1.5;
+                line-height: '.$lineHeight.';
             }
             h1, h2, h3 {
                 color: #0f172a;
-                font-family: "DejaVu Serif", "Times New Roman", serif;
+                font-family: '.$fontFamily.', "Times New Roman", serif;
                 margin-top: 14pt;
                 margin-bottom: 8pt;
             }
@@ -81,9 +92,10 @@ final readonly class GenerateDocumentAction
             h2 { font-size: 14pt; }
             h3 { font-size: 12pt; font-weight: bold; }
             p {
-                margin-bottom: 6pt;
+                margin-top: 4.5pt;
+                margin-bottom: 4.5pt;
                 text-align: justify;
-                line-height: 1.5;
+                line-height: '.$lineHeight.';
             }
             table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 10pt; }
             td, th { border: 1px solid #94a3b8; padding: 6pt 8pt; vertical-align: top; }
@@ -93,7 +105,7 @@ final readonly class GenerateDocumentAction
             .document-footer { margin-top: 20pt; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
             .citation-long { margin-left: 4.0cm; font-size: 10pt; line-height: 1.0; text-align: justify; margin-top: 8pt; margin-bottom: 8pt; }
         </style>
-        '.$content;
+        '.$cleanContent;
 
         $mpdf->WriteHTML($styledHtml);
 

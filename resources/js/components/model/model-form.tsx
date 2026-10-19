@@ -32,7 +32,6 @@ import {
     sanitizePdfDocumentStructure,
     type PdfDocumentStructure,
 } from '@/lib/pdf-document';
-import { cleanHtml } from '@/lib/template-utils';
 import type {
     FieldItem,
     FieldTypeOption,
@@ -46,10 +45,7 @@ import type {
 import { ConfirmDialog } from './confirm-dialog';
 import { FieldsPanel } from './fields-panel';
 import { HeaderFooterPanel } from './header-footer-panel';
-import { HelpDialog } from './help-dialog';
-import { HtmlEditor } from './html-editor';
-import { PdfPagination, PdfPreview } from './pdf-preview';
-import { RichDocumentEditor } from './rich-document-editor';
+import { RichDocumentEditor } from './rich-document-editor/rich-document-editor';
 import { TemplateDropzone } from './template-dropzone';
 
 interface ModelFormProps {
@@ -148,7 +144,6 @@ export function ModelForm({
         setData('fields', fields),
     );
 
-    // ---------- Sincroniza o resultado do loader com o estado do editor ----------
     useEffect(() => {
         if (!loaded) return;
 
@@ -214,7 +209,6 @@ export function ModelForm({
         setPageImages(loaded.pageImages);
         setCurrentPage(0);
 
-        // PDF original já salvo: mantém a estrutura editada do modelo
         if (loaded.source === 'file' || !initialStructure) {
             setDocumentStructure(loaded.structure);
             setData((previous) => ({
@@ -223,10 +217,8 @@ export function ModelForm({
                 extracted_text: pdfDocumentStructureToHtml(loaded.structure),
             }));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loaded]);
 
-    // ---------- Edição de conteúdo ----------
     const updatePdfText = (elementIndex: number, text: string) => {
         if (!documentStructure) return;
 
@@ -252,12 +244,9 @@ export function ModelForm({
         setData('extracted_text', editorRef.current?.innerHTML ?? '');
     };
 
-    const { handleDragStart, handleDragOver, handleDrop } = useTagDrop(
-        editorRef,
-        handleInserted,
-    );
+    const { handleDragStart, handleDragOver, handleDrop } =
+    useTagDrop(handleInserted);
 
-    // ---------- Arquivo ----------
     const handleFileSelect = (file: File) => {
         setTemplateFile(file);
         setData('template', file);
@@ -278,7 +267,6 @@ export function ModelForm({
         }));
     };
 
-    // ---------- Envio ----------
     const save = () => {
         setIsUpdateOpen(false);
 
@@ -370,7 +358,6 @@ export function ModelForm({
         }
     };
 
-    // ---------- Render ----------
     const showEmpty = !isEdit && !templateFile && !htmlContent;
     const firstError = Object.values(errors).find(Boolean);
     const jsonContent = useMemo(
@@ -478,7 +465,7 @@ export function ModelForm({
                 onSubmit={handleSubmit}
                 className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-6 lg:grid-cols-12"
             >
-                {/* ---------- Painel esquerdo ---------- */}
+                
                 <div className="flex flex-col justify-between space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-sm lg:col-span-4">
                     <div className="space-y-5">
                         <div className="flex items-center justify-between">
@@ -486,7 +473,6 @@ export function ModelForm({
                                 Configuração do Modelo
                             </h2>
 
-                            <HelpDialog />
                         </div>
 
                         <div className="space-y-1.5">
@@ -575,24 +561,7 @@ export function ModelForm({
                     )}
                 </div>
 
-                {/* ---------- Pré-visualização e Edição Contínua ---------- */}
                 <div className="flex min-w-0 flex-col items-center lg:col-span-8">
-                    <div className="mb-4 flex w-full max-w-[980px] items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-
-                            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                                Documento Oficial (Folha A4)
-                            </span>
-                        </div>
-
-                        {!showEmpty && (
-                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Edit3 className="h-3 w-3" />
-                                Arraste ou clique nas tags para inserir no texto
-                            </span>
-                        )}
-                    </div>
 
                     <div className="relative mx-auto w-full max-w-[980px]">
                         {loading ? (
