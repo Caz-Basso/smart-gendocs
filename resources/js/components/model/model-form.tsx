@@ -358,7 +358,11 @@ export function ModelForm({
         }
     };
 
-    const showEmpty = !isEdit && !templateFile && !htmlContent;
+    const showEmpty =
+        !isEdit &&
+        !templateFile &&
+        !htmlContent &&
+        (!data.elements || data.elements.length === 0);
     const firstError = Object.values(errors).find(Boolean);
     const jsonContent = useMemo(
         () =>

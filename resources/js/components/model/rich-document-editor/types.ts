@@ -1,4 +1,5 @@
 import type { DragEventHandler } from "react";
+import type { ModelElementAttachment } from "@/types/document-element";
 import type { DocumentMargins } from "./utils/editor-config";
 
 export type RefWithCurrent<T> = {
@@ -47,4 +48,5 @@ export interface DocumentPageProps {
 
     onDragOver?: DragEventHandler<HTMLDivElement>;
     onDrop?: DragEventHandler<HTMLDivElement>;
+    elements?: ModelElementAttachment[];
 }

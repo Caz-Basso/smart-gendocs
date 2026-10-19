@@ -22,6 +22,7 @@ import {
 } from "./utils/editor-config";
 import { EditorToolbar } from "./components/editor-toolbar";
 import { DocumentPage } from "./components/document-page";
+import type { ModelElementAttachment } from "@/types/document-element";
 import { hasPageOverflow, measurePage } from "./utils/dom-pagination";
 import { useDocumentPagination } from "./hooks/use-document-pagination";
 import { useEditorSelection } from "./hooks/use-editor-selection";
@@ -33,6 +34,7 @@ interface RichDocumentEditorProps {
     onChange: (html: string) => void;
     onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
     onDrop?: (event: DragEvent<HTMLDivElement>) => void;
+    elements?: ModelElementAttachment[];
 }
 
 export function RichDocumentEditor({
@@ -41,6 +43,7 @@ export function RichDocumentEditor({
     onChange,
     onDragOver,
     onDrop,
+    elements = [],
 }: RichDocumentEditorProps) {
     const initialConfig = parseConfigFromHtml(html);
 
@@ -448,6 +451,7 @@ export function RichDocumentEditor({
                 setPages={setPages}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
+                elements={elements}
             />
         </div>
     );
