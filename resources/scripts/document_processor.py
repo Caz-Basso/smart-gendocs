@@ -18,6 +18,12 @@ import re
 import shutil
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from html import escape
+
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
 
 
 def is_short_uppercase_heading(text, max_characters=60, max_words=8):
@@ -59,6 +65,64 @@ def is_docx_heading(style_id, text, total_characters, large_font_characters):
         and len(text.strip()) <= 120
         and large_font_characters / total_characters >= 0.8
     )
+
+
+def convert_pdf_table_to_html(rows):
+    """Converte linhas extraídas de PDF em uma tabela HTML semântica."""
+    normalized_rows = []
+    column_count = max((len(row) for row in rows if row), default=0)
+    if column_count == 0:
+        return ""
+
+    for row in rows:
+        normalized = [" ".join((cell or "").split()) for cell in row]
+        normalized.extend([""] * (column_count - len(normalized)))
+        if any(normalized):
+            normalized_rows.append(normalized)
+
+    if not normalized_rows:
+        return ""
+
+    html_rows = []
+    for row_index, row in enumerate(normalized_rows):
+        cell_tag = "th" if row_index == 0 else "td"
+        cells = "".join(
+            f'<{cell_tag} style="border: 1px solid #cbd5e1; padding: 6pt 8pt; vertical-align: top;">{escape(cell)}</{cell_tag}>'
+            for cell in row
+        )
+        html_rows.append(f"<tr>{cells}</tr>")
+
+    return (
+        '<table style="width: 100%; border-collapse: collapse; margin: 14pt 0; '
+        f'font-size: 10.5pt;"><tbody>{"".join(html_rows)}</tbody></table>'
+    )
+
+
+def extract_pdf_tables_by_page(pdf_path):
+    """Extrai tabelas por página com pdfplumber; falhas não interrompem a conversão."""
+    if pdfplumber is None:
+        return {}
+
+    tables_by_page = {}
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page_index, page in enumerate(pdf.pages):
+                page_tables = []
+                try:
+                    found_tables = page.find_tables()
+                    for table in found_tables:
+                        table_rows = table.extract()
+                        table_html = convert_pdf_table_to_html(table_rows)
+                        if table_html:
+                            page_tables.append((table.bbox[1], table_html))
+                except Exception:
+                    continue
+                if page_tables:
+                    tables_by_page[page_index] = page_tables
+    except Exception:
+        return {}
+
+    return tables_by_page
 
 
 def run_command(cmd, timeout=120):
@@ -133,7 +197,7 @@ def extract_docx_to_rich_html(docx_path):
 
         html_blocks = []
 
-        def parse_paragraph(p_elem, default_align='justify'):
+        def parse_paragraph(p_elem, default_align='justify', detect_heading=True):
             align = default_align
             pPr = p_elem.find('w:pPr', NS)
             style_id = ''
@@ -255,7 +319,7 @@ def extract_docx_to_rich_html(docx_path):
 
             combined_text = "".join(runs_text)
             plain_text = ''.join(plain_text_parts).strip()
-            is_title = is_docx_heading(
+            is_title = detect_heading and is_docx_heading(
                 style_id,
                 plain_text,
                 total_characters,
@@ -300,14 +364,33 @@ def extract_docx_to_rich_html(docx_path):
 
         def parse_table(tbl_elem):
             rows_html = []
-            for tr in tbl_elem.findall('w:tr', NS):
+            for row_index, tr in enumerate(tbl_elem.findall('w:tr', NS)):
                 cells_html = []
                 for tc in tr.findall('w:tc', NS):
-                    tc_paragraphs = [parse_paragraph(p) for p in tc.findall('w:p', NS)]
+                    tc_paragraphs = [
+                        parse_paragraph(p, detect_heading=False)
+                        for p in tc.findall('w:p', NS)
+                    ]
                     cell_content = "".join(tc_paragraphs) or "&nbsp;"
-                    cells_html.append(f'<td style="border: 1px solid #cbd5e1; padding: 6pt 10pt; vertical-align: top;">{cell_content}</td>')
+                    cell_properties = tc.find('w:tcPr', NS)
+                    span = 1
+                    if cell_properties is not None:
+                        grid_span = cell_properties.find('w:gridSpan', NS)
+                        if grid_span is not None:
+                            value = grid_span.attrib.get(
+                                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val',
+                                '1',
+                            )
+                            if value.isdigit():
+                                span = max(1, int(value))
+
+                    tag_name = 'th' if row_index == 0 else 'td'
+                    span_attribute = f' colspan="{span}"' if span > 1 else ''
+                    cells_html.append(
+                        f'<{tag_name}{span_attribute} style="border: 1px solid #cbd5e1; padding: 6pt 10pt; vertical-align: top;">{cell_content}</{tag_name}>'
+                    )
                 rows_html.append(f'<tr>{"".join(cells_html)}</tr>')
-            return f'<table style="width: 100%; border-collapse: collapse; margin: 14pt 0; font-size: 10.5pt;">{"".join(rows_html)}</table>'
+            return f'<table style="width: 100%; border-collapse: collapse; margin: 14pt 0; font-size: 10.5pt;"><tbody>{"".join(rows_html)}</tbody></table>'
 
         # Extração opcional de cabeçalhos e rodapés oficiais
         for name in names:
@@ -386,6 +469,7 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
         return None
 
     html_blocks = []
+    tables_by_page = extract_pdf_tables_by_page(pdf_path)
     total_words = 0
     img_idx = 0
 
@@ -402,6 +486,7 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                             block_lines = []
                             line_widths = []
                             line_font_sizes = []
+                            line_y_positions = []
 
                             for line in block.iter():
                                 if line.tag.endswith('line'):
@@ -421,6 +506,7 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                                         block_lines.append(" ".join(words))
                                         line_widths.append((xMin, xMax, line_h))
                                         line_font_sizes.append(line_h * 0.9)
+                                        line_y_positions.append(yMin)
 
                             if block_lines:
                                 plain_text = " ".join(block_lines).strip()
@@ -444,20 +530,23 @@ def extract_pdf_digital_to_rich_html(pdf_path, temp_dir):
                                 is_clause = plain_text.upper().startswith(('CLÁUSULA', 'CLAUSULA'))
 
                                 if is_clause:
-                                    page_blocks.append(f'<p style="text-align: {align}; font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>')
+                                    page_blocks.append((line_y_positions[0], f'<p style="text-align: {align}; font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>'))
                                 elif is_heading:
-                                    page_blocks.append(f'<h2 style="text-align: {align}; margin-top: 4pt; margin-bottom: 2pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{paragraph_text}</h2>')
+                                    page_blocks.append((line_y_positions[0], f'<h2 style="text-align: {align}; margin-top: 4pt; margin-bottom: 2pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{paragraph_text}</h2>'))
                                 else:
-                                    page_blocks.append(f'<p style="text-align: {align}; margin-top: 0; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>')
+                                    page_blocks.append((line_y_positions[0], f'<p style="text-align: {align}; margin-top: 0; margin-bottom: 6pt; line-height: 1.5; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{paragraph_text}</p>'))
 
             # Se existirem imagens extraídas, insere no topo ou posição relevante
             if img_idx < len(images_b64):
                 img_src = images_b64[img_idx]
                 img_idx += 1
-                page_blocks.insert(0, f'<p style="text-align: center; margin: 12pt 0;"><img src="{img_src}" style="max-width: 250px; max-height: 100px; height: auto;" /></p>')
+                page_blocks.append((0, f'<p style="text-align: center; margin: 12pt 0;"><img src="{img_src}" style="max-width: 250px; max-height: 100px; height: auto;" /></p>'))
+
+            page_blocks.extend(tables_by_page.get(page_index, []))
+            page_blocks.sort(key=lambda block: block[0])
 
             if page_blocks:
-                html_blocks.extend(page_blocks)
+                html_blocks.extend(block_html for _, block_html in page_blocks)
             else:
                 html_blocks.append('<p><br/></p>')
 
@@ -481,6 +570,7 @@ def extract_pdf_scanned_with_ocr(pdf_path, temp_dir):
     page_images = sorted([
         os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("page-") and f.endswith(".png")
     ], key=lambda p: int(Path(p).stem.split("-")[-1]))
+    tables_by_page = extract_pdf_tables_by_page(pdf_path)
 
     html_blocks = []
 
@@ -534,6 +624,10 @@ def extract_pdf_scanned_with_ocr(pdf_path, temp_dir):
                 html_blocks.append(f'<h2 style="text-align: center; margin-top: 18pt; margin-bottom: 10pt; font-family: \'Times New Roman\', Times, serif; font-size: 15pt; font-weight: bold;">{par_text}</h2>')
             else:
                 html_blocks.append(f'<p style="text-align: justify; line-height: 1.5; margin-top: 0; margin-bottom: 6pt; font-family: \'Times New Roman\', Times, serif; font-size: 12pt;">{par_text}</p>')
+
+        html_blocks.extend(
+            table_html for _, table_html in tables_by_page.get(page_num - 1, [])
+        )
 
         if page_num < len(page_images):
             html_blocks.append('<hr class="page-break" style="margin: 25px 0; border: none; border-top: 1px dashed #cbd5e1;" />')

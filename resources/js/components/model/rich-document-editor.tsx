@@ -37,6 +37,15 @@ import {
 } from 'react';
 import { Button } from '@/components/ui/button';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
     A4_HEIGHT_MM,
     A4_WIDTH_MM,
     extractConfigComment,
@@ -46,6 +55,7 @@ import {
     splitHtmlIntoPages,
     stripConfigComment,
 } from '@/lib/document-pagination';
+import { buildTableHtml } from '@/lib/document-table';
 
 export interface DocumentMargins {
     top: number; // em mm
@@ -183,6 +193,9 @@ export function RichDocumentEditor({
         return paginateDocument(html, initialConfig.margins, spacing);
     });
     const [activePageIndex, setActivePageIndex] = useState(0);
+    const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
+    const [tableRowCount, setTableRowCount] = useState('4');
+    const [tableColumnCount, setTableColumnCount] = useState('4');
 
     // Referências para os nós de conteúdo de cada folha
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -510,7 +523,9 @@ export function RichDocumentEditor({
             );
             setMargins(nextMargins);
             setPages(nextPages);
-            setActivePageIndex((index) => Math.min(index, nextPages.length - 1));
+            setActivePageIndex((index) =>
+                Math.min(index, nextPages.length - 1),
+            );
             emitChange(nextPages, nextMargins, fontFamily, lineHeight);
         }
     };
@@ -534,14 +549,10 @@ export function RichDocumentEditor({
             position === 'header' ? centimeters : headerSpacing;
         const nextFooterSpacing =
             position === 'footer' ? centimeters : footerSpacing;
-        const nextPages = paginateDocument(
-            joinPagesIntoHtml(pages),
-            margins,
-            {
-                headerSpacingCm: nextHeaderSpacing,
-                footerSpacingCm: nextFooterSpacing,
-            },
-        );
+        const nextPages = paginateDocument(joinPagesIntoHtml(pages), margins, {
+            headerSpacingCm: nextHeaderSpacing,
+            footerSpacingCm: nextFooterSpacing,
+        });
 
         if (position === 'header') {
             setHeaderSpacing(nextHeaderSpacing);
@@ -649,10 +660,15 @@ export function RichDocumentEditor({
             const repaginatedPages = paginateDocument(
                 joinPagesIntoHtml(nextPages),
                 margins,
-                { headerSpacingCm: headerSpacing, footerSpacingCm: footerSpacing },
+                {
+                    headerSpacingCm: headerSpacing,
+                    footerSpacingCm: footerSpacing,
+                },
             );
             setPages(repaginatedPages);
-            setActivePageIndex((index) => Math.min(index, repaginatedPages.length - 1));
+            setActivePageIndex((index) =>
+                Math.min(index, repaginatedPages.length - 1),
+            );
             emitChange(repaginatedPages);
         }
     };
@@ -670,36 +686,51 @@ export function RichDocumentEditor({
             const repaginatedPages = paginateDocument(
                 joinPagesIntoHtml(nextPages),
                 margins,
-                { headerSpacingCm: headerSpacing, footerSpacingCm: footerSpacing },
+                {
+                    headerSpacingCm: headerSpacing,
+                    footerSpacingCm: footerSpacing,
+                },
             );
             setPages(repaginatedPages);
-            setActivePageIndex((index) => Math.min(index, repaginatedPages.length - 1));
+            setActivePageIndex((index) =>
+                Math.min(index, repaginatedPages.length - 1),
+            );
             emitChange(repaginatedPages);
         }
     };
 
+    const openTableDialog = () => {
+        saveSelectionRange();
+        setIsTableDialogOpen(true);
+    };
+
     const insertTable = () => {
-        const tableHtml = `
-            <table style="width: 100%; border-collapse: collapse; margin: 14pt 0; font-size: 10.5pt;">
-                <thead>
-                    <tr style="background-color: #f8fafc;">
-                        <th style="border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; font-weight: bold;">Item</th>
-                        <th style="border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; font-weight: bold;">Descrição Oficial</th>
-                        <th style="border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: center; font-weight: bold;">Qtd</th>
-                        <th style="border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: right; font-weight: bold;">Valor</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="border: 1px solid #cbd5e1; padding: 6pt 10pt;">01</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 6pt 10pt;">Prestação de serviço conforme termo</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 6pt 10pt; text-align: center;">01</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 6pt 10pt; text-align: right;">R$ 0,00</td>
-                    </tr>
-                </tbody>
-            </table>
-        `;
-        exec('insertHTML', tableHtml);
+        const rowCount = Number.parseInt(tableRowCount, 10);
+        const columnCount = Number.parseInt(tableColumnCount, 10);
+        const activePage = pageRefs.current[activePageIndex];
+
+        if (
+            !activePage ||
+            rowCount < 1 ||
+            rowCount > 50 ||
+            columnCount < 1 ||
+            columnCount > 12
+        ) {
+            return;
+        }
+
+        if (!restoreSelectionRange()) {
+            const range = document.createRange();
+            range.selectNodeContents(activePage);
+            range.collapse(false);
+
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+        }
+
+        exec('insertHTML', buildTableHtml(rowCount, columnCount));
+        setIsTableDialogOpen(false);
     };
 
     return (
@@ -707,6 +738,76 @@ export function RichDocumentEditor({
             <style>{`.a4-page-content .document-header { margin-bottom: ${headerSpacing}cm !important; }.a4-page-content .document-footer { margin-top: ${footerSpacing}cm !important; }`}</style>
             {/* Contêiner invisível mantendo editorRef compatível com submissão */}
             <div ref={editorRef} className="hidden" aria-hidden="true" />
+
+            <Dialog
+                open={isTableDialogOpen}
+                onOpenChange={setIsTableDialogOpen}
+            >
+                <DialogContent>
+                    <form
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            insertTable();
+                        }}
+                    >
+                        <DialogHeader>
+                            <DialogTitle>Inserir tabela</DialogTitle>
+                            <DialogDescription>
+                                Escolha a quantidade de linhas e colunas.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="grid grid-cols-2 gap-4 py-5">
+                            <label
+                                className="grid gap-2 text-sm font-medium"
+                                htmlFor="table-row-count"
+                            >
+                                Linhas (1 a 50)
+                                <Input
+                                    id="table-row-count"
+                                    type="number"
+                                    min={1}
+                                    max={50}
+                                    required
+                                    value={tableRowCount}
+                                    onChange={(event) =>
+                                        setTableRowCount(event.target.value)
+                                    }
+                                />
+                            </label>
+                            <label
+                                className="grid gap-2 text-sm font-medium"
+                                htmlFor="table-column-count"
+                            >
+                                Colunas (1 a 12)
+                                <Input
+                                    id="table-column-count"
+                                    type="number"
+                                    min={1}
+                                    max={12}
+                                    required
+                                    value={tableColumnCount}
+                                    onChange={(event) =>
+                                        setTableColumnCount(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsTableDialogOpen(false)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button type="submit">Inserir tabela</Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* Barra de Ferramentas Avançada com Suporte a Paginação A4 */}
             <div className="sticky top-2 z-20 mb-6 flex w-full max-w-[980px] flex-col gap-1.5 rounded-lg border border-border/80 bg-background/95 p-2 shadow-md backdrop-blur-md">
@@ -1086,7 +1187,9 @@ export function RichDocumentEditor({
                         size="sm"
                         className="h-7 px-2 text-xs"
                         title="Inserir Tabela Formatada"
-                        onClick={insertTable}
+                        onMouseDown={saveSelectionRange}
+                        onKeyDown={saveSelectionRange}
+                        onClick={openTableDialog}
                     >
                         <TableIcon className="mr-1 h-3.5 w-3.5" />
                         Tabela
