@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
     AlignCenter,
     AlignJustify,
@@ -89,6 +90,14 @@ export function EditorToolbar({
     insertPageBreakAtCursor,
     insertNewBlankPage,
 }: EditorToolbarProps) {
+    const [fontSizeValue, setFontSizeValue] = useState("");
+
+    const handleFontSizeChange = (size: string) => {
+        if (!size) return;
+
+        applyFontSize(size);
+        setFontSizeValue("");
+    };
     return (
         <div
             role="toolbar"
@@ -182,13 +191,14 @@ export function EditorToolbar({
                     </select>
 
                     <select
-                        defaultValue="12pt"
+                        value={fontSizeValue}
                         onMouseDown={saveSelection}
-                        onChange={(e) => applyFontSize(e.target.value)}
+                        onChange={(e) => handleFontSizeChange(e.target.value)}
                         title="Tamanho da fonte"
                         aria-label="Tamanho da fonte"
                         className={`${TOOLBAR_SELECT_CLASS} w-16 text-center`}
                     >
+                        <option value="">Fonte</option>
                         <option value="10pt">10</option>
                         <option value="11pt">11</option>
                         <option value="12pt">12</option>

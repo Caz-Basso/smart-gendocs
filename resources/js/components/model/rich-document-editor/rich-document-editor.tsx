@@ -91,29 +91,60 @@ export function RichDocumentEditor({
     onChangeRef.current = onChange;
 
     const updateActiveStates = useCallback(() => {
-        if (typeof document === "undefined") return;
+        const selection = window.getSelection();
 
-        const isBold = document.queryCommandState("bold");
-        const isItalic = document.queryCommandState("italic");
-        const isUnderline = document.queryCommandState("underline");
-        const isStrikeThrough = document.queryCommandState("strikeThrough");
+        if (!selection?.anchorNode) return;
 
-        const isAlignLeft = document.queryCommandState("justifyLeft");
-        const isAlignCenter = document.queryCommandState("justifyCenter");
-        const isAlignRight = document.queryCommandState("justifyRight");
-        const isAlignJustify = document.queryCommandState("justifyFull");
+        const anchorElement =
+            selection.anchorNode instanceof HTMLElement
+                ? selection.anchorNode
+                : selection.anchorNode.parentElement;
+
+        if (!anchorElement) return;
+
+        const activePage = pageRefs.current[activePageIndex];
+
+        if (!activePage?.contains(anchorElement)) return;
+
+        const styles = window.getComputedStyle(anchorElement);
+        const tagNames = new Set<string>();
+
+        let node: HTMLElement | null = anchorElement;
+
+        while (node && activePage.contains(node)) {
+            tagNames.add(node.tagName);
+            if (node === activePage) break;
+            node = node.parentElement;
+        }
+
+        const textDecoration = [
+            styles.textDecorationLine,
+            styles.textDecoration,
+        ].join(" ");
+
+        const textAlign = styles.textAlign;
 
         setActiveStates({
-            bold: isBold,
-            italic: isItalic,
-            underline: isUnderline,
-            strikeThrough: isStrikeThrough,
-            alignLeft: isAlignLeft,
-            alignCenter: isAlignCenter,
-            alignRight: isAlignRight,
-            alignJustify: isAlignJustify,
+            bold:
+                Number.parseInt(styles.fontWeight, 10) >= 600 ||
+                tagNames.has("B") ||
+                tagNames.has("STRONG"),
+            italic:
+                styles.fontStyle === "italic" ||
+                tagNames.has("I") ||
+                tagNames.has("EM"),
+            underline:
+                textDecoration.includes("underline") || tagNames.has("U"),
+            strikeThrough:
+                textDecoration.includes("line-through") ||
+                tagNames.has("S") ||
+                tagNames.has("STRIKE"),
+            alignLeft: textAlign === "left" || textAlign === "start",
+            alignCenter: textAlign === "center",
+            alignRight: textAlign === "right" || textAlign === "end",
+            alignJustify: textAlign === "justify",
         });
-    }, []);
+    }, [activePageIndex, pageRefs]);
 
     useEffect(() => {
         const handleSelectionChange = () => {

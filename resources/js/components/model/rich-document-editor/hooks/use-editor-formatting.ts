@@ -63,12 +63,24 @@ export function useEditorFormatting({
     const applyBlockStyle = useCallback(
         (cssProperty: string, value: string) => {
             const selection = window.getSelection();
-            if (!selection || !selection.rangeCount) return;
-
-            let node: Node | null = selection.anchorNode;
             const activeNode = pageRefs.current[activePageIndex];
 
-            while (node && node !== activeNode && node !== document.body) {
+            if (!selection || !selection.rangeCount || !activeNode) {
+                return;
+            }
+
+            const range = selection.getRangeAt(0);
+
+            if (
+                !activeNode.contains(range.startContainer) ||
+                !activeNode.contains(range.endContainer)
+            ) {
+                return;
+            }
+
+            let node: Node | null = selection.anchorNode;
+
+            while (node && node !== activeNode) {
                 if (
                     node instanceof HTMLElement &&
                     ["P", "H1", "H2", "H3", "DIV", "LI", "TD"].includes(
@@ -76,29 +88,39 @@ export function useEditorFormatting({
                     )
                 ) {
                     node.style.setProperty(cssProperty, value);
-                    if (activeNode) {
-                        handlePageInput(activePageIndex, activeNode.innerHTML);
-                    }
+                    handlePageInput(activePageIndex, activeNode.innerHTML);
                     return;
                 }
+
                 node = node.parentNode;
             }
-
-            exec("formatBlock", "<p>");
-            if (activeNode) {
-                handlePageInput(activePageIndex, activeNode.innerHTML);
-            }
         },
-        [activePageIndex, exec, handlePageInput],
+        [activePageIndex, handlePageInput, pageRefs],
     );
 
     const applyInlineStyle = useCallback(
         (cssProperty: string, value: string) => {
             const selection = window.getSelection();
-            if (!selection || !selection.rangeCount || selection.isCollapsed)
+            const activeNode = pageRefs.current[activePageIndex];
+
+            if (
+                !selection ||
+                !selection.rangeCount ||
+                selection.isCollapsed ||
+                !activeNode
+            ) {
                 return;
+            }
 
             const range = selection.getRangeAt(0);
+
+            if (
+                !activeNode.contains(range.startContainer) ||
+                !activeNode.contains(range.endContainer)
+            ) {
+                return;
+            }
+
             const span = document.createElement("span");
             span.style.setProperty(cssProperty, value);
 
@@ -106,20 +128,19 @@ export function useEditorFormatting({
                 const contents = range.extractContents();
                 span.appendChild(contents);
                 range.insertNode(span);
-                selection.removeAllRanges();
+
                 const newRange = document.createRange();
                 newRange.selectNodeContents(span);
-                selection.addRange(newRange);
-            } catch {
-                // Fallback silencioso
-            }
 
-            const activeNode = pageRefs.current[activePageIndex];
-            if (activeNode) {
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+
                 handlePageInput(activePageIndex, activeNode.innerHTML);
+            } catch (error) {
+                console.error("Não foi possível aplicar a formatação:", error);
             }
         },
-        [activePageIndex, handlePageInput],
+        [activePageIndex, handlePageInput, pageRefs],
     );
 
     const applyFontFamily = (font: string) => {
@@ -139,12 +160,26 @@ export function useEditorFormatting({
         restoreSelection();
 
         const selection = window.getSelection();
+        const activeNode = pageRefs.current[activePageIndex];
 
-        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-            applyInlineStyle("font-size", sizePt);
-        } else {
-            applyBlockStyle("font-size", sizePt);
+        if (!selection?.rangeCount || !activeNode) return;
+
+        const range = selection.getRangeAt(0);
+
+        if (
+            !activeNode.contains(range.startContainer) ||
+            !activeNode.contains(range.endContainer)
+        ) {
+            return;
         }
+
+        if (selection.isCollapsed) {
+            applyBlockStyle("font-size", sizePt);
+        } else {
+            applyInlineStyle("font-size", sizePt);
+        }
+
+        saveSelection();
     };
 
     const applyLineSpacing = (spacing: string) => {
