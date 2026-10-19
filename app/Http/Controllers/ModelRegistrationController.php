@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 final class ModelRegistrationController
 {
@@ -145,16 +146,26 @@ final class ModelRegistrationController
             'template' => 'required|file|mimes:pdf,docx|max:10240',
         ]);
 
-        $result = $processDocument->handle($validated['template']);
+        try {
+            $result = $processDocument->handle($validated['template']);
 
-        return response()->json([
-            'kind' => 'rich_document',
-            'html' => $result['html'],
-            'fieldsDetected' => $result['fieldsDetected'] ?? [],
-            'documentType' => $result['documentType'] ?? 'document',
-            'isScanned' => $result['isScanned'] ?? false,
-            'isDocx' => $result['isDocx'] ?? false,
-        ]);
+            return response()->json([
+                'kind' => 'rich_document',
+                'html' => $result['html'],
+                'fieldsDetected' => $result['fieldsDetected'] ?? [],
+                'documentType' => $result['documentType'] ?? 'document',
+                'isScanned' => $result['isScanned'] ?? false,
+                'isDocx' => $result['isDocx'] ?? false,
+                'wasConvertedFromPdf' => $result['wasConvertedFromPdf'] ?? false,
+                'headersFootersIgnored' => $result['headersFootersIgnored'] ?? false,
+                'headersFootersCount' => $result['headersFootersCount'] ?? 0,
+                'warnings' => $result['warnings'] ?? [],
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     public function edit(string $id): Response
@@ -196,6 +207,7 @@ final class ModelRegistrationController
         StoreModelRequest $request,
         string $id,
         SyncModelElements $syncModelElements,
+        \App\Actions\ConvertPdfToDocx $convertPdfToDocx,
     ): RedirectResponse {
         $model = DocumentModel::findOrFail($id);
 
@@ -204,6 +216,40 @@ final class ModelRegistrationController
 
         if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
             $templatePath = $data['template']->store('templates', 'public');
+
+            if (str_ends_with(mb_strtolower($templatePath), '.pdf')) {
+                $fullPath = Storage::disk('public')->path($templatePath);
+                $conversion = $convertPdfToDocx->handle($fullPath);
+                $docxFullPath = $conversion['docxPath'];
+
+                $relativeDocx = 'templates/'.pathinfo($templatePath, PATHINFO_FILENAME).'.docx';
+                Storage::disk('public')->put($relativeDocx, file_get_contents($docxFullPath));
+
+                $targetConverted = Storage::disk('public')->path($relativeDocx).'.converted.pdf';
+                copy($fullPath, $targetConverted);
+
+                Storage::disk('public')->delete($templatePath);
+                @unlink($docxFullPath);
+
+                $templatePath = $relativeDocx;
+            } elseif (str_ends_with(mb_strtolower($templatePath), '.docx')) {
+                $fullPath = Storage::disk('public')->path($templatePath);
+                $outputDir = dirname($fullPath);
+                \Illuminate\Support\Facades\Process::timeout(120)->run([
+                    'libreoffice',
+                    '--headless',
+                    '--convert-to',
+                    'pdf',
+                    '--outdir',
+                    $outputDir,
+                    $fullPath,
+                ]);
+                $defaultConverted = $outputDir.'/'.pathinfo($fullPath, PATHINFO_FILENAME).'.pdf';
+                $targetConverted = $fullPath.'.converted.pdf';
+                if (is_file($defaultConverted) && $defaultConverted !== $targetConverted) {
+                    rename($defaultConverted, $targetConverted);
+                }
+            }
         }
 
         $model->update([
@@ -226,7 +272,7 @@ final class ModelRegistrationController
 
     public function destroy(string $id): RedirectResponse
     {
-        $model = \App\Models\DocumentModel::findOrFail($id);
+        $model = DocumentModel::findOrFail($id);
         $templatePath = $model->template_path;
 
         $model->delete();
@@ -249,7 +295,7 @@ final class ModelRegistrationController
         $model = null;
 
         if (Str::isUuid($modelId)) {
-            $model = \App\Models\DocumentModel::findOrFail($modelId);
+            $model = DocumentModel::findOrFail($modelId);
             $pdfContent = $generateDocument->handle($modelId, $data['data']);
             $fields = $model->fields ?? [];
         } else {
