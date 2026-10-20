@@ -9,7 +9,8 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateUser;
 use App\Http\Requests\CreateUserRequest;
 use App\Http\Requests\DeleteUserRequest;
-use App\Http\Requests\UpdateUserNameRequest;
+use App\Http\Requests\StoreManagedUserRequest;
+use App\Http\Requests\UpdateManagedUserRequest;
 use App\Models\User;
 use App\Support\ListQuery;
 use Illuminate\Http\RedirectResponse;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\Permission\Models\Role;
 
 final readonly class UserController
 {
@@ -25,8 +27,11 @@ final readonly class UserController
     {
         Gate::authorize('viewAny', User::class);
 
+        $authenticatedUser = $request->user();
+
         $usersQuery = User::query()
-            ->select(['id', 'name', 'email', 'created_at'])
+            ->with('roles:id,name')
+            ->select(['id', 'name', 'email', 'is_active', 'created_at'])
             ->latest();
 
         ListQuery::search(
@@ -40,7 +45,37 @@ final readonly class UserController
             'users' => $usersQuery
                 ->paginate(ListQuery::perPage($request))
                 ->withQueryString(),
+            'assignableRoles' => $this->assignableRoles($authenticatedUser instanceof User ? $authenticatedUser : null),
         ]);
+    }
+
+    public function createManaged(): Response
+    {
+        Gate::authorize('create', User::class);
+
+        /** @var User $user */
+        $user = Auth::user();
+
+        return Inertia::render('user/admin-create', [
+            'assignableRoles' => $this->assignableRoles($user),
+            'canManageRoles' => $user->can('manageRoles', User::class),
+        ]);
+    }
+
+    public function storeManaged(StoreManagedUserRequest $request, CreateUser $action): RedirectResponse
+    {
+        /** @var array<string, mixed> $attributes */
+        $attributes = $request->safe()->except(['password', 'role']);
+
+        $action->handle(
+            $attributes,
+            $request->string('password')->value(),
+            $request->filled('role') ? $request->string('role')->value() : null,
+        );
+
+        Inertia::flash('success', 'Usuário criado com sucesso.');
+
+        return to_route('users.index');
     }
 
     public function create(): Response
@@ -65,7 +100,7 @@ final readonly class UserController
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
-    public function update(UpdateUserNameRequest $request, User $user, UpdateUser $action): RedirectResponse
+    public function update(UpdateManagedUserRequest $request, User $user, UpdateUser $action): RedirectResponse
     {
         $action->handle($user, $request->validated());
 
@@ -89,5 +124,25 @@ final readonly class UserController
         }
 
         return to_route('users.index');
+    }
+
+    /**
+     * @return list<array{name: string, label: string}>
+     */
+    private function assignableRoles(?User $user): array
+    {
+        if (! $user instanceof User || ! $user->can('manageRoles', User::class)) {
+            return [];
+        }
+
+        return Role::query()
+            ->with('permissions')
+            ->where('guard_name', 'web')
+            ->where('name', '!=', 'super-admin')
+            ->get()
+            ->filter(fn (Role $role): bool => $user->hasRole('super-admin') || $role->permissions->every(fn ($permission): bool => $user->can($permission->name)))
+            ->map(fn (Role $role): array => ['name' => $role->name, 'label' => str($role->name)->replace('-', ' ')->title()->value()])
+            ->values()
+            ->all();
     }
 }

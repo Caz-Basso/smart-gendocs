@@ -16,6 +16,7 @@ type ListPageShellProps = {
     filters?: ReactNode;
     activeFiltersCount?: number;
     defaultFiltersOpen?: boolean;
+    collapsibleFilters?: boolean;
     onFiltersOpenChange?: (open: boolean) => void;
     children: ReactNode;
     className?: string;
@@ -29,6 +30,7 @@ export function ListPageShell({
     filters,
     activeFiltersCount = 0,
     defaultFiltersOpen = false,
+    collapsibleFilters = true,
     onFiltersOpenChange,
     children,
     className,
@@ -36,8 +38,11 @@ export function ListPageShell({
 }: ListPageShellProps) {
     const [filtersOpen, setFiltersOpen] = useState(defaultFiltersOpen);
     const [toggleSlot, setToggleSlot] = useState<HTMLElement | null>(null);
-    const bandExpanded = Boolean(filters && filtersOpen);
-    const portalToggle = variant === 'full' && Boolean(filters);
+    const bandExpanded = Boolean(
+        filters && (filtersOpen || !collapsibleFilters),
+    );
+    const portalToggle =
+        collapsibleFilters && variant === 'full' && Boolean(filters);
 
     useLayoutEffect(() => {
         if (!portalToggle) {
@@ -67,7 +72,7 @@ export function ListPageShell({
         ? 'bg-muted/50 dark:bg-muted'
         : 'bg-background';
 
-    const toggle = filters ? (
+    const toggle = filters && collapsibleFilters ? (
         <CollapsibleFiltersToggle
             open={filtersOpen}
             onOpenChange={handleFiltersOpenChange}
@@ -115,7 +120,7 @@ export function ListPageShell({
                     </div>
                     {(actions || filters) && (
                         <div className="flex shrink-0 flex-wrap items-center gap-2 pb-0.5">
-                            {filters && !filtersOpen && (
+                            {filters && collapsibleFilters && !filtersOpen && (
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -151,7 +156,7 @@ export function ListPageShell({
 
                 {filters && (
                     <CollapsibleFilters
-                        open={filtersOpen}
+                        open={filtersOpen || !collapsibleFilters}
                         onOpenChange={handleFiltersOpenChange}
                     >
                         <div className="mx-auto w-full max-w-7xl px-4 pt-6 pb-4 [&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:w-full [&_[data-slot=select-trigger]]:bg-background">
@@ -159,7 +164,7 @@ export function ListPageShell({
                         </div>
                     </CollapsibleFilters>
                 )}
-                {filters && filtersOpen && toggle}
+                {filters && collapsibleFilters && filtersOpen && toggle}
             </div>
 
             <div className="flex flex-col gap-4 p-4">{children}</div>

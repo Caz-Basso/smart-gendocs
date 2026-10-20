@@ -10,6 +10,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Lab404\Impersonate\Models\Impersonate;
@@ -22,6 +23,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property-read string $id
  * @property-read string $name
  * @property-read string $email
+ * @property-read bool $is_active
  * @property-read CarbonInterface|null $email_verified_at
  * @property-read string $password
  * @property-read string|null $remember_token
@@ -51,6 +53,21 @@ final class User extends Authenticatable implements Auditable, MustVerifyEmail
     use TwoFactorAuthenticatable;
 
     /**
+     * @var array<int, string>
+     */
+    protected array $auditExclude = [
+        'password',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ];
+
+    public function generatedDocuments(): HasMany
+    {
+        return $this->hasMany(GeneratedDocument::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -59,6 +76,7 @@ final class User extends Authenticatable implements Auditable, MustVerifyEmail
             'id' => 'string',
             'name' => 'string',
             'email' => 'string',
+            'is_active' => 'boolean',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'remember_token' => 'string',
