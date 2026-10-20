@@ -7,6 +7,7 @@ import {
     paginateDocument,
     waitForLayoutAssets,
 } from '@/lib/document-pagination';
+import { getPaginationOptions } from '@/components/model/rich-document-editor/utils/editor-config';
 import type { DynamicField } from '@/types/document';
 import type { ModelElementAttachment } from '@/types/document-element';
 import { PreviewText } from './preview-text';
@@ -127,26 +128,22 @@ export function DocumentPreview({
         ? interpolateHtml(extractedHtml, fields, data)
         : "";
 
+    const paginationOptions = useMemo(
+        () => getPaginationOptions(fontFamily, lineHeight),
+        [fontFamily, lineHeight],
+    );
+
     const pages = useMemo(() => {
         if (!interpolatedHtml) return [];
 
-        return paginateDocument(interpolatedHtml, margins, {
-            className: "document-content",
-            style: {
-                fontFamily,
-                fontSize: "12pt",
-                lineHeight,
-                textAlign: "justify",
-            },
-        });
+        return paginateDocument(interpolatedHtml, margins, paginationOptions);
     }, [
         interpolatedHtml,
         margins.top,
         margins.bottom,
         margins.left,
         margins.right,
-        fontFamily,
-        lineHeight,
+        paginationOptions,
         layoutVersion,
     ]);
 
@@ -205,6 +202,8 @@ export function DocumentPreview({
                             fontSize: "12pt",
                             lineHeight,
                             textAlign: "justify",
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
                             position: "relative",
                         }}
                     >
@@ -244,7 +243,7 @@ export function DocumentPreview({
                             dangerouslySetInnerHTML={{
                                 __html: pages[currentPage],
                             }}
-                            className="document-content w-full text-[12pt] text-gray-900 outline-none [&_.document-footer]:mt-6 [&_.document-footer]:border-t [&_.document-footer]:border-slate-300 [&_.document-footer]:pt-2 [&_.document-footer]:text-center [&_.document-footer]:text-[9pt] [&_.document-footer]:text-slate-500 [&_.document-header]:mb-5 [&_.document-header]:border-b [&_.document-header]:border-slate-300 [&_.document-header]:pb-2 [&_.document-header]:text-center [&_.document-header]:text-[10.5pt] [&_h1]:my-4 [&_h1]:text-center [&_h1]:text-[17pt] [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-[14pt] [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-[12pt] [&_h3]:font-bold [&_img]:my-3 [&_img]:inline-block [&_p]:my-1.5 [&_table]:my-3.5"
+                            className="a4-page-content document-content w-full text-[12pt] text-gray-900 outline-none [&_.document-footer]:mt-6 [&_.document-footer]:border-t [&_.document-footer]:border-slate-300 [&_.document-footer]:pt-2 [&_.document-footer]:text-center [&_.document-footer]:text-[9pt] [&_.document-footer]:text-slate-500 [&_.document-header]:mb-5 [&_.document-header]:border-b [&_.document-header]:border-slate-300 [&_.document-header]:pb-2 [&_.document-header]:text-center [&_.document-header]:text-[10.5pt] [&_h1]:my-4 [&_h1]:text-center [&_h1]:text-[17pt] [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-[14pt] [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-[12pt] [&_h3]:font-bold [&_img]:my-3 [&_img]:inline-block [&_p]:my-1.5 [&_table]:my-3.5"
                         />
 
                         <div

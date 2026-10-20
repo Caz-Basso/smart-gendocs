@@ -193,6 +193,80 @@ function isTextBlock(el: Element): boolean {
     return !hasBlockChildren(el) && el.tagName.toLowerCase() !== "table";
 }
 
+const BLOCK_TAGS = new Set([
+    "p", "div", "h1", "h2", "h3", "h4", "h5", "h6",
+    "ul", "ol", "li", "table", "blockquote", "pre", "hr",
+]);
+const INHERITED_PROPS = [
+    "font-size", "font-family", "font-weight", "font-style", "color", "letter-spacing",
+];
+
+function hasBlockElementChildren(el: Element): boolean {
+    return Array.from(el.children).some((c) => BLOCK_TAGS.has(c.tagName.toLowerCase()));
+}
+
+function inheritStyle(from: HTMLElement, to: HTMLElement) {
+    INHERITED_PROPS.forEach((prop) => {
+        const v = from.style.getPropertyValue(prop);
+        if (v && !to.style.getPropertyValue(prop)) to.style.setProperty(prop, v);
+    });
+}
+
+function flattenBlockInline(wrapper: HTMLElement): Node[] {
+    const out: Node[] = [];
+    let run: Node[] = [];
+
+    const flush = () => {
+        const meaningful = run.some(
+            (n) => n.nodeType === Node.ELEMENT_NODE || (n.textContent ?? "").trim() !== "",
+        );
+        if (meaningful) {
+            const w = wrapper.cloneNode(false) as HTMLElement;
+            run.forEach((n) => w.appendChild(n));
+            out.push(w);
+        }
+        run = [];
+    };
+
+    Array.from(wrapper.childNodes).forEach((child) => {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+            const el = child as HTMLElement;
+            const tag = el.tagName.toLowerCase();
+            if (BLOCK_TAGS.has(tag)) {
+                flush();
+                inheritStyle(wrapper, el);
+                out.push(el);
+                return;
+            }
+            if (INLINE_TAGS.has(tag) && hasBlockElementChildren(el)) {
+                flush();
+                inheritStyle(wrapper, el);
+                out.push(...flattenBlockInline(el));
+                return;
+            }
+        }
+        run.push(child);
+    });
+
+    flush();
+    return out;
+}
+
+function normalizeChildren(parent: Node): Node[] {
+    const out: Node[] = [];
+    parent.childNodes.forEach((node) => {
+        if (
+            node.nodeType === Node.ELEMENT_NODE &&
+            INLINE_TAGS.has((node as Element).tagName.toLowerCase()) &&
+            hasBlockElementChildren(node as Element)
+        ) {
+            out.push(...flattenBlockInline(node.cloneNode(true) as HTMLElement));
+        } else {
+            out.push(node);
+        }
+    });
+    return out;
+}
 
 function toBlocks(parent: Node, runTag: "p" | "span"): Element[] {
     const out: Element[] = [];
@@ -220,7 +294,7 @@ function toBlocks(parent: Node, runTag: "p" | "span"): Element[] {
         run = [];
     };
 
-    parent.childNodes.forEach((node) => {
+    normalizeChildren(parent).forEach((node) => {
         if (node.nodeType === Node.COMMENT_NODE) return;
 
         if (isInlineNode(node)) {
