@@ -21,11 +21,9 @@ final readonly class UpdateGeneratedDocumentAction
     public function handle(GeneratedDocument $document, array $data): GeneratedDocument
     {
         if (Str::isUuid($document->model_key)) {
-            $model = DocumentModel::find($document->model_key);
+            $model = DocumentModel::query()->find($document->model_key);
 
-            if (! $model instanceof DocumentModel) {
-                throw new RuntimeException('O modelo original não está mais disponível para editar este documento.');
-            }
+            throw_unless($model instanceof DocumentModel, RuntimeException::class, 'O modelo original não está mais disponível para editar este documento.');
 
             $generated = $this->generateDocument->handle($model->id, $data);
             $pdfContent = $generated['pdf'];
@@ -33,9 +31,7 @@ final readonly class UpdateGeneratedDocumentAction
             $pdfContent = $this->generateSampleDocument->handle($document->preview ?? [], $data);
         }
 
-        if (! Storage::disk('local')->put($document->file_path, $pdfContent)) {
-            throw new RuntimeException('Não foi possível atualizar o arquivo PDF.');
-        }
+        throw_unless(Storage::disk('local')->put($document->file_path, $pdfContent), RuntimeException::class, 'Não foi possível atualizar o arquivo PDF.');
 
         $document->update(['data' => $data]);
 

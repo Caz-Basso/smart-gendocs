@@ -27,28 +27,28 @@ final class StoreModelRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
-            'template' => 'nullable|file|mimes:pdf,docx|max:10240',
-            'fields' => 'required|array|min:1',
-            'fields.*.id' => 'required|string',
-            'fields.*.name' => 'required|string|max:255',
-            'fields.*.slug' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:255'],
+            'template' => ['nullable', 'file', 'mimes:pdf,docx', 'max:10240'],
+            'fields' => ['required', 'array', 'min:1'],
+            'fields.*.id' => ['required', 'string'],
+            'fields.*.name' => ['required', 'string', 'max:255'],
+            'fields.*.slug' => ['required', 'string', 'max:255'],
             'fields.*.type' => ['required', 'string', Rule::enum(FieldType::class)],
-            'extracted_text' => 'nullable|string',
-            'html_content' => 'nullable|string|max:42000000',
-            'document_structure' => 'nullable|array',
-            'document_structure.version' => 'required_with:document_structure|integer|in:1',
-            'document_structure.pages' => 'required_with:document_structure|array|min:1|max:100',
-            'document_structure.pages.*.width' => 'required|numeric|min:1|max:10000',
-            'document_structure.pages.*.height' => 'required|numeric|min:1|max:10000',
-            'document_structure.pages.*.elements' => 'present|array|max:2000',
-            'document_structure.pages.*.elements.*.x' => 'required|numeric|min:0|max:1',
-            'document_structure.pages.*.elements.*.y' => 'required|numeric|min:0|max:1',
-            'document_structure.pages.*.elements.*.width' => 'required|numeric|min:0|max:1',
-            'document_structure.pages.*.elements.*.height' => 'required|numeric|min:0|max:1',
-            'document_structure.pages.*.elements.*.fontSize' => 'required|numeric|min:1|max:200',
-            'document_structure.pages.*.elements.*.text' => 'nullable|string|max:10000',
-            'document_structure.pages.*.elements.*.originalText' => 'nullable|string|max:10000',
+            'extracted_text' => ['nullable', 'string'],
+            'html_content' => ['nullable', 'string', 'max:42000000'],
+            'document_structure' => ['nullable', 'array'],
+            'document_structure.version' => ['required_with:document_structure', 'integer', 'in:1'],
+            'document_structure.pages' => ['required_with:document_structure', 'array', 'min:1', 'max:100'],
+            'document_structure.pages.*.width' => ['required', 'numeric', 'min:1', 'max:10000'],
+            'document_structure.pages.*.height' => ['required', 'numeric', 'min:1', 'max:10000'],
+            'document_structure.pages.*.elements' => ['present', 'array', 'max:2000'],
+            'document_structure.pages.*.elements.*.x' => ['required', 'numeric', 'min:0', 'max:1'],
+            'document_structure.pages.*.elements.*.y' => ['required', 'numeric', 'min:0', 'max:1'],
+            'document_structure.pages.*.elements.*.width' => ['required', 'numeric', 'min:0', 'max:1'],
+            'document_structure.pages.*.elements.*.height' => ['required', 'numeric', 'min:0', 'max:1'],
+            'document_structure.pages.*.elements.*.fontSize' => ['required', 'numeric', 'min:1', 'max:200'],
+            'document_structure.pages.*.elements.*.text' => ['nullable', 'string', 'max:10000'],
+            'document_structure.pages.*.elements.*.originalText' => ['nullable', 'string', 'max:10000'],
             'elements' => ['nullable', 'array'],
             'elements.*.element_id' => ['required', 'string', 'exists:document_elements,id'],
             'elements.*.position_x' => ['nullable', 'numeric', 'min:0', 'max:210'],
@@ -100,15 +100,7 @@ final class StoreModelRequest extends FormRequest
                         return false;
                     }
 
-                    foreach (['x', 'y', 'width', 'height', 'fontSize'] as $coordinate) {
-                        if (! array_key_exists($coordinate, $element)
-                            || ! is_numeric($element[$coordinate])
-                            || ! is_finite((float) $element[$coordinate])) {
-                            return false;
-                        }
-                    }
-
-                    return true;
+                    return array_all(['x', 'y', 'width', 'height', 'fontSize'], fn (string $coordinate): bool => ! (! array_key_exists($coordinate, $element) || ! is_numeric($element[$coordinate]) || ! is_finite((float) $element[$coordinate])));
                 },
             ));
 

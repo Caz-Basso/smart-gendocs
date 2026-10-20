@@ -1,5 +1,11 @@
-import { Folder, FileText, UserRoundCog, Bookmark,  type LucideIcon } from "lucide-react";
-import type { NavGroup, NavItem, SharedNavItem } from "@/types";
+import {
+    Folder,
+    FileText,
+    UserRoundCog,
+    Bookmark,
+    type LucideIcon,
+} from 'lucide-react';
+import type { NavGroup, NavItem, SharedNavItem } from '@/types';
 
 const iconMap: Record<string, LucideIcon> = {
     Folder,

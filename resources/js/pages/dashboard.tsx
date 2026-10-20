@@ -5,7 +5,6 @@ import { DocumentPreview } from '@/components/document/document-preview';
 import { DynamicFieldInput } from '@/components/document/dynamic-field-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { DocumentModel } from '@/types/document';
 import {
     Select,
     SelectContent,
@@ -18,6 +17,7 @@ import AppLayout from '@/layouts/app-layout';
 import { getInitialData, groupFieldsBySection } from '@/lib/document-fields';
 import { dashboard, model_registration } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
+import { DocumentModel } from '@/types/document';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Gerador de Documentos', href: dashboard() },

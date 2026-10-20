@@ -16,7 +16,7 @@ final class AdminSeeder extends Seeder
     {
         resolve(SyncPermissionsFromPolicies::class)->handle();
 
-        $adminRole = Role::where('name', 'admin')->first();
+        $adminRole = Role::query()->where('name', 'admin')->first();
 
         if (! $adminRole) {
             $this->command->warn('Role admin não encontrado. Execute as permissões primeiro.');
@@ -35,14 +35,11 @@ final class AdminSeeder extends Seeder
             'user.viewAudits',
         ]);
 
-        $admin = User::updateOrCreate(
-            ['email' => 'admin@smartgendocs.com'],
-            [
-                'name' => 'Administrador',
-                'password' => Hash::make('admin123'),
-                'email_verified_at' => now(),
-            ]
-        );
+        $admin = User::query()->updateOrCreate(['email' => 'admin@smartgendocs.com'], [
+            'name' => 'Administrador',
+            'password' => Hash::make('admin123'),
+            'email_verified_at' => now(),
+        ]);
 
         $admin->assignRole($adminRole);
 

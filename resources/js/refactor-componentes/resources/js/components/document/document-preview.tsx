@@ -8,7 +8,11 @@ interface DocumentPreviewProps {
     data: Record<string, string>;
 }
 
-export function DocumentPreview({ preview, fields, data }: DocumentPreviewProps) {
+export function DocumentPreview({
+    preview,
+    fields,
+    data,
+}: DocumentPreviewProps) {
     return (
         <div className="relative mx-auto w-full max-w-[850px] overflow-hidden rounded-sm border border-border/80 bg-white shadow-xl">
             <div className="min-h-[841px] w-full px-[48px] py-[42px] text-gray-900">

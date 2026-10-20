@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\DocumentModel;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 final readonly class CreateModelAction
@@ -21,13 +24,13 @@ final readonly class CreateModelAction
             $templatePath = null;
             $htmlContent = null;
 
-            if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
+            if (isset($data['template']) && $data['template'] instanceof UploadedFile) {
                 $templatePath = $data['template']->store('templates', 'public');
 
                 if (str_ends_with(mb_strtolower($templatePath), '.docx')) {
-                    $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($templatePath);
+                    $fullPath = Storage::disk('public')->path($templatePath);
                     $outputDir = dirname($fullPath);
-                    \Illuminate\Support\Facades\Process::timeout(120)->run([
+                    Process::timeout(120)->run([
                         'libreoffice',
                         '--headless',
                         '--convert-to',
@@ -42,13 +45,14 @@ final readonly class CreateModelAction
                         rename($defaultConverted, $targetConverted);
                     }
                 }
+
                 $htmlContent = is_string($data['html_content'] ?? null)
                     && $data['html_content'] !== ''
                         ? $data['html_content']
                         : $this->convertFileToHtml->handle($data['template']);
             }
 
-            $model = DocumentModel::create([
+            $model = DocumentModel::query()->create([
                 'id' => Str::uuid(),
                 'name' => $data['name'],
                 'template_path' => $templatePath,

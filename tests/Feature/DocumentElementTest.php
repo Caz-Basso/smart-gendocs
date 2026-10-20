@@ -41,7 +41,7 @@ it('forbids regular users from accessing document elements', function (): void {
 it('allows admin to list document elements', function (): void {
     $admin = createAdminUser();
 
-    DocumentElement::create([
+    DocumentElement::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Cabeçalho Teste',
         'type' => DocumentElementType::Header,
@@ -114,7 +114,7 @@ it('allows admin to update a document element', function (): void {
     Storage::fake('public');
     $admin = createAdminUser();
 
-    $element = DocumentElement::create([
+    $element = DocumentElement::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Cabeçalho Antigo',
         'type' => DocumentElementType::Header,
@@ -151,7 +151,7 @@ it('allows admin to update a document element', function (): void {
 it('toggles active state of a document element', function (): void {
     $admin = createAdminUser();
 
-    $element = DocumentElement::create([
+    $element = DocumentElement::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Rodapé Padrão',
         'type' => DocumentElementType::Footer,
@@ -180,7 +180,7 @@ it('toggles active state of a document element', function (): void {
 it('blocks deletion of document element when attached to a model', function (): void {
     $admin = createAdminUser();
 
-    $element = DocumentElement::create([
+    $element = DocumentElement::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Cabeçalho em Uso',
         'type' => DocumentElementType::Header,
@@ -193,7 +193,7 @@ it('blocks deletion of document element when attached to a model', function (): 
         'user_id' => $admin->id,
     ]);
 
-    $model = DocumentModel::create([
+    $model = DocumentModel::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Modelo Vinculado',
         'extracted_text' => '<p>Documento de teste</p>',
@@ -201,7 +201,7 @@ it('blocks deletion of document element when attached to a model', function (): 
         'user_id' => $admin->id,
     ]);
 
-    DocumentModelElement::create([
+    DocumentModelElement::query()->create([
         'id' => (string) Str::uuid(),
         'document_model_id' => $model->id,
         'document_element_id' => $element->id,
@@ -214,7 +214,7 @@ it('blocks deletion of document element when attached to a model', function (): 
         ->assertRedirect(route('document-elements.index'))
         ->assertSessionHas('error');
 
-    expect(DocumentElement::find($element->id))->not->toBeNull();
+    expect(DocumentElement::query()->find($element->id))->not->toBeNull();
 });
 
 it('allows deletion of an unused document element', function (): void {
@@ -224,7 +224,7 @@ it('allows deletion of an unused document element', function (): void {
     $imagePath = 'document-elements/unused.png';
     Storage::disk('public')->put($imagePath, 'fake-image-content');
 
-    $element = DocumentElement::create([
+    $element = DocumentElement::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Elemento Não Usado',
         'type' => DocumentElementType::Footer,
@@ -242,7 +242,7 @@ it('allows deletion of an unused document element', function (): void {
         ->assertRedirect(route('document-elements.index'))
         ->assertSessionHas('success');
 
-    expect(DocumentElement::find($element->id))->toBeNull()
+    expect(DocumentElement::query()->find($element->id))->toBeNull()
         ->and(Storage::disk('public')->exists($imagePath))->toBeFalse();
 });
 
@@ -253,7 +253,7 @@ it('renders headers and footers in generated PDF', function (): void {
     $headerImgPath = 'document-elements/official-header.png';
     Storage::disk('public')->put($headerImgPath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
 
-    $header = DocumentElement::create([
+    $header = DocumentElement::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Cabeçalho UNESC',
         'type' => DocumentElementType::Header,
@@ -266,7 +266,7 @@ it('renders headers and footers in generated PDF', function (): void {
         'user_id' => $admin->id,
     ]);
 
-    $model = DocumentModel::create([
+    $model = DocumentModel::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Edital com Cabeçalho',
         'extracted_text' => '<p>Conteúdo do edital para o candidato {{nome}}.</p>',
@@ -274,7 +274,7 @@ it('renders headers and footers in generated PDF', function (): void {
         'user_id' => $admin->id,
     ]);
 
-    DocumentModelElement::create([
+    DocumentModelElement::query()->create([
         'id' => (string) Str::uuid(),
         'document_model_id' => $model->id,
         'document_element_id' => $header->id,
@@ -282,9 +282,8 @@ it('renders headers and footers in generated PDF', function (): void {
         'z_index' => 10,
     ]);
 
-    $generateAction = app(GenerateDocumentAction::class);
+    $generateAction = resolve(GenerateDocumentAction::class);
     $pdf = $generateAction->handle($model->id, ['nome' => 'Carlos']);
 
     expect($pdf)->toStartWith('%PDF-');
 });
-

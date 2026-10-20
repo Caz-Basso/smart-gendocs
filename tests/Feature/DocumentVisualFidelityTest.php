@@ -17,12 +17,13 @@ it('completes the entire visual fidelity workflow from conversion to editor, sav
     // 1. Arquivo original: cria um PDF com título oficial, parágrafo com recuo e tag dinâmica
     $sourceMpdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 30, 'margin_right' => 20, 'margin_top' => 30, 'margin_bottom' => 20]);
     $sourceMpdf->WriteHTML('<h1 style="text-align: center;">PORTARIA NORMATIVA Nº 42/2026</h1><p style="text-align: justify; text-indent: 1.25cm;">O Reitor da Instituição resolve designar {{nome_servidor}} para a comissão.</p>');
+
     $originalPdfContent = $sourceMpdf->Output('', 'S');
 
     $uploadedFile = UploadedFile::fake()->createWithContent('portaria.pdf', $originalPdfContent);
 
     // 2. Conversão estruturada preservando fidelidade ABNT
-    $processor = app(ProcessDocumentTemplate::class);
+    $processor = resolve(ProcessDocumentTemplate::class);
     $conversionResult = $processor->handle($uploadedFile->getRealPath());
 
     expect($conversionResult['html'])->toContain('PORTARIA NORMATIVA')
@@ -56,7 +57,7 @@ it('completes the entire visual fidelity workflow from conversion to editor, sav
         ])
         ->assertRedirect(route('models.index'));
 
-    $savedModel = DocumentModel::where('name', 'Portaria Oficial 2026')->firstOrFail();
+    $savedModel = DocumentModel::query()->where('name', 'Portaria Oficial 2026')->firstOrFail();
 
     // 5. Carregamento posterior: verifica se o documento mantém os estilos, cabeçalhos, rodapés e margens
     expect($savedModel->extracted_text)->toBe($editorHtml)
@@ -83,7 +84,7 @@ it('completes the entire visual fidelity workflow from conversion to editor, sav
         );
 
     // 7. Geração de PDF oficial respeitando as margens ABNT configuradas e substituição de dados
-    $generator = app(GenerateDocumentAction::class);
+    $generator = resolve(GenerateDocumentAction::class);
     $generatedPdf = $generator->handle($savedModel->id, [
         'nome_servidor' => 'Carlos Eduardo Silva',
     ]);

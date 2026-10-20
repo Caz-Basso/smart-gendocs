@@ -17,7 +17,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('generated_documents', function (Blueprint $table) {
+        Schema::table('generated_documents', function (Blueprint $table): void {
             $table->text('html_content')->nullable()->after('file_path');
         });
     }
@@ -31,7 +31,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('generated_documents', function (Blueprint $table) {
+        Schema::table('generated_documents', function (Blueprint $table): void {
             $table->dropColumn('html_content');
         });
     }

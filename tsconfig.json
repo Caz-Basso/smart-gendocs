@@ -113,5 +113,10 @@
         },
         "jsx": "react-jsx"
     },
-    "include": ["resources/js/**/*.ts", "resources/js/**/*.d.ts", "resources/js/**/*.tsx"]
+    "include": ["resources/js/**/*.ts", "resources/js/**/*.d.ts", "resources/js/**/*.tsx"],
+    "exclude": [
+        "resources/js/refactor-componentes",
+        "resources/js/components/model/tiptap-editor.tsx",
+        "resources/js/lib/tiptap-extensions"
+    ]
 }

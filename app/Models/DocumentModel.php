@@ -4,44 +4,43 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Attributes\WithoutIncrementing;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[Fillable([
+    'id',
+    'name',
+    'template_path',
+    'extracted_text',
+    'html_content',
+    'document_structure',
+    'fields',
+    'user_id',
+])]
+#[Table(name: 'document_models', keyType: 'uuid')]
+#[WithoutIncrementing]
 final class DocumentModel extends Model
 {
-    public $incrementing = false;
-
-    protected $table = 'document_models';
-
-    protected $fillable = [
-        'id',
-        'name',
-        'template_path',
-        'extracted_text',
-        'html_content',
-        'document_structure',
-        'fields',
-        'user_id',
-    ];
-
-    protected $casts = [
-        'fields' => 'array',
-        'document_structure' => 'array',
-    ];
-
-    protected $keyType = 'uuid';
+    use HasFactory;
+    use HasFactory;
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function modelElements(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function modelElements(): HasMany
     {
         return $this->hasMany(DocumentModelElement::class, 'document_model_id')->orderBy('z_index');
     }
 
-    public function documentElements(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function documentElements(): BelongsToMany
     {
         return $this->belongsToMany(
             DocumentElement::class,
@@ -57,5 +56,13 @@ final class DocumentModel extends Model
             'pages',
             'z_index',
         ])->withTimestamps()->orderByPivot('z_index');
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'fields' => 'array',
+            'document_structure' => 'array',
+        ];
     }
 }

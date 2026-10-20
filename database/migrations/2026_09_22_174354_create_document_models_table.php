@@ -10,7 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('document_models', function (Blueprint $table) {
+        Schema::create('document_models', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('name');
             $table->string('template_path')->nullable();

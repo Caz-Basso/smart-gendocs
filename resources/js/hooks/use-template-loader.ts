@@ -48,7 +48,10 @@ async function parseFileViaServer(file: File): Promise<LoadedDocument | null> {
         }
 
         const payload = await response.json();
-        if (payload.kind === 'rich_document' && typeof payload.html === 'string') {
+        if (
+            payload.kind === 'rich_document' &&
+            typeof payload.html === 'string'
+        ) {
             return {
                 kind: 'rich_document',
                 html: payload.html,
@@ -73,7 +76,10 @@ async function parseFileViaServer(file: File): Promise<LoadedDocument | null> {
             };
         }
     } catch (e) {
-        console.warn('Processamento no servidor indisponível, usando fallback local.', e);
+        console.warn(
+            'Processamento no servidor indisponível, usando fallback local.',
+            e,
+        );
     }
 
     return null;
@@ -89,14 +95,16 @@ async function parseFile(file: File): Promise<LoadedDocument> {
     const buffer = await file.arrayBuffer();
 
     if (name.endsWith('.docx') || file.type === DOCX_MIME) {
-        const result = await mammoth.convertToHtml({
-            arrayBuffer: buffer,
-            styleMap: [
-                "p[style-name='Heading 1'] => h1:fresh",
-                "p[style-name='Heading 2'] => h2:fresh",
-                "p[style-name='Heading 3'] => h3:fresh",
-            ],
-        });
+        const result = await mammoth.convertToHtml(
+            { arrayBuffer: buffer },
+            {
+                styleMap: [
+                    "p[style-name='Heading 1'] => h1:fresh",
+                    "p[style-name='Heading 2'] => h2:fresh",
+                    "p[style-name='Heading 3'] => h3:fresh",
+                ],
+            },
+        );
 
         return {
             kind: 'docx',

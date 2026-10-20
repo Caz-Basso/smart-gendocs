@@ -21,7 +21,7 @@ final class EnsureUserIsActive
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('login')->withErrors([
+            return to_route('login')->withErrors([
                 'email' => __('auth.failed'),
             ]);
         }

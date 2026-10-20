@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 final class GenerateDocumentRequest extends FormRequest
 {
-    private const SAMPLE_MODEL_IDS = [
+    private const array SAMPLE_MODEL_IDS = [
         'proposta-comercial',
         'contrato-estagio',
         'declaracao-matricula',
@@ -31,7 +31,7 @@ final class GenerateDocumentRequest extends FormRequest
                 'string',
                 function (string $attribute, mixed $value, Closure $fail): void {
                     if (Str::isUuid($value)) {
-                        if (! DocumentModel::whereKey($value)->exists()) {
+                        if (! DocumentModel::query()->whereKey($value)->exists()) {
                             $fail('O modelo selecionado não foi encontrado.');
                         }
 
@@ -43,12 +43,12 @@ final class GenerateDocumentRequest extends FormRequest
                     }
                 },
             ],
-            'data' => 'required|array',
-            'data.*' => 'nullable|string|max:10000',
-            'document_name' => 'required|string|max:255',
-            'field_definitions' => 'nullable|json|max:100000',
-            'preview' => 'required_if:model_id,proposta-comercial,contrato-estagio,declaracao-matricula,contrato-servicos|array|min:1|max:100',
-            'preview.*' => 'nullable|string|max:10000',
+            'data' => ['required', 'array'],
+            'data.*' => ['nullable', 'string', 'max:10000'],
+            'document_name' => ['required', 'string', 'max:255'],
+            'field_definitions' => ['nullable', 'json', 'max:100000'],
+            'preview' => ['required_if:model_id,proposta-comercial,contrato-estagio,declaracao-matricula,contrato-servicos', 'array', 'min:1', 'max:100'],
+            'preview.*' => ['nullable', 'string', 'max:10000'],
         ];
     }
 

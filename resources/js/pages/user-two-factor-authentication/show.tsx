@@ -55,7 +55,10 @@ export default function TwoFactor({
                         {twoFactorEnabled ? (
                             <div className="flex flex-col items-start justify-start space-y-4">
                                 <p className="text-sm text-muted-foreground">
-                                    Durante o login, será solicitado um PIN seguro e aleatório, que você pode obter no aplicativo compatível com TOTP em seu telefone.
+                                    Durante o login, será solicitado um PIN
+                                    seguro e aleatório, que você pode obter no
+                                    aplicativo compatível com TOTP em seu
+                                    telefone.
                                 </p>
 
                                 <div className="relative inline">
@@ -82,9 +85,10 @@ export default function TwoFactor({
                             <div className="flex flex-col items-start justify-start space-y-4">
                                 <p className="text-sm text-muted-foreground">
                                     Ao ativar a autenticação de dois fatores,
-                                    será solicitado um PIN seguro durante
-                                    o login. Esse PIN pode ser obtido em um
-                                    aplicativo compatível com TOTP no seu celular.
+                                    será solicitado um PIN seguro durante o
+                                    login. Esse PIN pode ser obtido em um
+                                    aplicativo compatível com TOTP no seu
+                                    celular.
                                 </p>
 
                                 <div>

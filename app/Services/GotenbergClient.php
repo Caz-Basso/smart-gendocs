@@ -86,12 +86,12 @@ final readonly class GotenbergClient
             ]);
 
             throw new RuntimeException('Falha ao converter HTML para PDF via Gotenberg.');
-        } catch (Throwable $e) {
+        } catch (Throwable $throwable) {
             Log::error('Erro ao comunicar com Gotenberg', [
-                'message' => $e->getMessage(),
+                'message' => $throwable->getMessage(),
             ]);
 
-            throw new RuntimeException('Erro ao comunicar com serviço de geração de PDF: '.$e->getMessage(), previous: $e);
+            throw new RuntimeException('Erro ao comunicar com serviço de geração de PDF: '.$throwable->getMessage(), previous: $throwable);
         }
     }
 

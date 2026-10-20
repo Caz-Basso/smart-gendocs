@@ -70,31 +70,28 @@ export function splitHtmlIntoPages(rawHtml: string): string[] {
     const clean = stripConfigComment(rawHtml).trim();
 
     if (!clean) {
-        return ['<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>'];
+        return [
+            '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>',
+        ];
     }
 
     // Divide pelas quebras de página explícitas
     const rawPages = clean.split(PAGE_BREAK_REGEX);
 
-    const pages = rawPages
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+    const pages = rawPages.map((p) => p.trim()).filter((p) => p.length > 0);
 
     return pages.length > 0
         ? pages
-        : ['<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>'];
+        : [
+              '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>',
+          ];
 }
 
 /**
  * Une as páginas individuais gerando o HTML consolidado com quebras e metadados
  */
-export function joinPagesIntoHtml(
-    pages: string[],
-    configComment = '',
-): string {
-    const validPages = pages
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+export function joinPagesIntoHtml(pages: string[], configComment = ''): string {
+    const validPages = pages.map((p) => p.trim()).filter((p) => p.length > 0);
 
     if (validPages.length === 0) {
         return configComment
@@ -156,10 +153,14 @@ function estimateElementHeightPx(
 export function autoPaginateExceededPage(
     pageHtml: string,
     usableHeightPx: number,
-    spacing: HeaderFooterSpacing = { headerSpacingCm: 0.6, footerSpacingCm: 0.8 },
+    spacing: HeaderFooterSpacing = {
+        headerSpacingCm: 0.6,
+        footerSpacingCm: 0.8,
+    },
 ): string[] {
     // Quebra o HTML em blocos principais (p, h1, h2, h3, table, header, footer, etc.)
-    const blockRegex = /<(p|h1|h2|h3|table|header|footer|div|blockquote)[^>]*>[\s\S]*?<\/\1>|<(hr|br)[^>]*\/?>/gi;
+    const blockRegex =
+        /<(p|h1|h2|h3|table|header|footer|div|blockquote)[^>]*>[\s\S]*?<\/\1>|<(hr|br)[^>]*\/?>/gi;
     const matches = Array.from(pageHtml.matchAll(blockRegex));
 
     if (matches.length <= 1) {
@@ -182,7 +183,10 @@ export function autoPaginateExceededPage(
         );
 
         // Se o bloco atual faz a página estourar a altura útil e já temos blocos na página atual
-        if (currentHeight + blockHeight > usableHeightPx && currentBlocks.length > 0) {
+        if (
+            currentHeight + blockHeight > usableHeightPx &&
+            currentBlocks.length > 0
+        ) {
             pages.push(currentBlocks.join('\n'));
             currentBlocks = [fullBlock];
             currentHeight = blockHeight;
@@ -207,7 +211,10 @@ export function autoPaginateExceededPage(
 export function paginateDocument(
     rawHtml: string,
     margins: DocumentMargins,
-    spacing: HeaderFooterSpacing = { headerSpacingCm: 0.6, footerSpacingCm: 0.8 },
+    spacing: HeaderFooterSpacing = {
+        headerSpacingCm: 0.6,
+        footerSpacingCm: 0.8,
+    },
 ): string[] {
     const explicitPages = splitHtmlIntoPages(rawHtml);
     const { usableHeightPx } = getPageDimensions(margins);
@@ -215,11 +222,17 @@ export function paginateDocument(
     const paginatedPages: string[] = [];
 
     for (const page of explicitPages) {
-        const subPages = autoPaginateExceededPage(page, usableHeightPx, spacing);
+        const subPages = autoPaginateExceededPage(
+            page,
+            usableHeightPx,
+            spacing,
+        );
         paginatedPages.push(...subPages);
     }
 
     return paginatedPages.length > 0
         ? paginatedPages
-        : ['<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>'];
+        : [
+              '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>',
+          ];
 }

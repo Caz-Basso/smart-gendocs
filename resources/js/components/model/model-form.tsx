@@ -34,15 +34,15 @@ import {
 } from '@/lib/pdf-document';
 import { cleanHtml } from '@/lib/template-utils';
 import type {
+    DocumentElement,
+    ModelElementAttachment,
+} from '@/types/document-element';
+import type {
     FieldItem,
     FieldTypeOption,
     ModelData,
     ModelFormData,
 } from '@/types/model-template';
-import type {
-    DocumentElement,
-    ModelElementAttachment,
-} from '@/types/document-element';
 import { ConfirmDialog } from './confirm-dialog';
 import { FieldsPanel } from './fields-panel';
 import { HeaderFooterPanel } from './header-footer-panel';
@@ -88,6 +88,7 @@ export function ModelForm({
         [model],
     );
     const initialHtml = model?.extracted_text ?? '';
+    const initialConvertedHtml = model?.html_content ?? '';
 
     const initialElements: ModelElementAttachment[] = useMemo(() => {
         if (model?.elements && model.elements.length > 0) {
@@ -104,10 +105,22 @@ export function ModelForm({
                 name: me.document_element?.name,
                 type: me.document_element?.type,
                 image_url: me.document_element?.image_url,
-                position_x: me.position_x !== null ? Number(me.position_x) : Number(me.document_element?.position_x ?? 0),
-                position_y: me.position_y !== null ? Number(me.position_y) : Number(me.document_element?.position_y ?? 0),
-                width: me.width !== null ? Number(me.width) : Number(me.document_element?.width ?? 210),
-                height: me.height !== null ? Number(me.height) : Number(me.document_element?.height ?? 35),
+                position_x:
+                    me.position_x !== null
+                        ? Number(me.position_x)
+                        : Number(me.document_element?.position_x ?? 0),
+                position_y:
+                    me.position_y !== null
+                        ? Number(me.position_y)
+                        : Number(me.document_element?.position_y ?? 0),
+                width:
+                    me.width !== null
+                        ? Number(me.width)
+                        : Number(me.document_element?.width ?? 210),
+                height:
+                    me.height !== null
+                        ? Number(me.height)
+                        : Number(me.document_element?.height ?? 35),
                 repeat_all_pages: Boolean(me.repeat_all_pages),
                 pages: me.pages ?? [1],
                 z_index: me.z_index ?? 10,
@@ -135,6 +148,7 @@ export function ModelForm({
                 ? model.fields
                 : [createDefaultField()],
             extracted_text: initialHtml,
+            html_content: initialConvertedHtml,
             document_structure: model?.document_structure ?? null,
             elements: initialElements,
         });
@@ -177,7 +191,11 @@ export function ModelForm({
                     if (!existingSlugs.has(slug)) {
                         const name = slug
                             .split('_')
-                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                            .map(
+                                (word) =>
+                                    word.charAt(0).toUpperCase() +
+                                    word.slice(1),
+                            )
                             .join(' ');
                         fieldsToAdd.push({
                             id: crypto.randomUUID(),
@@ -283,9 +301,7 @@ export function ModelForm({
         setIsUpdateOpen(false);
 
         const html =
-            data.extracted_text ||
-            editorRef.current?.innerHTML ||
-            htmlContent;
+            data.extracted_text || editorRef.current?.innerHTML || htmlContent;
 
         transform((formData) => ({
             ...formData,
@@ -391,11 +407,12 @@ export function ModelForm({
         const blob = new Blob([jsonContent], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
-        const fileName = (model?.name ?? data.name)
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '') || 'documento';
+        const fileName =
+            (model?.name ?? data.name)
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '') || 'documento';
 
         anchor.href = url;
         anchor.download = `${fileName}.json`;
@@ -445,8 +462,8 @@ export function ModelForm({
                     <DialogHeader>
                         <DialogTitle>Estrutura JSON do PDF</DialogTitle>
                         <DialogDescription>
-                            Prévia da estrutura convertida, incluindo as alterações
-                            ainda não salvas.
+                            Prévia da estrutura convertida, incluindo as
+                            alterações ainda não salvas.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -455,7 +472,11 @@ export function ModelForm({
                     </pre>
 
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={copyJson}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={copyJson}
+                        >
                             <Copy className="mr-2 h-4 w-4" />
                             Copiar JSON
                         </Button>
@@ -497,7 +518,9 @@ export function ModelForm({
                                 name="model_name"
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('name', e.target.value)
+                                }
                                 required
                             />
 
@@ -612,7 +635,8 @@ export function ModelForm({
 
                                 <p className="mt-1 max-w-xs text-xs">
                                     Faça upload de um PDF ou DOCX para
-                                    visualizar e editar o documento livremente com reflow contínuo.
+                                    visualizar e editar o documento livremente
+                                    com reflow contínuo.
                                 </p>
                             </div>
                         ) : (

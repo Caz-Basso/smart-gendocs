@@ -26,15 +26,11 @@ final readonly class ProcessDocumentTemplate
     {
         $filePath = $file instanceof UploadedFile ? $file->getRealPath() : $file;
 
-        if (! is_string($filePath) || ! is_file($filePath)) {
-            throw new RuntimeException('Arquivo não encontrado para processamento.');
-        }
+        throw_if(! is_string($filePath) || ! is_file($filePath), RuntimeException::class, 'Arquivo não encontrado para processamento.');
 
         $scriptPath = base_path('resources/scripts/document_processor.py');
 
-        if (! is_file($scriptPath)) {
-            throw new RuntimeException('Script do processador de documentos não encontrado.');
-        }
+        throw_unless(is_file($scriptPath), RuntimeException::class, 'Script do processador de documentos não encontrado.');
 
         $result = Process::timeout(180)->run([
             'python3',
@@ -58,9 +54,7 @@ final readonly class ProcessDocumentTemplate
          * }|null $decoded */
         $decoded = json_decode($output, true);
 
-        if (! is_array($decoded) || ! isset($decoded['html'])) {
-            throw new RuntimeException('Saída inválida do processador de documentos.');
-        }
+        throw_if(! is_array($decoded) || ! isset($decoded['html']), RuntimeException::class, 'Saída inválida do processador de documentos.');
 
         return $decoded;
     }

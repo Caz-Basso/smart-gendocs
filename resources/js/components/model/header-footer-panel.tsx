@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Link } from "@inertiajs/react";
+import { Link } from '@inertiajs/react';
 import {
     ChevronUp,
     ExternalLink,
@@ -8,17 +7,18 @@ import {
     RotateCcw,
     Settings2,
     Trash2,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import documentElements from "@/routes/document-elements";
+} from 'lucide-react';
+import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import documentElements from '@/routes/document-elements';
 import type {
     DocumentElement,
     ModelElementAttachment,
-} from "@/types/document-element";
+} from '@/types/document-element';
 
 interface Props {
     availableElements: DocumentElement[];
@@ -31,8 +31,10 @@ export function HeaderFooterPanel({
     elements = [],
     onChange,
 }: Props) {
-    const [selectedIdToAdd, setSelectedIdToAdd] = useState<string>("");
-    const [expandedElementId, setExpandedElementId] = useState<string | null>(null);
+    const [selectedIdToAdd, setSelectedIdToAdd] = useState<string>('');
+    const [expandedElementId, setExpandedElementId] = useState<string | null>(
+        null,
+    );
     const [rawPagesMap, setRawPagesMap] = useState<Record<string, string>>({});
 
     const handleAdd = () => {
@@ -57,14 +59,17 @@ export function HeaderFooterPanel({
         };
 
         onChange([...elements, newAttachment]);
-        setSelectedIdToAdd("");
+        setSelectedIdToAdd('');
     };
 
     const handleRemove = (instanceKey: string) => {
         onChange(elements.filter((el) => getKey(el) !== instanceKey));
     };
 
-    const handleUpdate = (instanceKey: string, partial: Partial<ModelElementAttachment>) => {
+    const handleUpdate = (
+        instanceKey: string,
+        partial: Partial<ModelElementAttachment>,
+    ) => {
         onChange(
             elements.map((el) =>
                 getKey(el) === instanceKey ? { ...el, ...partial } : el,
@@ -75,7 +80,9 @@ export function HeaderFooterPanel({
     const handleResetToDefault = (instanceKey: string) => {
         const item = elements.find((el) => getKey(el) === instanceKey);
         if (!item) return;
-        const original = availableElements.find((e) => e.id === item.element_id);
+        const original = availableElements.find(
+            (e) => e.id === item.element_id,
+        );
         if (!original) return;
 
         handleUpdate(instanceKey, {
@@ -90,7 +97,6 @@ export function HeaderFooterPanel({
     const getKey = (item: ModelElementAttachment): string =>
         item._instanceKey ?? item.id ?? item.element_id;
 
-
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -101,8 +107,9 @@ export function HeaderFooterPanel({
                     </span>
                 </div>
                 {elements.length > 0 && (
-                    <Badge variant="secondary" className="text-[10px] h-5">
-                        {elements.length} {elements.length === 1 ? "anexado" : "anexados"}
+                    <Badge variant="secondary" className="h-5 text-[10px]">
+                        {elements.length}{' '}
+                        {elements.length === 1 ? 'anexado' : 'anexados'}
                     </Badge>
                 )}
             </div>
@@ -110,9 +117,12 @@ export function HeaderFooterPanel({
             {/* If no elements registered in system */}
             {availableElements.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
-                    <p className="font-medium">Nenhum cabeçalho ou rodapé cadastrado.</p>
+                    <p className="font-medium">
+                        Nenhum cabeçalho ou rodapé cadastrado.
+                    </p>
                     <p className="mt-1 text-[11px] text-amber-700/80 dark:text-amber-400/80">
-                        Cadastre imagens reutilizáveis no menu de administração para posicionar nos modelos.
+                        Cadastre imagens reutilizáveis no menu de administração
+                        para posicionar nos modelos.
                     </p>
                     <div className="mt-2.5">
                         <Link
@@ -132,15 +142,19 @@ export function HeaderFooterPanel({
                         <div className="flex gap-2">
                             <select
                                 value={selectedIdToAdd}
-                                onChange={(e) => setSelectedIdToAdd(e.target.value)}
-                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                onChange={(e) =>
+                                    setSelectedIdToAdd(e.target.value)
+                                }
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                             >
                                 <option value="" disabled>
                                     Selecionar cabeçalho ou rodapé...
                                 </option>
                                 {availableElements.map((el) => (
                                     <option key={el.id} value={el.id}>
-                                        {el.type === "header" ? "🔝 [Cabeçalho]" : "🔻 [Rodapé]"}{" "}
+                                        {el.type === 'header'
+                                            ? '🔝 [Cabeçalho]'
+                                            : '🔻 [Rodapé]'}{' '}
                                         {el.name} ({el.width}×{el.height}mm)
                                     </option>
                                 ))}
@@ -150,7 +164,7 @@ export function HeaderFooterPanel({
                                 size="sm"
                                 disabled={!selectedIdToAdd}
                                 onClick={handleAdd}
-                                className="h-9 px-3 text-xs gap-1 cursor-pointer shrink-0"
+                                className="h-9 shrink-0 cursor-pointer gap-1 px-3 text-xs"
                             >
                                 <Plus className="h-3.5 w-3.5" />
                                 Inserir
@@ -161,46 +175,60 @@ export function HeaderFooterPanel({
                     {/* Attached Elements List */}
                     {elements.length === 0 ? (
                         <p className="text-[11px] text-muted-foreground italic">
-                            Nenhum cabeçalho ou rodapé selecionado para este modelo.
+                            Nenhum cabeçalho ou rodapé selecionado para este
+                            modelo.
                         </p>
                     ) : (
                         <div className="space-y-3">
                             {elements.map((item) => {
                                 const instanceKey = getKey(item);
-                                const isExpanded = expandedElementId === instanceKey;
-                                const isHeader = item.type === "header";
+                                const isExpanded =
+                                    expandedElementId === instanceKey;
+                                const isHeader = item.type === 'header';
 
                                 return (
                                     <div
                                         key={instanceKey}
-                                        className="rounded-lg border bg-card p-3 shadow-2xs space-y-3"
+                                        className="space-y-3 rounded-lg border bg-card p-3 shadow-2xs"
                                     >
                                         {/* Card Header */}
                                         <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-2 min-w-0">
+                                            <div className="flex min-w-0 items-center gap-2">
                                                 {item.image_url && (
                                                     <img
                                                         src={item.image_url}
                                                         alt={item.name}
-                                                        className="h-8 w-12 object-contain rounded bg-neutral-100 dark:bg-neutral-800 p-0.5 border shrink-0"
+                                                        className="h-8 w-12 shrink-0 rounded border bg-neutral-100 object-contain p-0.5 dark:bg-neutral-800"
                                                     />
                                                 )}
                                                 <div className="min-w-0">
-                                                    <p className="text-xs font-semibold truncate leading-tight">
-                                                        {item.name || item.element?.name || "Elemento"}
+                                                    <p className="truncate text-xs leading-tight font-semibold">
+                                                        {item.name ||
+                                                            item.element
+                                                                ?.name ||
+                                                            'Elemento'}
                                                     </p>
-                                                    <span className="text-[10px] text-muted-foreground font-mono">
-                                                        {item.width}×{item.height}mm (X: {item.position_x}, Y: {item.position_y})
+                                                    <span className="font-mono text-[10px] text-muted-foreground">
+                                                        {item.width}×
+                                                        {item.height}mm (X:{' '}
+                                                        {item.position_x}, Y:{' '}
+                                                        {item.position_y})
                                                     </span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-1 shrink-0">
+                                            <div className="flex shrink-0 items-center gap-1">
                                                 <Badge
-                                                    variant={isHeader ? "default" : "secondary"}
-                                                    className="text-[9px] uppercase px-1.5 py-0"
+                                                    variant={
+                                                        isHeader
+                                                            ? 'default'
+                                                            : 'secondary'
+                                                    }
+                                                    className="px-1.5 py-0 text-[9px] uppercase"
                                                 >
-                                                    {isHeader ? "Cabeçalho" : "Rodapé"}
+                                                    {isHeader
+                                                        ? 'Cabeçalho'
+                                                        : 'Rodapé'}
                                                 </Badge>
 
                                                 <Button
@@ -209,7 +237,9 @@ export function HeaderFooterPanel({
                                                     size="icon"
                                                     onClick={() =>
                                                         setExpandedElementId(
-                                                            isExpanded ? null : instanceKey,
+                                                            isExpanded
+                                                                ? null
+                                                                : instanceKey,
                                                         )
                                                     }
                                                     className="h-6 w-6 cursor-pointer text-muted-foreground hover:text-foreground"
@@ -226,7 +256,11 @@ export function HeaderFooterPanel({
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleRemove(instanceKey)}
+                                                    onClick={() =>
+                                                        handleRemove(
+                                                            instanceKey,
+                                                        )
+                                                    }
                                                     className="h-6 w-6 cursor-pointer text-destructive hover:bg-destructive/10"
                                                     title="Remover deste modelo"
                                                 >
@@ -236,20 +270,34 @@ export function HeaderFooterPanel({
                                         </div>
 
                                         {/* Repetition Options */}
-                                        <div className="pt-1 border-t space-y-2">
+                                        <div className="space-y-2 border-t pt-1">
                                             <Label className="text-[11px] font-medium text-muted-foreground">
                                                 Repetição no Documento:
                                             </Label>
                                             <RadioGroup
-                                                value={item.repeat_all_pages ? "all" : "specific"}
+                                                value={
+                                                    item.repeat_all_pages
+                                                        ? 'all'
+                                                        : 'specific'
+                                                }
                                                 onValueChange={(val) => {
                                                     handleUpdate(instanceKey, {
-                                                        repeat_all_pages: val === "all",
-                                                        pages: val === "all" ? undefined : (item.pages || [1]),
+                                                        repeat_all_pages:
+                                                            val === 'all',
+                                                        pages:
+                                                            val === 'all'
+                                                                ? undefined
+                                                                : item.pages || [
+                                                                      1,
+                                                                  ],
                                                     });
                                                     setRawPagesMap((prev) => {
-                                                        const next = { ...prev };
-                                                        delete next[instanceKey];
+                                                        const next = {
+                                                            ...prev,
+                                                        };
+                                                        delete next[
+                                                            instanceKey
+                                                        ];
                                                         return next;
                                                     });
                                                 }}
@@ -263,7 +311,7 @@ export function HeaderFooterPanel({
                                                     />
                                                     <Label
                                                         htmlFor={`rep-all-${instanceKey}`}
-                                                        className="text-xs cursor-pointer font-normal"
+                                                        className="cursor-pointer text-xs font-normal"
                                                     >
                                                         Todas as páginas
                                                     </Label>
@@ -277,50 +325,86 @@ export function HeaderFooterPanel({
                                                     />
                                                     <Label
                                                         htmlFor={`rep-spec-${instanceKey}`}
-                                                        className="text-xs cursor-pointer font-normal"
+                                                        className="cursor-pointer text-xs font-normal"
                                                     >
-                                                        Páginas específicas (ex: apenas pág. 1)
+                                                        Páginas específicas (ex:
+                                                        apenas pág. 1)
                                                     </Label>
                                                 </div>
                                             </RadioGroup>
 
                                             {!item.repeat_all_pages && (
-                                                <div className="pl-5 pt-1 space-y-1">
+                                                <div className="space-y-1 pt-1 pl-5">
                                                     <Label
                                                         htmlFor={`pages-${instanceKey}`}
                                                         className="text-[10px] text-muted-foreground"
                                                     >
-                                                        Números das páginas (separados por vírgula):
+                                                        Números das páginas
+                                                        (separados por vírgula):
                                                     </Label>
                                                     <Input
                                                         id={`pages-${instanceKey}`}
                                                         type="text"
                                                         placeholder="Ex: 1 ou 1, 2"
                                                         value={
-                                                            instanceKey in rawPagesMap
-                                                                ? rawPagesMap[instanceKey]
-                                                                : (item.pages || []).join(", ")
+                                                            instanceKey in
+                                                            rawPagesMap
+                                                                ? rawPagesMap[
+                                                                      instanceKey
+                                                                  ]
+                                                                : (
+                                                                      item.pages ||
+                                                                      []
+                                                                  ).join(', ')
                                                         }
                                                         onChange={(e) => {
-                                                            setRawPagesMap((prev) => ({
-                                                                ...prev,
-                                                                [instanceKey]: e.target.value,
-                                                            }));
+                                                            setRawPagesMap(
+                                                                (prev) => ({
+                                                                    ...prev,
+                                                                    [instanceKey]:
+                                                                        e.target
+                                                                            .value,
+                                                                }),
+                                                            );
                                                         }}
                                                         onBlur={(e) => {
-                                                            const raw = e.target.value;
+                                                            const raw =
+                                                                e.target.value;
                                                             const parsed = raw
-                                                                .split(",")
-                                                                .map((p) => parseInt(p.trim(), 10))
-                                                                .filter((n) => !isNaN(n) && n > 0);
-                                                            handleUpdate(instanceKey, { pages: parsed });
-                                                            setRawPagesMap((prev) => {
-                                                                const next = { ...prev };
-                                                                delete next[instanceKey];
-                                                                return next;
-                                                            });
+                                                                .split(',')
+                                                                .map((p) =>
+                                                                    parseInt(
+                                                                        p.trim(),
+                                                                        10,
+                                                                    ),
+                                                                )
+                                                                .filter(
+                                                                    (n) =>
+                                                                        !isNaN(
+                                                                            n,
+                                                                        ) &&
+                                                                        n > 0,
+                                                                );
+                                                            handleUpdate(
+                                                                instanceKey,
+                                                                {
+                                                                    pages: parsed,
+                                                                },
+                                                            );
+                                                            setRawPagesMap(
+                                                                (prev) => {
+                                                                    const next =
+                                                                        {
+                                                                            ...prev,
+                                                                        };
+                                                                    delete next[
+                                                                        instanceKey
+                                                                    ];
+                                                                    return next;
+                                                                },
+                                                            );
                                                         }}
-                                                        className="h-7 text-xs font-mono"
+                                                        className="h-7 font-mono text-xs"
                                                     />
                                                 </div>
                                             )}
@@ -328,15 +412,20 @@ export function HeaderFooterPanel({
 
                                         {/* Overrides Collapsible Accordion */}
                                         {isExpanded && (
-                                            <div className="pt-2 border-t space-y-2 bg-neutral-50/70 dark:bg-neutral-900/40 -mx-3 -mb-3 p-3 rounded-b-lg">
+                                            <div className="-mx-3 -mb-3 space-y-2 rounded-b-lg border-t bg-neutral-50/70 p-3 pt-2 dark:bg-neutral-900/40">
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
-                                                        Ajustes Específicos para Este Modelo (mm):
+                                                        Ajustes Específicos para
+                                                        Este Modelo (mm):
                                                     </span>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleResetToDefault(instanceKey)}
-                                                        className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline cursor-pointer"
+                                                        onClick={() =>
+                                                            handleResetToDefault(
+                                                                instanceKey,
+                                                            )
+                                                        }
+                                                        className="inline-flex cursor-pointer items-center gap-1 text-[10px] text-blue-600 hover:underline"
                                                         title="Restaurar dimensões originais do elemento"
                                                     >
                                                         <RotateCcw className="h-3 w-3" />
@@ -352,13 +441,25 @@ export function HeaderFooterPanel({
                                                         <Input
                                                             type="number"
                                                             step="0.5"
-                                                            value={item.position_x ?? 0}
-                                                            onChange={(e) =>
-                                                                handleUpdate(instanceKey, {
-                                                                    position_x: parseFloat(e.target.value) || 0,
-                                                                })
+                                                            value={
+                                                                item.position_x ??
+                                                                0
                                                             }
-                                                            className="h-7 text-xs font-mono"
+                                                            onChange={(e) =>
+                                                                handleUpdate(
+                                                                    instanceKey,
+                                                                    {
+                                                                        position_x:
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                            0,
+                                                                    },
+                                                                )
+                                                            }
+                                                            className="h-7 font-mono text-xs"
                                                         />
                                                     </div>
 
@@ -369,13 +470,25 @@ export function HeaderFooterPanel({
                                                         <Input
                                                             type="number"
                                                             step="0.5"
-                                                            value={item.position_y ?? 0}
-                                                            onChange={(e) =>
-                                                                handleUpdate(instanceKey, {
-                                                                    position_y: parseFloat(e.target.value) || 0,
-                                                                })
+                                                            value={
+                                                                item.position_y ??
+                                                                0
                                                             }
-                                                            className="h-7 text-xs font-mono"
+                                                            onChange={(e) =>
+                                                                handleUpdate(
+                                                                    instanceKey,
+                                                                    {
+                                                                        position_y:
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                            0,
+                                                                    },
+                                                                )
+                                                            }
+                                                            className="h-7 font-mono text-xs"
                                                         />
                                                     </div>
 
@@ -386,13 +499,25 @@ export function HeaderFooterPanel({
                                                         <Input
                                                             type="number"
                                                             step="0.5"
-                                                            value={item.width ?? 210}
-                                                            onChange={(e) =>
-                                                                handleUpdate(instanceKey, {
-                                                                    width: parseFloat(e.target.value) || 10,
-                                                                })
+                                                            value={
+                                                                item.width ??
+                                                                210
                                                             }
-                                                            className="h-7 text-xs font-mono"
+                                                            onChange={(e) =>
+                                                                handleUpdate(
+                                                                    instanceKey,
+                                                                    {
+                                                                        width:
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                            10,
+                                                                    },
+                                                                )
+                                                            }
+                                                            className="h-7 font-mono text-xs"
                                                         />
                                                     </div>
 
@@ -403,13 +528,25 @@ export function HeaderFooterPanel({
                                                         <Input
                                                             type="number"
                                                             step="0.5"
-                                                            value={item.height ?? 35}
-                                                            onChange={(e) =>
-                                                                handleUpdate(instanceKey, {
-                                                                    height: parseFloat(e.target.value) || 5,
-                                                                })
+                                                            value={
+                                                                item.height ??
+                                                                35
                                                             }
-                                                            className="h-7 text-xs font-mono"
+                                                            onChange={(e) =>
+                                                                handleUpdate(
+                                                                    instanceKey,
+                                                                    {
+                                                                        height:
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                            5,
+                                                                    },
+                                                                )
+                                                            }
+                                                            className="h-7 font-mono text-xs"
                                                         />
                                                     </div>
                                                 </div>
@@ -425,4 +562,3 @@ export function HeaderFooterPanel({
         </div>
     );
 }
-

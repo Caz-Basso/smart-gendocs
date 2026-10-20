@@ -8,7 +8,10 @@ export type FieldType =
     | 'cpf'
     | 'cnpj'
     | 'cep'
-    | 'currency';
+    | 'currency'
+    | 'checkbox'
+    | 'select'
+    | 'radio';
 
 export interface FieldOption {
     value: string;
@@ -44,4 +47,3 @@ const option = (value: string, label: string): FieldOption => ({
     value,
     label,
 });
-

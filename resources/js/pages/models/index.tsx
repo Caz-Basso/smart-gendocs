@@ -1,9 +1,8 @@
-import { Head, router } from "@inertiajs/react";
-import { FileText, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-
+import { Head, router } from '@inertiajs/react';
+import { FileText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -11,11 +10,9 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-
-import AppLayout from "@/layouts/app-layout";
-
-import { model_registration } from "@/routes";
+} from '@/components/ui/dialog';
+import AppLayout from '@/layouts/app-layout';
+import { model_registration } from '@/routes';
 
 interface Model {
     id: string;
@@ -30,7 +27,7 @@ interface Props {
     models: Model[];
 }
 
-const breadcrumbs = [{ title: "Modelos", href: "/modelos" }];
+const breadcrumbs = [{ title: 'Modelos', href: '/modelos' }];
 
 export default function ModelsIndex({ models }: Props) {
     const [modelToDelete, setModelToDelete] = useState<Model | null>(null);
@@ -52,7 +49,7 @@ export default function ModelsIndex({ models }: Props) {
             },
             onError: () => {
                 toast.error(
-                    "Não foi possível excluir o modelo. Tente novamente.",
+                    'Não foi possível excluir o modelo. Tente novamente.',
                 );
             },
             onFinish: () => setIsDeleting(false),
@@ -78,7 +75,7 @@ export default function ModelsIndex({ models }: Props) {
                         <DialogDescription>
                             {modelToDelete
                                 ? `O modelo "${modelToDelete.name}" e o arquivo PDF/DOCX associado serão excluídos permanentemente. Essa ação não pode ser desfeita.`
-                                : ""}
+                                : ''}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -98,7 +95,7 @@ export default function ModelsIndex({ models }: Props) {
                             disabled={isDeleting}
                             onClick={deleteModel}
                         >
-                            {isDeleting ? "Excluindo..." : "Excluir modelo"}
+                            {isDeleting ? 'Excluindo...' : 'Excluir modelo'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -179,13 +176,13 @@ export default function ModelsIndex({ models }: Props) {
 
                                             <td className="px-4 py-4 text-muted-foreground">
                                                 {model.user?.name ||
-                                                    "Desconhecido"}
+                                                    'Desconhecido'}
                                             </td>
 
                                             <td className="px-4 py-4 text-muted-foreground">
                                                 {new Date(
                                                     model.created_at,
-                                                ).toLocaleDateString("pt-BR")}
+                                                ).toLocaleDateString('pt-BR')}
                                             </td>
 
                                             <td className="px-4 py-3">

@@ -56,7 +56,6 @@ import {
     stripConfigComment,
 } from '@/lib/document-pagination';
 import { buildTableHtml } from '@/lib/document-table';
-
 import type { ModelElementAttachment } from '@/types/document-element';
 
 export interface DocumentMargins {
@@ -337,7 +336,7 @@ export function RichDocumentEditor({
 
     // Comando nativo de edição de texto
     const exec = useCallback(
-        (command: string, value: string | undefined = undefined) => {
+        (command: string, value?: string) => {
             document.execCommand(command, false, value);
             // Sincroniza página ativa
             const activeNode = pageRefs.current[activePageIndex];
@@ -1312,14 +1311,17 @@ export function RichDocumentEditor({
                                 {elements.map((el, elIdx) => {
                                     const appliesToThisPage =
                                         el.repeat_all_pages ||
-                                        (el.pages && el.pages.includes(pageNumber));
+                                        (el.pages &&
+                                            el.pages.includes(pageNumber));
                                     if (!appliesToThisPage || !el.image_url) {
                                         return null;
                                     }
 
                                     return (
                                         <div
-                                            key={el.id || el.element_id || elIdx}
+                                            key={
+                                                el.id || el.element_id || elIdx
+                                            }
                                             className="pointer-events-none absolute select-none"
                                             style={{
                                                 left: `${el.position_x ?? 0}mm`,

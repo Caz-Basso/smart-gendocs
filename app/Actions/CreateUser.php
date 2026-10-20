@@ -25,7 +25,7 @@ final readonly class CreateUser
             ]);
 
             // Atribuir role padrão "user" para novos registros
-            $userRole = Role::where('name', $roleName ?? RoleName::User->value)->first();
+            $userRole = Role::query()->where('name', $roleName ?? RoleName::User->value)->first();
             if ($userRole) {
                 $user->assignRole($userRole);
             }

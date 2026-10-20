@@ -15,7 +15,7 @@ final readonly class GenerateDocumentAction
 
     public function handle(string $modelId, array $data): array
     {
-        $model = DocumentModel::findOrFail($modelId);
+        $model = DocumentModel::query()->findOrFail($modelId);
 
         if ($model->document_structure !== null && $model->template_path !== null) {
             return $this->generateFromStructure($model, $data);
@@ -34,8 +34,8 @@ final readonly class GenerateDocumentAction
 
         try {
             $pdf = $this->convertToPdf->handle($styledHtml, $headerHtml, $footerHtml);
-        } catch (RuntimeException $e) {
-            throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), previous: $e);
+        } catch (RuntimeException $runtimeException) {
+            throw new RuntimeException('Erro ao gerar PDF: '.$runtimeException->getMessage(), $runtimeException->getCode(), previous: $runtimeException);
         }
 
         return [
@@ -61,7 +61,7 @@ final readonly class GenerateDocumentAction
             try {
                 $pdf = $this->convertToPdf->handle($styledHtml, $headerHtml, $footerHtml);
             } catch (RuntimeException $e) {
-                throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), previous: $e);
+                throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), $e->getCode(), previous: $e);
             }
 
             return [
@@ -72,9 +72,7 @@ final readonly class GenerateDocumentAction
 
         $templatePath = Storage::disk('public')->path($model->template_path);
 
-        if (! is_file($templatePath)) {
-            throw new RuntimeException('O PDF original deste modelo não foi encontrado.');
-        }
+        throw_unless(is_file($templatePath), RuntimeException::class, 'O PDF original deste modelo não foi encontrado.');
 
         $structure = $model->document_structure;
         $mpdf = new Mpdf([
@@ -88,9 +86,7 @@ final readonly class GenerateDocumentAction
 
         $pageCount = $mpdf->SetSourceFile($templatePath);
 
-        if (count($structure['pages']) > $pageCount) {
-            throw new RuntimeException('A estrutura salva não corresponde às páginas do PDF original.');
-        }
+        throw_if(count($structure['pages']) > $pageCount, RuntimeException::class, 'A estrutura salva não corresponde às páginas do PDF original.');
 
         $mpdf->AddPage();
 

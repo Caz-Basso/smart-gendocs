@@ -70,7 +70,9 @@ export default function Edit({
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="email">Endereço de Email</Label>
+                                    <Label htmlFor="email">
+                                        Endereço de Email
+                                    </Label>
 
                                     <Input
                                         id="email"
@@ -93,20 +95,24 @@ export default function Edit({
                                     auth.user.email_verified_at === null && (
                                         <div>
                                             <p className="-mt-4 text-sm text-muted-foreground">
-                                                Seu endereço de email não foi verificado.{' '}
+                                                Seu endereço de email não foi
+                                                verificado.{' '}
                                                 <Link
                                                     href={send()}
                                                     as="button"
                                                     className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                                                 >
-                                                    Click aqui para reenviar o email de verificação.
+                                                    Click aqui para reenviar o
+                                                    email de verificação.
                                                 </Link>
                                             </p>
 
                                             {status ===
                                                 'verification-link-sent' && (
                                                 <div className="mt-2 text-sm font-medium text-green-600">
-                                                    Um novo link de verificação foi enviado para seu endereço de email.
+                                                    Um novo link de verificação
+                                                    foi enviado para seu
+                                                    endereço de email.
                                                 </div>
                                             )}
                                         </div>

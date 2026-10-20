@@ -157,14 +157,22 @@ export function DocumentPreview({
                                     {elements.map((el, elIdx) => {
                                         const appliesToThisPage =
                                             el.repeat_all_pages ||
-                                            (el.pages && el.pages.includes(pageNumber));
-                                        if (!appliesToThisPage || !el.image_url) {
+                                            (el.pages &&
+                                                el.pages.includes(pageNumber));
+                                        if (
+                                            !appliesToThisPage ||
+                                            !el.image_url
+                                        ) {
                                             return null;
                                         }
 
                                         return (
                                             <div
-                                                key={el.id || el.element_id || elIdx}
+                                                key={
+                                                    el.id ||
+                                                    el.element_id ||
+                                                    elIdx
+                                                }
                                                 className="pointer-events-none absolute select-none"
                                                 style={{
                                                     left: `${el.position_x ?? 0}mm`,

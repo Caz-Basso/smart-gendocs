@@ -4,26 +4,29 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[Fillable([
+    'id',
+    'user_id',
+    'document_model_id',
+    'model_key',
+    'name',
+    'data',
+    'preview',
+    'fields',
+    'file_path',
+    'html_content',
+])]
 final class GeneratedDocument extends Model
 {
+    use HasFactory;
+    use HasFactory;
     use HasUuids;
-
-    protected $fillable = [
-        'id',
-        'user_id',
-        'document_model_id',
-        'model_key',
-        'name',
-        'data',
-        'preview',
-        'fields',
-        'file_path',
-        'html_content',
-    ];
 
     public function user(): BelongsTo
     {

@@ -8,6 +8,7 @@ use App\Actions\ConvertFileToHtmlAction;
 use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Actions\GenerateSampleDocumentAction;
+use App\Actions\ProcessDocumentTemplate;
 use App\Actions\StoreGeneratedDocumentAction;
 use App\Actions\SyncModelElements;
 use App\Enums\FieldType;
@@ -19,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -39,31 +41,29 @@ final class ModelRegistrationController
                 ->get();
         }
 
-        $documentModels = $documentModels->map(function ($model) {
-            $fields = collect($model->fields ?? [])->map(function ($field) {
-                return [
-                    'id' => $field['id'] ?? $field['slug'],
-                    'name' => $field['name'],
-                    'slug' => $field['slug'],
-                    'type' => $field['type'],
-                    'required' => false,
-                    'placeholder' => '',
-                    'section' => 'Dados do Documento',
-                ];
-            })->toArray();
+        $documentModels = $documentModels->map(function ($model): array {
+            $fields = collect($model->fields ?? [])->map(fn (array $field): array => [
+                'id' => $field['id'] ?? $field['slug'],
+                'name' => $field['name'],
+                'slug' => $field['slug'],
+                'type' => $field['type'],
+                'required' => false,
+                'placeholder' => '',
+                'section' => 'Dados do Documento',
+            ])->all();
 
             $preview = $model->document_structure !== null
                 ? collect($model->document_structure['pages'] ?? [])
                     ->flatMap(fn (array $page) => collect($page['elements'] ?? [])->pluck('text'))
-                    ->filter(fn ($text) => is_string($text) && ! empty(mb_trim($text)))
+                    ->filter(fn ($text): bool => is_string($text) && ! empty(mb_trim($text)))
                     ->values()
                     ->all()
                 : [];
 
             if ($preview === [] && $model->extracted_text !== null) {
                 $preview = collect(explode('</p>', $model->extracted_text))
-                    ->map(fn ($paragraph) => strip_tags($paragraph))
-                    ->filter(fn ($paragraph) => ! empty(mb_trim($paragraph)))
+                    ->map(fn ($paragraph): string => strip_tags($paragraph))
+                    ->reject(fn ($paragraph): bool => empty(mb_trim($paragraph)))
                     ->values()
                     ->all();
             }
@@ -74,22 +74,20 @@ final class ModelRegistrationController
                 'fields' => $fields,
                 'preview' => $preview,
                 'extracted_text' => $model->extracted_text,
-                'elements' => $model->modelElements->map(function ($me) {
-                    return [
-                        'id' => $me->id,
-                        'element_id' => $me->document_element_id,
-                        'name' => $me->documentElement?->name,
-                        'type' => $me->documentElement?->type->value,
-                        'image_url' => $me->documentElement?->image_url,
-                        'position_x' => $me->getEffectivePositionX(),
-                        'position_y' => $me->getEffectivePositionY(),
-                        'width' => $me->getEffectiveWidth(),
-                        'height' => $me->getEffectiveHeight(),
-                        'repeat_all_pages' => $me->repeat_all_pages,
-                        'pages' => $me->pages,
-                        'z_index' => $me->z_index,
-                    ];
-                })->toArray(),
+                'elements' => $model->modelElements->map(fn ($me): array => [
+                    'id' => $me->id,
+                    'element_id' => $me->document_element_id,
+                    'name' => $me->documentElement?->name,
+                    'type' => $me->documentElement?->type->value,
+                    'image_url' => $me->documentElement?->image_url,
+                    'position_x' => $me->getEffectivePositionX(),
+                    'position_y' => $me->getEffectivePositionY(),
+                    'width' => $me->getEffectiveWidth(),
+                    'height' => $me->getEffectiveHeight(),
+                    'repeat_all_pages' => $me->repeat_all_pages,
+                    'pages' => $me->pages,
+                    'z_index' => $me->z_index,
+                ])->toArray(),
                 'html_content' => $model->html_content ?? $model->extracted_text,
                 'document_structure' => $model->document_structure,
                 'templateUrl' => $model->template_path !== null
@@ -124,12 +122,12 @@ final class ModelRegistrationController
 
     public function create(): Response
     {
-        $fieldTypeOptions = array_map(fn ($type) => [
+        $fieldTypeOptions = array_map(fn (FieldType $type): array => [
             'value' => $type->value,
             'label' => $type->label(),
         ], FieldType::cases());
 
-        $availableElements = DocumentElement::where('is_active', true)
+        $availableElements = DocumentElement::query()->where('is_active', true)
             ->orderBy('type')
             ->orderBy('name')
             ->get();
@@ -150,8 +148,8 @@ final class ModelRegistrationController
             return response()->json([
                 'html' => $convertFileToHtml->handle($validated['pdf']),
             ]);
-        } catch (RuntimeException $exception) {
-            report($exception);
+        } catch (RuntimeException $runtimeException) {
+            report($runtimeException);
 
             return response()->json([
                 'message' => 'Não foi possível converter o PDF para HTML.',
@@ -161,18 +159,18 @@ final class ModelRegistrationController
 
     public function store(StoreModelRequest $request, CreateModelAction $createModel): RedirectResponse
     {
-        $model = $createModel->handle($request->validated(), (string) Auth::id());
+        $createModel->handle($request->validated(), (string) Auth::id());
 
-        return redirect()->route('models.index')
+        return to_route('models.index')
             ->with('success', 'Modelo criado com sucesso!');
     }
 
     public function analyze(
-        \Illuminate\Http\Request $request,
-        \App\Actions\ProcessDocumentTemplate $processDocument,
-    ): \Illuminate\Http\JsonResponse {
+        Request $request,
+        ProcessDocumentTemplate $processDocument,
+    ): JsonResponse {
         $validated = $request->validate([
-            'template' => 'required|file|mimes:pdf,docx|max:10240',
+            'template' => ['required', 'file', 'mimes:pdf,docx', 'max:10240'],
         ]);
 
         $result = $processDocument->handle($validated['template']);
@@ -191,12 +189,12 @@ final class ModelRegistrationController
     {
         $model = DocumentModel::with(['modelElements.documentElement'])->findOrFail($id);
 
-        $fieldTypeOptions = array_map(fn ($type) => [
+        $fieldTypeOptions = array_map(fn (FieldType $type): array => [
             'value' => $type->value,
             'label' => $type->label(),
         ], FieldType::cases());
 
-        $availableElements = DocumentElement::where('is_active', true)
+        $availableElements = DocumentElement::query()->where('is_active', true)
             ->orderBy('type')
             ->orderBy('name')
             ->get();
@@ -228,13 +226,13 @@ final class ModelRegistrationController
         SyncModelElements $syncModelElements,
         ConvertFileToHtmlAction $convertFileToHtml,
     ): RedirectResponse {
-        $model = DocumentModel::findOrFail($id);
+        $model = DocumentModel::query()->findOrFail($id);
 
         $data = $request->validated();
         $templatePath = $model->template_path;
         $htmlContent = $model->html_content;
 
-        if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
+        if (isset($data['template']) && $data['template'] instanceof UploadedFile) {
             $templatePath = $data['template']->store('templates', 'public');
             $htmlContent = $convertFileToHtml->handle($data['template']);
         }
@@ -254,13 +252,13 @@ final class ModelRegistrationController
             $syncModelElements->handle($model, $data['elements'] ?? []);
         }
 
-        return redirect()->route('models.index')
+        return to_route('models.index')
             ->with('success', 'Modelo atualizado com sucesso!');
     }
 
     public function destroy(string $id): RedirectResponse
     {
-        $model = \App\Models\DocumentModel::findOrFail($id);
+        $model = DocumentModel::query()->findOrFail($id);
         $templatePath = $model->template_path;
 
         $model->delete();
@@ -269,7 +267,7 @@ final class ModelRegistrationController
             Storage::disk('public')->delete($templatePath);
         }
 
-        return redirect()->route('models.index');
+        return to_route('models.index');
     }
 
     public function generate(
@@ -283,7 +281,7 @@ final class ModelRegistrationController
         $model = null;
 
         if (Str::isUuid($modelId)) {
-            $model = \App\Models\DocumentModel::findOrFail($modelId);
+            $model = DocumentModel::query()->findOrFail($modelId);
             $generated = $generateDocument->handle($modelId, $data['data']);
             $pdfContent = $generated['pdf'];
             $htmlContent = $generated['html'];

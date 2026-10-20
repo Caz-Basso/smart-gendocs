@@ -6,7 +6,9 @@ use App\Actions\GenerateDocumentAction;
 use App\Models\DocumentModel;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Mpdf\Mpdf;
+use Spatie\Permission\Models\Role;
 
 it('generates a filled pdf using the original pages and saved document structure', function (): void {
     Storage::fake('public');
@@ -16,8 +18,8 @@ it('generates a filled pdf using the original pages and saved document structure
     Storage::disk('public')->put('templates/original.pdf', $source->Output('', 'S'));
 
     $user = User::factory()->create();
-    $model = DocumentModel::create([
-        'id' => (string) Illuminate\Support\Str::uuid(),
+    $model = DocumentModel::query()->create([
+        'id' => (string) Str::uuid(),
         'name' => 'Modelo estruturado',
         'template_path' => 'templates/original.pdf',
         'extracted_text' => null,
@@ -40,7 +42,7 @@ it('generates a filled pdf using the original pages and saved document structure
         'user_id' => $user->id,
     ]);
 
-    $result = app(GenerateDocumentAction::class)->handle($model->id, ['nome' => 'Ana']);
+    $result = resolve(GenerateDocumentAction::class)->handle($model->id, ['nome' => 'Ana']);
 
     expect($result['pdf'])->toStartWith('%PDF-');
     expect($result['html'])->toBeString();
@@ -48,8 +50,8 @@ it('generates a filled pdf using the original pages and saved document structure
 
 it('generates a clean A4 flowable pdf from html_content with institutional styling', function (): void {
     $user = User::factory()->create();
-    $model = DocumentModel::create([
-        'id' => (string) Illuminate\Support\Str::uuid(),
+    $model = DocumentModel::query()->create([
+        'id' => (string) Str::uuid(),
         'name' => 'Edital Minuta UNESC',
         'template_path' => null,
         'extracted_text' => '<p>EDITAL UNESC {{numero_edital}}</p>',
@@ -62,7 +64,7 @@ it('generates a clean A4 flowable pdf from html_content with institutional styli
         'user_id' => $user->id,
     ]);
 
-    $result = app(GenerateDocumentAction::class)->handle($model->id, [
+    $result = resolve(GenerateDocumentAction::class)->handle($model->id, [
         'objeto' => 'Bolsas de Pesquisa 2026',
         'valor' => '1.500,00',
     ]);
@@ -74,12 +76,12 @@ it('generates a clean A4 flowable pdf from html_content with institutional styli
 });
 
 it('includes html_content and template_path in dashboard models for preview', function (): void {
-    Spatie\Permission\Models\Role::findOrCreate('admin', 'web');
+    Role::findOrCreate('admin', 'web');
     $user = User::factory()->create(['is_active' => true]);
     $user->assignRole('admin');
 
-    DocumentModel::create([
-        'id' => (string) Illuminate\Support\Str::uuid(),
+    DocumentModel::query()->create([
+        'id' => (string) Str::uuid(),
         'name' => 'Modelo de Teste',
         'template_path' => 'templates/test.pdf',
         'extracted_text' => '<p>Texto extraído</p>',

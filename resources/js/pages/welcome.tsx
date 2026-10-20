@@ -1,9 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-
 import { Download, LayoutTemplate, PenLine } from 'lucide-react';
-
 import { Button } from '@/components/ui/button';
-
 import { dashboard, login, register } from '@/routes';
 
 const steps = [
@@ -38,10 +35,7 @@ export default function Welcome({
             <div className="flex min-h-screen flex-col bg-background text-foreground">
                 <header className="border-b border-border/60">
                     <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
-                        <Link
-                            href="/"
-                            className="flex items-center"
-                        >
+                        <Link href="/" className="flex items-center">
                             <img
                                 src="/smartsau-logo.png"
                                 alt="SmartS@U"
@@ -58,14 +52,8 @@ export default function Welcome({
                                 </Button>
                             ) : (
                                 <>
-                                    <Button
-                                        asChild
-                                        variant="ghost"
-                                        size="sm"
-                                    >
-                                        <Link href={login()}>
-                                            Entrar
-                                        </Link>
+                                    <Button asChild variant="ghost" size="sm">
+                                        <Link href={login()}>Entrar</Link>
                                     </Button>
 
                                     {canRegister && (
@@ -107,11 +95,7 @@ export default function Welcome({
 
                         <div className="mt-7 flex items-center justify-center gap-3">
                             <Button asChild>
-                                <Link
-                                    href={
-                                        auth.user ? dashboard() : login()
-                                    }
-                                >
+                                <Link href={auth.user ? dashboard() : login()}>
                                     {auth.user
                                         ? 'Abrir gerador'
                                         : 'Entrar no sistema'}
@@ -140,32 +124,30 @@ export default function Welcome({
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            {steps.map(
-                                ({ icon: Icon, title, text }, index) => (
-                                    <div
-                                        key={title}
-                                        className="rounded-lg border border-border bg-card p-5 shadow-sm"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
-                                                <span className="text-xs font-semibold text-muted-foreground">
-                                                    {index + 1}
-                                                </span>
-                                            </div>
-
-                                            <Icon className="h-4 w-4 text-muted-foreground" />
+                            {steps.map(({ icon: Icon, title, text }, index) => (
+                                <div
+                                    key={title}
+                                    className="rounded-lg border border-border bg-card p-5 shadow-sm"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+                                            <span className="text-xs font-semibold text-muted-foreground">
+                                                {index + 1}
+                                            </span>
                                         </div>
 
-                                        <h3 className="mt-4 text-sm font-semibold">
-                                            {title}
-                                        </h3>
-
-                                        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                                            {text}
-                                        </p>
+                                        <Icon className="h-4 w-4 text-muted-foreground" />
                                     </div>
-                                ),
-                            )}
+
+                                    <h3 className="mt-4 text-sm font-semibold">
+                                        {title}
+                                    </h3>
+
+                                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                                        {text}
+                                    </p>
+                                </div>
+                            ))}
                         </div>
                     </section>
                 </main>

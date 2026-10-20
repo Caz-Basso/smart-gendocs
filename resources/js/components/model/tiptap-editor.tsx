@@ -1,7 +1,7 @@
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useRef } from 'react';
 import { TagNode } from '@/lib/tiptap-extensions/tag-node';
 
@@ -73,7 +73,7 @@ export function TiTapEditor({
     return (
         <div
             ref={editorRef}
-            className="relative mx-auto w-full max-w-[210mm] min-h-[297mm] bg-white shadow-lg"
+            className="relative mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white shadow-lg"
             style={{
                 padding: '25mm 20mm',
                 minHeight: '297mm',

@@ -60,7 +60,10 @@ export default function TwoFactorRecoveryCodes({
                     Códigos de recuperação de 2FA
                 </CardTitle>
                 <CardDescription>
-                    Os códigos de recuperação permitem que você recupere o acesso caso perca seu dispositivo de autenticação de dois fatores (2FA). Armazene-os em um gerenciador de senhas seguro.
+                    Os códigos de recuperação permitem que você recupere o
+                    acesso caso perca seu dispositivo de autenticação de dois
+                    fatores (2FA). Armazene-os em um gerenciador de senhas
+                    seguro.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -144,9 +147,10 @@ export default function TwoFactorRecoveryCodes({
 
                                 <div className="text-xs text-muted-foreground select-none">
                                     <p id="regenerate-warning">
-                                        Cada código de recuperação pode ser usado uma vez para
-                                        acessar sua conta e será removido
-                                        após o uso. Se precisar de mais, clique{' '}
+                                        Cada código de recuperação pode ser
+                                        usado uma vez para acessar sua conta e
+                                        será removido após o uso. Se precisar de
+                                        mais, clique{' '}
                                         <span className="font-bold">
                                             Regerar códigos
                                         </span>{' '}

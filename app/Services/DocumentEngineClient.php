@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-final class DocumentEngineClient
+final readonly class DocumentEngineClient
 {
     private string $baseUrl;
 
@@ -64,8 +64,8 @@ final class DocumentEngineClient
                 'status' => $response->status(),
                 'body' => mb_substr($response->body(), 0, 500),
             ]);
-        } catch (Throwable $e) {
-            Log::info('Document Engine indisponível ou inacessível no momento, utilizando fallback nativo: '.$e->getMessage());
+        } catch (Throwable $throwable) {
+            Log::info('Document Engine indisponível ou inacessível no momento, utilizando fallback nativo: '.$throwable->getMessage());
         }
 
         return null;

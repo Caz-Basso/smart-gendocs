@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Actions\ConvertHtmlToPdfAction;
 use App\Services\GotenbergClient;
 
-test('gotenberg client checks availability', function () {
+test('gotenberg client checks availability', function (): void {
     $client = new GotenbergClient();
 
     $isAvailable = $client->isAvailable();
@@ -13,7 +13,7 @@ test('gotenberg client checks availability', function () {
     expect($isAvailable)->toBeBool();
 });
 
-test('convert html to pdf action generates valid pdf', function () {
+test('convert html to pdf action generates valid pdf', function (): void {
     $action = new ConvertHtmlToPdfAction();
 
     $html = <<<'HTML'
@@ -39,12 +39,12 @@ HTML;
         expect($pdf)->toBeString();
         expect(mb_strlen($pdf))->toBeGreaterThan(100);
         expect(mb_strpos($pdf, '%PDF'))->toBe(0);
-    } catch (RuntimeException $e) {
-        $this->markTestSkipped('Gotenberg service not available: '.$e->getMessage());
+    } catch (RuntimeException $runtimeException) {
+        $this->markTestSkipped('Gotenberg service not available: '.$runtimeException->getMessage());
     }
 });
 
-test('convert html to pdf with header and footer', function () {
+test('convert html to pdf with header and footer', function (): void {
     $action = new ConvertHtmlToPdfAction();
 
     $html = '<h1>Main Content</h1><p>Document body content.</p>';
@@ -56,7 +56,7 @@ test('convert html to pdf with header and footer', function () {
 
         expect($pdf)->toBeString();
         expect(mb_strpos($pdf, '%PDF'))->toBe(0);
-    } catch (RuntimeException $e) {
-        $this->markTestSkipped('Gotenberg service not available: '.$e->getMessage());
+    } catch (RuntimeException $runtimeException) {
+        $this->markTestSkipped('Gotenberg service not available: '.$runtimeException->getMessage());
     }
 });

@@ -17,4 +17,3 @@ enum DocumentElementType: string
         };
     }
 }
-

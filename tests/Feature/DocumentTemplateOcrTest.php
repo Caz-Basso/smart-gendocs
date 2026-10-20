@@ -10,6 +10,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Mpdf\Mpdf;
+use Spatie\Permission\Models\Role;
 
 it('extracts rich continuous document from digital pdf without ocr', function (): void {
     $digitalMpdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4']);
@@ -24,7 +25,7 @@ it('extracts rich continuous document from digital pdf without ocr', function ()
     $pdfPath = tempnam(sys_get_temp_dir(), 'test_digital_').'.pdf';
     $digitalMpdf->Output($pdfPath, 'F');
 
-    $action = app(ProcessDocumentTemplate::class);
+    $action = resolve(ProcessDocumentTemplate::class);
     $result = $action->handle($pdfPath);
 
     expect($result)->toHaveKey('html')
@@ -44,6 +45,7 @@ it('extracts rich continuous document from digital pdf without ocr', function ()
 it('extracts rich continuous document from scanned pdf using python ocr', function (): void {
     $sourceMpdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4']);
     $sourceMpdf->WriteHTML('<div style="font-size: 24pt;">PETICAO INICIAL JURIDICA</div><p>Autor: {{autor}}</p>');
+
     $tempPdf = tempnam(sys_get_temp_dir(), 'test_src_').'.pdf';
     $sourceMpdf->Output($tempPdf, 'F');
 
@@ -57,10 +59,11 @@ it('extracts rich continuous document from scanned pdf using python ocr', functi
     $scannedMpdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 0, 'margin_right' => 0, 'margin_top' => 0, 'margin_bottom' => 0]);
     $scannedMpdf->AddPage();
     $scannedMpdf->Image($generatedPng, 0, 0, 210, 297, 'png', '', true, false);
+
     $scannedPdfPath = tempnam(sys_get_temp_dir(), 'scanned_doc_').'.pdf';
     $scannedMpdf->Output($scannedPdfPath, 'F');
 
-    $action = app(ProcessDocumentTemplate::class);
+    $action = resolve(ProcessDocumentTemplate::class);
     $result = $action->handle($scannedPdfPath);
 
     expect($result)->toHaveKey('html')
@@ -84,7 +87,6 @@ it('processes docx files and generates filled document preserving layout and ima
     imagestring($img, 3, 10, 15, 'OAB TESTE', $white);
     $logoPath = tempnam(sys_get_temp_dir(), 'logo_').'.png';
     imagepng($img, $logoPath);
-    imagedestroy($img);
 
     // 2. Criar DOCX com imagem
     $docxPath = tempnam(sys_get_temp_dir(), 'doc_img_').'.docx';
@@ -128,7 +130,7 @@ it('processes docx files and generates filled document preserving layout and ima
     $zip->close();
 
     // 3. Processar o DOCX
-    $processor = app(ProcessDocumentTemplate::class);
+    $processor = resolve(ProcessDocumentTemplate::class);
     $result = $processor->handle($docxPath);
 
     expect($result['isDocx'])->toBeTrue()
@@ -139,7 +141,7 @@ it('processes docx files and generates filled document preserving layout and ima
     // 4. Salvar modelo no storage fake
     Storage::disk('public')->put('templates/test_contract.docx', file_get_contents($docxPath));
     $user = User::factory()->create();
-    $model = DocumentModel::create([
+    $model = DocumentModel::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Modelo DOCX com Imagem',
         'template_path' => 'templates/test_contract.docx',
@@ -157,7 +159,7 @@ it('processes docx files and generates filled document preserving layout and ima
     ]);
 
     // 5. Gerar PDF preenchido com reflow contínuo
-    $generator = app(GenerateDocumentAction::class);
+    $generator = resolve(GenerateDocumentAction::class);
     $pdf = $generator->handle($model->id, ['cliente' => 'Mariana Souza']);
 
     expect($pdf)->toStartWith('%PDF-');
@@ -174,12 +176,13 @@ it('processes docx files and generates filled document preserving layout and ima
 });
 
 it('allows admin users to analyze document template via api endpoint', function (): void {
-    Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin']);
+    Role::query()->firstOrCreate(['name' => 'admin']);
     $admin = User::factory()->create();
     $admin->assignRole('admin');
 
     $mpdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4']);
     $mpdf->WriteHTML('<h1>Modelo de Teste API</h1><p>Cliente: {{nome_cliente}}</p>');
+
     $pdfContent = $mpdf->Output('', 'S');
 
     $file = UploadedFile::fake()->createWithContent('template.pdf', $pdfContent);

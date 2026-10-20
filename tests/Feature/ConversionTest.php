@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 use App\Actions\ConvertFileToHtmlAction;
 use App\Actions\ConvertHtmlToPdfAction;
+use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
-test('convert docx to html', function () {
+test('convert docx to html', function (): void {
     Storage::fake('public');
 
-    $action = app(ConvertFileToHtmlAction::class);
+    $action = resolve(ConvertFileToHtmlAction::class);
 
     $file = UploadedFile::fake()->create('document.docx', 1000);
 
@@ -21,7 +22,7 @@ test('convert docx to html', function () {
     expect($html)->not->toBeEmpty();
 });
 
-test('converts pdf to html using doc-engine microservice', function () {
+test('converts pdf to html using doc-engine microservice', function (): void {
     config()->set('services.doc_engine.url', 'http://doc-engine:8000');
 
     Http::fake([
@@ -41,7 +42,7 @@ test('converts pdf to html using doc-engine microservice', function () {
         ]),
     ]);
 
-    $action = app(ConvertFileToHtmlAction::class);
+    $action = resolve(ConvertFileToHtmlAction::class);
     $file = UploadedFile::fake()->create('document.pdf', 100, 'application/pdf');
 
     $html = $action->handle($file);
@@ -49,20 +50,18 @@ test('converts pdf to html using doc-engine microservice', function () {
     expect($html)->toContain('UNESC - Cabeçalho');
     expect($html)->toContain('Edital 001/2026');
 
-    Http::assertSent(function (Illuminate\Http\Client\Request $request): bool {
-        return $request->url() === 'http://doc-engine:8000/analyze'
-            && $request->isMultipart();
-    });
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://doc-engine:8000/analyze'
+        && $request->isMultipart());
 });
 
-test('converts pdf to html using native parser when doc-engine is unreachable', function () {
+test('converts pdf to html using native parser when doc-engine is unreachable', function (): void {
     config()->set('services.doc_engine.url', 'http://doc-engine:8000');
 
     Http::fake([
         'http://doc-engine:8000/analyze' => Http::response(null, 500),
     ]);
 
-    $action = app(ConvertFileToHtmlAction::class);
+    $action = resolve(ConvertFileToHtmlAction::class);
     // Real minimal valid PDF with "Hello World"
     $minimalPdf = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\n0000000101 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF";
 
@@ -75,8 +74,8 @@ test('converts pdf to html using native parser when doc-engine is unreachable', 
     expect($html)->toContain('pdf-body');
 });
 
-test('convert html to pdf', function () {
-    $action = app(ConvertHtmlToPdfAction::class);
+test('convert html to pdf', function (): void {
+    $action = resolve(ConvertHtmlToPdfAction::class);
 
     $html = '<div class="test"><p>Test content</p></div>';
 

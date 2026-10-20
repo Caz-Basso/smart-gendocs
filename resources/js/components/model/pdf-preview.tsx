@@ -27,7 +27,7 @@ export function PdfPreview({
     return (
         <div
             ref={containerRef}
-            className="relative w-full [container-type:inline-size]"
+            className="[container-type:inline-size] relative w-full"
         >
             <img
                 src={imageSrc}
@@ -53,7 +53,7 @@ export function PdfPreview({
                                 event.currentTarget.textContent ?? '',
                             )
                         }
-                        className="absolute overflow-hidden rounded-[2px] bg-white/95 text-black outline-none transition-shadow hover:ring-1 hover:ring-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-600"
+                        className="absolute overflow-hidden rounded-[2px] bg-white/95 text-black transition-shadow outline-none hover:ring-1 hover:ring-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-600"
                         style={{
                             left: `${element.x * 100}%`,
                             top: `${element.y * 100}%`,
@@ -79,7 +79,11 @@ interface PdfPaginationProps {
     onChange: (page: number) => void;
 }
 
-export function PdfPagination({ current, total, onChange }: PdfPaginationProps) {
+export function PdfPagination({
+    current,
+    total,
+    onChange,
+}: PdfPaginationProps) {
     return (
         <div className="flex items-center gap-2">
             <Button

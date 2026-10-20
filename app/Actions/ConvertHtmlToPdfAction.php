@@ -13,9 +13,7 @@ final readonly class ConvertHtmlToPdfAction
 
     public function handle(string $html, ?string $headerHtml = null, ?string $footerHtml = null): string
     {
-        if (! $this->gotenberg->isAvailable()) {
-            throw new RuntimeException('Serviço de geração de PDF (Gotenberg) não está disponível.');
-        }
+        throw_unless($this->gotenberg->isAvailable(), RuntimeException::class, 'Serviço de geração de PDF (Gotenberg) não está disponível.');
 
         return $this->gotenberg->convertA4HtmlToPdf($html, $headerHtml, $footerHtml);
     }

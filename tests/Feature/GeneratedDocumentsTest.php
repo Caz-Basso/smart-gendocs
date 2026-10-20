@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\GenerateDocumentAction;
 use App\Enums\RoleName;
 use App\Models\DocumentModel;
 use App\Models\GeneratedDocument;
@@ -21,7 +22,7 @@ function createDocumentUser(): User
 
 function createDocumentTemplate(User $user): DocumentModel
 {
-    return DocumentModel::create([
+    return DocumentModel::query()->create([
         'id' => (string) Str::uuid(),
         'name' => 'Declaração',
         'extracted_text' => 'Declaro que {{nome}} recebeu este documento.',
@@ -108,7 +109,7 @@ it('generates one pdf page for each saved page break', function (): void {
         'extracted_text' => implode($pageBreak, $pageContent),
     ]);
 
-    $pdf = app(App\Actions\GenerateDocumentAction::class)->handle($model->id, []);
+    $pdf = resolve(GenerateDocumentAction::class)->handle($model->id, []);
     $pdfPath = tempnam(sys_get_temp_dir(), 'generated_pages_');
     file_put_contents($pdfPath, $pdf);
 

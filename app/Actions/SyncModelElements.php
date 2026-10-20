@@ -23,7 +23,7 @@ final readonly class SyncModelElements
                 continue;
             }
 
-            DocumentModelElement::create([
+            DocumentModelElement::query()->create([
                 'id' => Str::uuid(),
                 'document_model_id' => $model->id,
                 'document_element_id' => $elementId,
@@ -32,10 +32,9 @@ final readonly class SyncModelElements
                 'width' => isset($item['width']) ? (float) $item['width'] : null,
                 'height' => isset($item['height']) ? (float) $item['height'] : null,
                 'repeat_all_pages' => filter_var($item['repeat_all_pages'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                'pages' => ! empty($item['pages']) && is_array($item['pages']) ? array_values(array_map('intval', $item['pages'])) : null,
+                'pages' => ! empty($item['pages']) && is_array($item['pages']) ? array_values(array_map(intval(...), $item['pages'])) : null,
                 'z_index' => isset($item['z_index']) ? (int) $item['z_index'] : (10 + $index),
             ]);
         }
     }
 }
-

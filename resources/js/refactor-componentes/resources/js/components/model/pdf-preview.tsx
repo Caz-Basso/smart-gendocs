@@ -27,7 +27,7 @@ export function PdfPreview({
     return (
         <div
             ref={containerRef}
-            className="relative w-full [container-type:inline-size]"
+            className="[container-type:inline-size] relative w-full"
         >
             <img
                 src={imageSrc}
@@ -78,7 +78,11 @@ interface PdfPaginationProps {
     onChange: (page: number) => void;
 }
 
-export function PdfPagination({ current, total, onChange }: PdfPaginationProps) {
+export function PdfPagination({
+    current,
+    total,
+    onChange,
+}: PdfPaginationProps) {
     return (
         <div className="flex items-center gap-2">
             <Button

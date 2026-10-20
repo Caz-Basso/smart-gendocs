@@ -7,13 +7,14 @@ namespace Tests\Experiments;
 use App\Actions\GenerateDocumentAction;
 use App\Models\DocumentModel;
 use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
 $app = require_once __DIR__.'/../../bootstrap/app.php';
-$kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 $fixturesDir = __DIR__.'/fixtures';
@@ -29,8 +30,8 @@ $templateStoragePath = 'templates/contrato_com_imagem.docx.converted.pdf';
 Storage::disk('public')->put($templateStoragePath, file_get_contents($convertedPdfPath));
 
 // 2. Cria DocumentModel no banco
-$user = User::first() ?? User::factory()->create();
-$model = DocumentModel::create([
+$user = User::query()->first() ?? User::factory()->create();
+$model = DocumentModel::query()->create([
     'id' => (string) Str::uuid(),
     'name' => 'Contrato DOCX Teste Integrado',
     'template_path' => $templateStoragePath,
@@ -67,7 +68,7 @@ $model = DocumentModel::create([
 ]);
 
 // 3. Executa a geração do documento preenchido
-$action = app(GenerateDocumentAction::class);
+$action = resolve(GenerateDocumentAction::class);
 $pdfContent = $action->handle($model->id, [
     'nome_do_cliente' => 'Carlos Silva',
     'cpf_cliente' => '123.456.789-00',

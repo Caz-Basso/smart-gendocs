@@ -34,7 +34,7 @@ final class DocumentModelPolicy
         return ($user->hasRole('admin') || $user->hasRole('super-admin')) && $model->user_id === $user->id;
     }
 
-    public function use(User $user, DocumentModel $model): bool
+    public function use(User $user): bool
     {
         return $user->hasRole('user') || $user->hasRole('admin') || $user->hasRole('super-admin');
     }

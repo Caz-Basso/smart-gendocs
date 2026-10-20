@@ -321,7 +321,9 @@ export function ModelForm({
                                 name="model_name"
                                 placeholder="Ex: Contrato de Prestação de Serviços"
                                 value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('name', e.target.value)
+                                }
                                 required
                             />
 

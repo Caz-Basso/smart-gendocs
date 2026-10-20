@@ -4,38 +4,31 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[Fillable([
+    'id',
+    'document_model_id',
+    'document_element_id',
+    'position_x',
+    'position_y',
+    'width',
+    'height',
+    'repeat_all_pages',
+    'pages',
+    'z_index',
+])]
+#[Table(name: 'document_model_elements')]
 final class DocumentModelElement extends Model
 {
+    use HasFactory;
+    use HasFactory;
     use HasUuids;
-
-    protected $table = 'document_model_elements';
-
-    protected $fillable = [
-        'id',
-        'document_model_id',
-        'document_element_id',
-        'position_x',
-        'position_y',
-        'width',
-        'height',
-        'repeat_all_pages',
-        'pages',
-        'z_index',
-    ];
-
-    protected $casts = [
-        'position_x' => 'float',
-        'position_y' => 'float',
-        'width' => 'float',
-        'height' => 'float',
-        'repeat_all_pages' => 'boolean',
-        'pages' => 'array',
-        'z_index' => 'integer',
-    ];
 
     public function documentModel(): BelongsTo
     {
@@ -94,5 +87,17 @@ final class DocumentModelElement extends Model
 
         return in_array($pageNumber, $this->pages, true);
     }
-}
 
+    protected function casts(): array
+    {
+        return [
+            'position_x' => 'float',
+            'position_y' => 'float',
+            'width' => 'float',
+            'height' => 'float',
+            'repeat_all_pages' => 'boolean',
+            'pages' => 'array',
+            'z_index' => 'integer',
+        ];
+    }
+}

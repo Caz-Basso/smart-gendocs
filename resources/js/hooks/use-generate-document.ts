@@ -80,7 +80,9 @@ export function useGenerateDocument() {
             const contentType = response.headers.get('content-type') ?? '';
 
             if (!contentType.includes('application/pdf')) {
-                throw new Error('O servidor não retornou um arquivo PDF válido.');
+                throw new Error(
+                    'O servidor não retornou um arquivo PDF válido.',
+                );
             }
 
             downloadBlob(

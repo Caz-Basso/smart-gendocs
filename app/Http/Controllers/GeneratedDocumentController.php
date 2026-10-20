@@ -55,11 +55,11 @@ final class GeneratedDocumentController
 
         try {
             $updateGeneratedDocument->handle($savedDocument, $validated['data']);
-        } catch (RuntimeException $exception) {
-            return back()->withErrors(['document' => $exception->getMessage()]);
+        } catch (RuntimeException $runtimeException) {
+            return back()->withErrors(['document' => $runtimeException->getMessage()]);
         }
 
-        return redirect()->route('documents.edit', $savedDocument->id)
+        return to_route('documents.edit', $savedDocument->id)
             ->with('success', 'Documento atualizado com sucesso!');
     }
 
@@ -82,7 +82,7 @@ final class GeneratedDocumentController
         Storage::disk('local')->delete($savedDocument->file_path);
         $savedDocument->delete();
 
-        return redirect()->route('documents.index')->with('success', 'Documento excluído.');
+        return to_route('documents.index')->with('success', 'Documento excluído.');
     }
 
     private function findOwnedDocument(string $id): GeneratedDocument

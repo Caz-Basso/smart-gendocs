@@ -41,7 +41,7 @@ final class DocumentElementController
             }
         }
 
-        $elements = $query->get()->map(fn (DocumentElement $element) => [
+        $elements = $query->get()->map(fn (DocumentElement $element): array => [
             'id' => $element->id,
             'name' => $element->name,
             'type' => $element->type->value,
@@ -84,7 +84,7 @@ final class DocumentElementController
         $validated = $request->validated();
         $imagePath = $request->file('image')->store('document-elements', 'public');
 
-        DocumentElement::create([
+        DocumentElement::query()->create([
             'name' => $validated['name'],
             'type' => $validated['type'],
             'image_path' => $imagePath,
@@ -97,14 +97,13 @@ final class DocumentElementController
             'user_id' => Auth::id(),
         ]);
 
-        return redirect()
-            ->route('document-elements.index')
+        return to_route('document-elements.index')
             ->with('success', 'Elemento cadastrado com sucesso!');
     }
 
     public function edit(string $id): Response
     {
-        $element = DocumentElement::withCount('modelElements')->findOrFail($id);
+        $element = DocumentElement::query()->withCount('modelElements')->findOrFail($id);
 
         return Inertia::render('document-elements/edit', [
             'element' => [
@@ -131,7 +130,7 @@ final class DocumentElementController
 
     public function update(UpdateDocumentElementRequest $request, string $id): RedirectResponse
     {
-        $element = DocumentElement::findOrFail($id);
+        $element = DocumentElement::query()->findOrFail($id);
         $validated = $request->validated();
 
         $imagePath = $element->image_path;
@@ -140,6 +139,7 @@ final class DocumentElementController
             if ($imagePath && Storage::disk('public')->exists($imagePath)) {
                 Storage::disk('public')->delete($imagePath);
             }
+
             $imagePath = $request->file('image')->store('document-elements', 'public');
         }
 
@@ -155,18 +155,16 @@ final class DocumentElementController
             'is_active' => $request->boolean('is_active', true),
         ]);
 
-        return redirect()
-            ->route('document-elements.index')
+        return to_route('document-elements.index')
             ->with('success', 'Elemento atualizado com sucesso!');
     }
 
     public function destroy(string $id): RedirectResponse
     {
-        $element = DocumentElement::withCount('modelElements')->findOrFail($id);
+        $element = DocumentElement::query()->withCount('modelElements')->findOrFail($id);
 
         if ($element->model_elements_count > 0) {
-            return redirect()
-                ->route('document-elements.index')
+            return to_route('document-elements.index')
                 ->with('error', "Não é possível excluir este elemento porque ele está vinculado a {$element->model_elements_count} modelo(s) de documento. Remova o vínculo nos modelos antes de excluir.");
         }
 
@@ -176,21 +174,18 @@ final class DocumentElementController
 
         $element->delete();
 
-        return redirect()
-            ->route('document-elements.index')
+        return to_route('document-elements.index')
             ->with('success', 'Elemento excluído com sucesso!');
     }
 
     public function toggleActive(string $id): RedirectResponse
     {
-        $element = DocumentElement::findOrFail($id);
+        $element = DocumentElement::query()->findOrFail($id);
         $element->update(['is_active' => ! $element->is_active]);
 
         $status = $element->is_active ? 'ativado' : 'desativado';
 
-        return redirect()
-            ->back()
+        return back()
             ->with('success', "Elemento {$status} com sucesso!");
     }
 }
-

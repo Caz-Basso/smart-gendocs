@@ -101,7 +101,10 @@ export default function EditSavedDocument({ document: savedDocument }: Props) {
                         </div>
 
                         {documentError && (
-                            <p role="alert" className="text-sm text-destructive">
+                            <p
+                                role="alert"
+                                className="text-sm text-destructive"
+                            >
                                 {documentError}
                             </p>
                         )}
@@ -111,10 +114,7 @@ export default function EditSavedDocument({ document: savedDocument }: Props) {
                                 const fieldId = field.id ?? field.slug;
 
                                 return (
-                                    <div
-                                        key={fieldId}
-                                        className="space-y-2"
-                                    >
+                                    <div key={fieldId} className="space-y-2">
                                         <Label htmlFor={fieldId}>
                                             {field.name}
                                         </Label>
@@ -191,7 +191,9 @@ export default function EditSavedDocument({ document: savedDocument }: Props) {
                             </Button>
                             <Button type="submit" disabled={processing}>
                                 <Save className="mr-2 h-4 w-4" />
-                                {processing ? 'Salvando...' : 'Salvar alterações'}
+                                {processing
+                                    ? 'Salvando...'
+                                    : 'Salvar alterações'}
                             </Button>
                         </div>
                     </form>

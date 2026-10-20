@@ -35,4 +35,3 @@ export interface ModelElementAttachment {
     pages?: number[]; // e.g. [1] or [1, 2]
     z_index?: number;
 }
-

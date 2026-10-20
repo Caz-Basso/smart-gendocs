@@ -44,25 +44,21 @@ final readonly class ConvertFileToHtmlAction
             $pdf = $parser->parseFile($filePath);
             $pages = $pdf->getPages();
 
-            if (empty($pages)) {
-                throw new RuntimeException('O documento PDF não contém páginas.');
-            }
+            throw_if(empty($pages), RuntimeException::class, 'O documento PDF não contém páginas.');
 
             $html = '';
             $totalPages = count($pages);
 
             foreach ($pages as $index => $page) {
                 $pageNum = $index + 1;
-                $html .= $this->extractPageHtml($page, $pageNum, $totalPages);
+                $html .= $this->extractPageHtml($page, $pageNum);
             }
 
-            if (mb_trim($html) === '') {
-                throw new RuntimeException('O documento PDF não contém texto extraível.');
-            }
+            throw_if(mb_trim($html) === '', RuntimeException::class, 'O documento PDF não contém texto extraível.');
 
             return $html;
-        } catch (Throwable $exception) {
-            throw new RuntimeException('Não foi possível converter o PDF para HTML: '.$exception->getMessage(), previous: $exception);
+        } catch (Throwable $throwable) {
+            throw new RuntimeException('Não foi possível converter o PDF para HTML: '.$throwable->getMessage(), $throwable->getCode(), previous: $throwable);
         }
     }
 
@@ -71,7 +67,7 @@ final readonly class ConvertFileToHtmlAction
         return $this->convertPdfPathToHtml($file->getPathname(), $file->getClientOriginalName());
     }
 
-    private function extractPageHtml(Page $page, int $pageNum, int $totalPages): string
+    private function extractPageHtml(Page $page, int $pageNum): string
     {
         $items = [];
         try {
@@ -81,7 +77,7 @@ final readonly class ConvertFileToHtmlAction
         }
 
         if (! empty($items)) {
-            return $this->extractPageFromTm($items, $pageNum, $totalPages);
+            return $this->extractPageFromTm($items, $pageNum);
         }
 
         try {
@@ -90,13 +86,13 @@ final readonly class ConvertFileToHtmlAction
             $rawText = '';
         }
 
-        return $this->extractPageFromRawText($rawText, $pageNum, $totalPages);
+        return $this->extractPageFromRawText($rawText, $pageNum);
     }
 
     /**
      * @param  array<int, array{0: array<int, float>, 1: string}>  $items
      */
-    private function extractPageFromTm(array $items, int $pageNum, int $totalPages): string
+    private function extractPageFromTm(array $items, int $pageNum): string
     {
         $lines = [];
 
@@ -117,6 +113,7 @@ final readonly class ConvertFileToHtmlAction
                     break;
                 }
             }
+
             unset($line);
 
             if (! $matched) {
@@ -128,7 +125,7 @@ final readonly class ConvertFileToHtmlAction
         }
 
         // Ordenação visual precisa: do topo para a base (Y decrescente)
-        usort($lines, fn ($a, $b) => $b['y'] <=> $a['y']);
+        usort($lines, fn (array $a, array $b): int => $b['y'] <=> $a['y']);
 
         $headerLines = [];
         $bodyLines = [];
@@ -136,7 +133,7 @@ final readonly class ConvertFileToHtmlAction
 
         foreach ($lines as $line) {
             // Ordena elementos horizontais da linha (X crescente, da esquerda para direita)
-            usort($line['items'], fn ($a, $b) => $a['x'] <=> $b['x']);
+            usort($line['items'], fn (array $a, array $b): int => $a['x'] <=> $b['x']);
             $lineText = mb_trim(implode('', array_column($line['items'], 'text')));
 
             if ($lineText === '') {
@@ -156,9 +153,9 @@ final readonly class ConvertFileToHtmlAction
         }
 
         $headerHtml = '';
-        if (! empty($headerLines)) {
+        if ($headerLines !== []) {
             $headerHtml = '<div class="pdf-header" style="margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; font-size: 11px; color: #64748b; text-align: center;">'
-                .implode('<br>', array_map(fn ($l) => htmlspecialchars($l, ENT_QUOTES, 'UTF-8'), $headerLines))
+                .implode('<br>', array_map(fn (string $l): string => htmlspecialchars($l, ENT_QUOTES, 'UTF-8'), $headerLines))
                 .'</div>';
         }
 
@@ -175,25 +172,27 @@ final readonly class ConvertFileToHtmlAction
                 $bodyHtml .= '<p style="margin-bottom: 8px; line-height: 1.6; font-size: 12.5px; text-align: justify; color: #334155;">'.htmlspecialchars($lineText, ENT_QUOTES, 'UTF-8').'</p>';
             }
         }
+
         $bodyHtml .= '</div>';
 
         $footerHtml = '';
-        if (! empty($footerLines)) {
+        if ($footerLines !== []) {
             $footerHtml = '<div class="pdf-footer" style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 10.5px; color: #64748b; text-align: center; line-height: 1.5;">'
-                .implode('<br>', array_map(fn ($l) => htmlspecialchars($l, ENT_QUOTES, 'UTF-8'), $footerLines))
+                .implode('<br>', array_map(fn (string $l): string => htmlspecialchars($l, ENT_QUOTES, 'UTF-8'), $footerLines))
                 .'</div>';
         }
 
         return "<div class=\"pdf-page pf\" data-page-no=\"{$pageNum}\" style=\"box-sizing: border-box; width: 100%; max-width: 210mm; min-height: 297mm; margin: 0 auto 30px auto; padding: 25mm 20mm; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Aptos', 'Calibri', 'Arial', sans-serif;\">{$headerHtml}{$bodyHtml}{$footerHtml}</div>";
     }
 
-    private function extractPageFromRawText(string $rawText, int $pageNum, int $totalPages): string
+    private function extractPageFromRawText(string $rawText, int $pageNum): string
     {
-        $lines = array_filter(array_map('mb_trim', explode("\n", $rawText)));
+        $lines = array_filter(array_map(mb_trim(...), explode("\n", $rawText)));
         $bodyHtml = '<div class="pdf-body" style="flex: 1 1 auto;">';
         foreach ($lines as $line) {
             $bodyHtml .= '<p style="margin-bottom: 8px; line-height: 1.6; font-size: 12.5px; text-align: justify; color: #334155;">'.htmlspecialchars($line, ENT_QUOTES, 'UTF-8').'</p>';
         }
+
         $bodyHtml .= '</div>';
 
         return "<div class=\"pdf-page pf\" data-page-no=\"{$pageNum}\" style=\"box-sizing: border-box; width: 100%; max-width: 210mm; min-height: 297mm; margin: 0 auto 30px auto; padding: 25mm 20mm; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; font-family: 'Aptos', 'Calibri', 'Arial', sans-serif;\">{$bodyHtml}</div>";
@@ -211,9 +210,7 @@ final readonly class ConvertFileToHtmlAction
         $htmlWriter->save('php://output');
         $html = (string) ob_get_clean();
 
-        $cleanedHtml = $this->cleanDocxHtml($html);
-
-        return $cleanedHtml;
+        return $this->cleanDocxHtml($html);
     }
 
     private function cleanDocxHtml(string $html): string

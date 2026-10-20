@@ -34,12 +34,10 @@ final readonly class StoreGeneratedDocumentAction
         $id = (string) Str::uuid();
         $filePath = 'generated-documents/'.$user->id.'/'.$id.'.pdf';
 
-        if (! Storage::disk('local')->put($filePath, $pdfContent)) {
-            throw new RuntimeException('Não foi possível salvar o documento gerado.');
-        }
+        throw_unless(Storage::disk('local')->put($filePath, $pdfContent), RuntimeException::class, 'Não foi possível salvar o documento gerado.');
 
         try {
-            return DB::transaction(fn (): GeneratedDocument => GeneratedDocument::create([
+            return DB::transaction(fn (): GeneratedDocument => GeneratedDocument::query()->create([
                 'id' => $id,
                 'user_id' => $user->id,
                 'document_model_id' => $model?->id,
@@ -51,9 +49,9 @@ final readonly class StoreGeneratedDocumentAction
                 'file_path' => $filePath,
                 'html_content' => $htmlContent,
             ]));
-        } catch (Throwable $exception) {
+        } catch (Throwable $throwable) {
             Storage::disk('local')->delete($filePath);
-            throw $exception;
+            throw $throwable;
         }
     }
 }
