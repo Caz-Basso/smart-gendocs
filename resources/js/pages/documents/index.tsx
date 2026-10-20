@@ -91,7 +91,7 @@ export default function DocumentsIndex({ documents }: Props) {
 
             <div className="mx-auto w-full max-w-6xl p-6">
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold">Meus documentos</h1>
+                    <h1 className="text-2xl font-bold">Meus rascunhos</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Documentos gerados e salvos na sua conta.
                     </p>

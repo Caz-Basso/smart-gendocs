@@ -40,10 +40,9 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function useGenerateDocument() {
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
 
-    const generate = async ({ model, data, includePreview }: GenerateArgs) => {
-        if (isGenerating) return;
-
+    const createFormData = ({ model, data, includePreview }: GenerateArgs) => {
         const formData = new FormData();
 
         formData.append('model_id', model.id);
@@ -60,19 +59,29 @@ export function useGenerateDocument() {
             formData.append(`data[${key}]`, value);
         });
 
+        return formData;
+    };
+
+    const getHeaders = () => ({
+        'X-CSRF-TOKEN':
+            document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content') || '',
+        Accept: 'application/json',
+    });
+
+    const generate = async (args: GenerateArgs) => {
+        if (isGenerating || isSavingDraft) return;
+
+        const { model } = args;
+
         setIsGenerating(true);
 
         try {
             const response = await fetch('/modelos/gerar', {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                    Accept: 'application/json',
-                },
-                body: formData,
+                headers: getHeaders(),
+                body: createFormData(args),
             });
 
             if (!response.ok) throw new Error(await readError(response));
@@ -102,5 +111,33 @@ export function useGenerateDocument() {
         }
     };
 
-    return { generate, isGenerating };
+    const saveDraft = async (args: GenerateArgs) => {
+        if (isGenerating || isSavingDraft) return;
+
+        setIsSavingDraft(true);
+
+        try {
+            const response = await fetch('/modelos/rascunho', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: createFormData(args),
+            });
+
+            if (!response.ok) throw new Error(await readError(response));
+
+            toast.success('Documento enviado para rascunhos.');
+        } catch (error) {
+            console.error('Erro:', error);
+
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Erro ao salvar rascunho. Tente novamente.',
+            );
+        } finally {
+            setIsSavingDraft(false);
+        }
+    };
+
+    return { generate, saveDraft, isGenerating, isSavingDraft };
 }

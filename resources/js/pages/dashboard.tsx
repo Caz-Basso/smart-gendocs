@@ -1,5 +1,5 @@
 import { Head, Link, useForm, usePage } from "@inertiajs/react";
-import { Download, Plus, Users } from "lucide-react";
+import { Download, Plus, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DocumentPreview } from "@/components/document/document-preview";
 import { DynamicFieldInput } from "@/components/document/dynamic-field-input";
@@ -48,7 +48,8 @@ export default function Dashboard({
     const { data, setData, processing } = useForm<Record<string, string>>(
         getInitialData(selectedModel),
     );
-    const { generate, isGenerating } = useGenerateDocument();
+    const { generate, saveDraft, isGenerating, isSavingDraft } =
+        useGenerateDocument();
 
     useEffect(() => {
         if (selectedModel) setData(getInitialData(selectedModel));
@@ -63,6 +64,15 @@ export default function Dashboard({
         if (!selectedModel) return;
 
         generate({
+            model: selectedModel,
+            data,
+        });
+    };
+
+    const handleSaveDraft = () => {
+        if (!selectedModel) return;
+
+        saveDraft({
             model: selectedModel,
             data,
         });
@@ -163,12 +173,22 @@ export default function Dashboard({
                             ))
                         )}
                     </div>
-                    <div className="flex shrink-0 justify-end p-6">
+                    <div className="flex shrink-0 justify-end gap-2 p-6">
+                        <Button
+                            type="button"
+                            onClick={handleSaveDraft}
+                            disabled={isGenerating || isSavingDraft || processing}
+                            variant="outline"
+                            className="h-10 min-w-0 flex-1 px-2 text-[10px] font-semibold"
+                        >
+                            <Save className="h-4 w-4" />
+                            {isSavingDraft ? "Enviando..." : "Enviar ao rascunho"}
+                        </Button>
                         <Button
                             type="submit"
                             onClick={handleDownload}
-                            disabled={isGenerating || processing}
-                            className="h-10 w-1/2 bg-emerald-700 text-xs font-semibold tracking-wider text-white uppercase shadow-sm hover:bg-emerald-800"
+                            disabled={isGenerating || isSavingDraft || processing}
+                            className="h-10 min-w-0 flex-1 px-2 bg-emerald-700 text-xs font-semibold tracking-wider text-white uppercase shadow-sm hover:bg-emerald-800"
                         >
                             <Download className="h-4 w-4" />
                             {isGenerating ? "Salvando..." : "Baixar"}
