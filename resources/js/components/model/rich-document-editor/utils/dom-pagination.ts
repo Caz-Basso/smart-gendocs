@@ -1,20 +1,8 @@
-import {
-    countWords,
-    sliceWords,
-} from "@/lib/document-pagination";
+import { countWords, sliceWords } from "@/lib/document-pagination";
 
-import type {
-    CaretPos,
-    PageMetrics,
-} from "../types";
+import type { CaretPos, PageMetrics } from "../types";
 
-const SPLITTABLE_TAGS = new Set([
-    "P",
-    "DIV",
-    "H1",
-    "H2",
-    "H3",
-]);
+const SPLITTABLE_TAGS = new Set(["P", "DIV", "H1", "H2", "H3"]);
 
 export const BLANK_PAGE_HTML =
     '<p style="text-align: justify; line-height: 1.5; font-size: 12pt;"><br/></p>';
@@ -34,7 +22,10 @@ export function measurePage(el: HTMLElement): PageMetrics {
     }
 
     const boxRect = el.getBoundingClientRect();
-    const contentBottom = contentRect.bottom + el.scrollTop;
+    const last = el.lastElementChild as HTMLElement | null;
+    const lastBottom = last ? last.getBoundingClientRect().bottom : 0;
+    const contentBottom =
+        Math.max(contentRect.bottom, lastBottom) + el.scrollTop;
     const contentTop = boxRect.top + padTop;
     const contentHeight = Math.max(0, contentBottom - contentTop);
 
@@ -278,6 +269,7 @@ function splitBlockToFit(
     const tail = sliceWords(block, bestK, Infinity);
 
     block.replaceChildren(...Array.from(tail.childNodes));
+    block.style.textIndent = "0cm";
 
     if (caret && caretOffset >= 0) {
         const headCharLen = (head.textContent || "").length;
@@ -360,5 +352,3 @@ export function moveUnderflowFromNext(
 
     return movedAny;
 }
-
-
