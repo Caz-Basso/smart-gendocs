@@ -18,12 +18,14 @@ final class DocumentModel extends Model
         'name',
         'template_path',
         'extracted_text',
+        'document_structure',
         'fields',
         'user_id',
     ];
 
     protected $casts = [
         'fields' => 'array',
+        'document_structure' => 'array',
     ];
 
     protected $keyType = 'uuid';

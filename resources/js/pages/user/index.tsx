@@ -3,6 +3,7 @@ import {
     Check,
     ListChecks,
     Pencil,
+    Plus,
     Trash,
     VenetianMask,
     X,
@@ -15,22 +16,32 @@ import { ListPagination } from '@/components/list-pagination';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { useAppliedFilters } from '@/hooks/use-applied-filters';
 import AppLayout from '@/layouts/app-layout';
 import { show } from '@/routes/audit';
 import { destroy } from '@/routes/user';
-import { impersonate, index, update } from '@/routes/users';
+import { create, impersonate, index, update } from '@/routes/users';
 import type { BreadcrumbItem, Paginated } from '@/types';
 
 type UserRow = {
     id: string;
     name: string;
     email: string;
+    is_active: boolean;
     created_at: string;
+    roles: { id: number; name: string }[];
 };
 
 type UserPageProps = {
     users: Paginated<UserRow>;
+    assignableRoles: { name: string; label: string }[];
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -40,11 +51,12 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function UsersIndex({ users }: UserPageProps) {
+export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
     const { auth } = usePage().props;
     const currentUserId = String(auth.user.id);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
+    const [editingEmail, setEditingEmail] = useState('');
     const [saving, setSaving] = useState(false);
     const { draft, setDraft, apply, clear, activeCount } = useAppliedFilters({
         search: '',
@@ -53,17 +65,20 @@ export default function UsersIndex({ users }: UserPageProps) {
     function startEditing(user: UserRow): void {
         setEditingId(user.id);
         setEditingName(user.name);
+        setEditingEmail(user.email);
     }
 
     function cancelEditing(): void {
         setEditingId(null);
         setEditingName('');
+        setEditingEmail('');
     }
 
     function saveName(user: UserRow): void {
         const name = editingName.trim();
+        const email = editingEmail.trim();
 
-        if (name === '' || name === user.name) {
+        if (name === '' || email === '' || (name === user.name && email === user.email)) {
             cancelEditing();
 
             return;
@@ -73,7 +88,7 @@ export default function UsersIndex({ users }: UserPageProps) {
 
         router.patch(
             update.url(user),
-            { name },
+            { name, email },
             {
                 preserveScroll: true,
                 onFinish: () => {
@@ -90,6 +105,16 @@ export default function UsersIndex({ users }: UserPageProps) {
             <ListPageShell
                 title="Usuários"
                 description="Lista de todos os usuários cadastrados."
+                actions={
+                    auth.can.users.create && (
+                        <Button asChild>
+                            <Link href={create()}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Novo usuário
+                            </Link>
+                        </Button>
+                    )
+                }
                 activeFiltersCount={activeCount}
                 filters={
                     <SearchAndSelectListFilters
@@ -128,6 +153,12 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                 </th>
                                                 <th className="px-4 py-3 font-medium">
                                                     Email
+                                                </th>
+                                                <th className="px-4 py-3 font-medium">
+                                                    Perfil
+                                                </th>
+                                                <th className="px-4 py-3 font-medium">
+                                                    Status
                                                 </th>
                                                 <th className="px-4 py-3 font-medium">
                                                     Criado em
@@ -249,7 +280,76 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 text-muted-foreground">
-                                                        {user.email}
+                                                        {editingId === user.id ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    value={editingEmail}
+                                                                    onChange={(event) =>
+                                                                        setEditingEmail(
+                                                                            event.target.value,
+                                                                        )
+                                                                    }
+                                                                    disabled={saving}
+                                                                    type="email"
+                                                                    className="h-8 max-w-xs"
+                                                                />
+                                                            </div>
+                                                        ) : user.email}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {auth.can.users.manageRoles &&
+                                                        assignableRoles.length > 0 &&
+                                                        (!user.roles.some(
+                                                            (role) =>
+                                                                role.name ===
+                                                                'super-admin',
+                                                        ) ||
+                                                            auth.user.roles?.some(
+                                                                (role) =>
+                                                                    role.name ===
+                                                                    'super-admin',
+                                                            )) ? (
+                                                            <Select
+                                                                value={user.roles[0]?.name ?? 'user'}
+                                                                onValueChange={(role) =>
+                                                                    router.patch(
+                                                                        update.url(
+                                                                            user,
+                                                                        ),
+                                                                        { role },
+                                                                        {
+                                                                            preserveScroll: true,
+                                                                        },
+                                                                    )
+                                                                }
+                                                            >
+                                                                <SelectTrigger className="h-8 w-36">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {assignableRoles.map(
+                                                                        (role) => (
+                                                                        <SelectItem key={role.name} value={role.name}>{role.label}</SelectItem>
+                                                                        ),
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        ) : (
+                                                            <span className="capitalize text-muted-foreground">
+                                                                {user.roles[0]?.name?.replace('-', ' ') ?? 'user'}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span
+                                                            className={
+                                                                user.is_active
+                                                                    ? 'text-emerald-700 dark:text-emerald-400'
+                                                                    : 'text-muted-foreground'
+                                                            }
+                                                        >
+                                                            {user.is_active ? 'Ativo' : 'Inativo'}
+                                                        </span>
                                                     </td>
                                                     <td className="px-4 py-3 text-muted-foreground">
                                                         {new Date(
@@ -257,6 +357,24 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                         ).toLocaleDateString()}
                                                     </td>
                                                     <td className="flex justify-end gap-2 px-4 py-3">
+                                                        {auth.can.users.changeStatus &&
+                                                            user.id !== currentUserId &&
+                                                            (!user.roles.some((role) => role.name === 'super-admin') ||
+                                                                auth.user.roles?.some((role) => role.name === 'super-admin')) && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    router.patch(
+                                                                        update.url(user),
+                                                                        { is_active: !user.is_active },
+                                                                        { preserveScroll: true },
+                                                                    )
+                                                                }
+                                                            >
+                                                                {user.is_active ? 'Desativar' : 'Ativar'}
+                                                            </Button>
+                                                        )}
                                                         {user.id !==
                                                             currentUserId &&
                                                             auth.can.users
@@ -268,7 +386,7 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                                     disabled
                                                                 >
                                                                     <VenetianMask className="mr-2 h-4 w-4" />
-                                                                    Impersonar
+                                                                    Personificar
                                                                 </Button>
                                                             ) : (
                                                                 <Button
@@ -283,7 +401,7 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                                         as="button"
                                                                     >
                                                                         <VenetianMask className="mr-2 h-4 w-4" />
-                                                                        Impersonar
+                                                                        Personificar
                                                                     </Link>
                                                                 </Button>
                                                             ))}
@@ -305,8 +423,17 @@ export default function UsersIndex({ users }: UserPageProps) {
                                                                 </Link>
                                                             </Button>
                                                         )}
-                                                        {auth.can.users
-                                                            .delete && (
+                                                        {auth.can.users.delete &&
+                                                            (!user.roles.some(
+                                                                (role) =>
+                                                                    role.name ===
+                                                                    'super-admin',
+                                                            ) ||
+                                                            auth.user.roles?.some(
+                                                                (role) =>
+                                                                    role.name ===
+                                                                    'super-admin',
+                                                            )) && (
                                                             <Button
                                                                 asChild
                                                                 variant="outline"

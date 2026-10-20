@@ -1,6 +1,8 @@
 /.phpunit.cache
 /bootstrap/ssr
 /node_modules
+/__pycache__/
+**/__pycache__/
 /public/build
 /public/hot
 /public/storage

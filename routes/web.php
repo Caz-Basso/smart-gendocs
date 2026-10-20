@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\AuditableType;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\GeneratedDocumentController;
 use App\Http\Controllers\ModelRegistrationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SessionController;
@@ -39,12 +40,26 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/{model}', [ModelRegistrationController::class, 'update'])
             ->middleware('role_or_permission:admin|super-admin')
             ->name('models.update');
+        Route::delete('/{model}', [ModelRegistrationController::class, 'destroy'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.destroy');
         Route::post('/', [ModelRegistrationController::class, 'store'])
             ->middleware('role_or_permission:admin|super-admin')
             ->name('models.store');
+        Route::post('/analisar', [ModelRegistrationController::class, 'analyze'])
+            ->middleware('role_or_permission:admin|super-admin')
+            ->name('models.analyze');
         Route::post('/gerar', [ModelRegistrationController::class, 'generate'])
             ->middleware('role_or_permission:user|admin|super-admin')
             ->name('documents.generate');
+    });
+
+    Route::prefix('documentos')->name('documents.')->middleware('role_or_permission:user|admin|super-admin')->group(function (): void {
+        Route::get('/', [GeneratedDocumentController::class, 'index'])->name('index');
+        Route::get('/{document}/editar', [GeneratedDocumentController::class, 'edit'])->name('edit');
+        Route::put('/{document}', [GeneratedDocumentController::class, 'update'])->name('update');
+        Route::get('/{document}/baixar', [GeneratedDocumentController::class, 'download'])->name('download');
+        Route::delete('/{document}', [GeneratedDocumentController::class, 'destroy'])->name('destroy');
     });
 });
 
@@ -52,6 +67,8 @@ Route::middleware('auth')->group(function (): void {
     // User...
     Route::delete('user/{user}', [UserController::class, 'destroy'])->name('user.destroy');
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::get('users/create', [UserController::class, 'createManaged'])->name('users.create');
+    Route::post('users', [UserController::class, 'storeManaged'])->name('users.store');
     Route::get('users', [UserController::class, 'index'])->name('users.index');
 
     Route::resource('roles', RoleController::class)->except(['show']);

@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\GetAudits;
 use App\Enums\AuditableType;
 use App\Models\User;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -38,8 +39,18 @@ final readonly class AuditController
                     'id' => $audit->getKey(),
                     'event' => $audit->event,
                     'responsible' => $audit->user instanceof User ? $audit->user->name : null,
-                    'old_values' => $audit->old_values,
-                    'new_values' => $audit->new_values,
+                    'old_values' => Arr::except($audit->old_values ?? [], [
+                        'password',
+                        'remember_token',
+                        'two_factor_secret',
+                        'two_factor_recovery_codes',
+                    ]),
+                    'new_values' => Arr::except($audit->new_values ?? [], [
+                        'password',
+                        'remember_token',
+                        'two_factor_secret',
+                        'two_factor_recovery_codes',
+                    ]),
                     'created_at' => $audit->created_at,
                 ]),
         ]);

@@ -26,8 +26,27 @@ final class UserPolicy
         return $this->allows($user, __FUNCTION__);
     }
 
+    public function create(User $user): bool
+    {
+        return $this->allows($user, __FUNCTION__);
+    }
+
+    public function manageRoles(User $user): bool
+    {
+        return $this->allows($user, __FUNCTION__);
+    }
+
+    public function changeStatus(User $user, User $model): bool
+    {
+        return ! $user->is($model) && $this->allows($user, __FUNCTION__);
+    }
+
     public function delete(User $user, User $model): bool
     {
+        if ($model->hasRole('super-admin') && ! $user->hasRole('super-admin')) {
+            return false;
+        }
+
         if ($user->is($model)) {
             return true;
         }
