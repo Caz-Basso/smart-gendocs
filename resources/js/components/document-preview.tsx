@@ -1,14 +1,12 @@
-import type { DragEvent, RefObject } from "react";
-
 import {
     ChevronLeft,
     ChevronRight,
     Edit3,
     FileText,
     Loader2,
-} from "lucide-react";
-
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import type { DragEvent, RefObject } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface DocumentPreviewProps {
     loading: boolean;
@@ -22,6 +20,7 @@ interface DocumentPreviewProps {
     handleDrop: (event: DragEvent<HTMLDivElement>) => void;
     previousPage: () => void;
     nextPage: () => void;
+    showHtmlPreview?: boolean;
 }
 
 export default function DocumentPreview({
@@ -36,15 +35,16 @@ export default function DocumentPreview({
     handleDrop,
     previousPage,
     nextPage,
+    showHtmlPreview = false,
 }: DocumentPreviewProps) {
     return (
         <div className="flex min-w-0 flex-col items-center lg:col-span-8">
             <div className="mb-4 flex w-full max-w-[900px] items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                     Pré-visualização
                 </span>
 
-                {isPdf && pageImages.length > 0 && (
+                {isPdf && pageImages.length > 0 && !showHtmlPreview && (
                     <div className="flex items-center gap-2">
                         <Button
                             type="button"
@@ -65,16 +65,14 @@ export default function DocumentPreview({
                             variant="ghost"
                             size="icon"
                             onClick={nextPage}
-                            disabled={
-                                currentPage >= pageImages.length - 1
-                            }
+                            disabled={currentPage >= pageImages.length - 1}
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
                     </div>
                 )}
 
-                {!isPdf && templateFile && (
+                {!isPdf && templateFile && !showHtmlPreview && (
                     <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <Edit3 className="h-3.5 w-3.5" />
                         Arraste a tag para o documento
@@ -90,6 +88,15 @@ export default function DocumentPreview({
                         <span className="text-sm">
                             Renderizando documento...
                         </span>
+                    </div>
+                ) : showHtmlPreview && documentHtml ? (
+                    <div className="min-h-[841px] px-[48px] py-[42px]">
+                        <div
+                            dangerouslySetInnerHTML={{
+                                __html: documentHtml,
+                            }}
+                            className="document-preview min-h-[750px] w-full font-sans text-[13px] leading-[1.7] text-[#333]"
+                        />
                     </div>
                 ) : isPdf && pageImages.length ? (
                     <img

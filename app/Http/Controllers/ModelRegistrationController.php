@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\ConvertFileToHtmlAction;
 use App\Actions\CreateModelAction;
 use App\Actions\GenerateDocumentAction;
 use App\Actions\GenerateSampleDocumentAction;
@@ -14,13 +15,16 @@ use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
 use App\Models\DocumentElement;
 use App\Models\DocumentModel;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 final class ModelRegistrationController
 {
@@ -86,6 +90,13 @@ final class ModelRegistrationController
                         'z_index' => $me->z_index,
                     ];
                 })->toArray(),
+                'html_content' => $model->html_content ?? $model->extracted_text,
+                'document_structure' => $model->document_structure,
+                'templateUrl' => $model->template_path !== null
+                    ? Storage::disk('public')->url($model->template_path)
+                    : null,
+                'templateIsPdf' => $model->template_path !== null
+                    && str_ends_with(mb_strtolower($model->template_path), '.pdf'),
             ];
         });
 
@@ -127,6 +138,25 @@ final class ModelRegistrationController
             'fieldTypeOptions' => $fieldTypeOptions,
             'availableElements' => $availableElements,
         ]);
+    }
+
+    public function convertPdfToHtml(Request $request, ConvertFileToHtmlAction $convertFileToHtml): JsonResponse
+    {
+        $validated = $request->validate([
+            'pdf' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ]);
+
+        try {
+            return response()->json([
+                'html' => $convertFileToHtml->handle($validated['pdf']),
+            ]);
+        } catch (RuntimeException $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Não foi possível converter o PDF para HTML.',
+            ], 502);
+        }
     }
 
     public function store(StoreModelRequest $request, CreateModelAction $createModel): RedirectResponse
@@ -196,20 +226,24 @@ final class ModelRegistrationController
         StoreModelRequest $request,
         string $id,
         SyncModelElements $syncModelElements,
+        ConvertFileToHtmlAction $convertFileToHtml,
     ): RedirectResponse {
         $model = DocumentModel::findOrFail($id);
 
         $data = $request->validated();
         $templatePath = $model->template_path;
+        $htmlContent = $model->html_content;
 
         if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
             $templatePath = $data['template']->store('templates', 'public');
+            $htmlContent = $convertFileToHtml->handle($data['template']);
         }
 
         $model->update([
             'name' => $data['name'],
             'template_path' => $templatePath,
             'extracted_text' => $data['extracted_text'] ?? $model->extracted_text,
+            'html_content' => $data['html_content'] ?? $htmlContent,
             'document_structure' => array_key_exists('document_structure', $data)
                 ? $data['document_structure']
                 : $model->document_structure,
@@ -250,10 +284,13 @@ final class ModelRegistrationController
 
         if (Str::isUuid($modelId)) {
             $model = \App\Models\DocumentModel::findOrFail($modelId);
-            $pdfContent = $generateDocument->handle($modelId, $data['data']);
+            $generated = $generateDocument->handle($modelId, $data['data']);
+            $pdfContent = $generated['pdf'];
+            $htmlContent = $generated['html'];
             $fields = $model->fields ?? [];
         } else {
             $pdfContent = $generateSampleDocument->handle($data['preview'], $data['data']);
+            $htmlContent = null;
             $fields = json_decode($data['field_definitions'] ?? '[]', true, flags: JSON_THROW_ON_ERROR);
         }
 
@@ -266,6 +303,7 @@ final class ModelRegistrationController
             preview: $data['preview'] ?? null,
             fields: is_array($fields) ? $fields : [],
             pdfContent: $pdfContent,
+            htmlContent: $htmlContent,
         );
 
         return new HttpResponse($pdfContent, 200, [

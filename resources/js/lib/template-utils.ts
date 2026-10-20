@@ -8,20 +8,20 @@ export const slugify = (text: string) =>
         .replace(/^_+|_+$/g, '');
 
 /**
- * Imagens extraídas de DOCX (ex.: logos) vêm em resolução nativa; sem limite
- * elas estouram a largura do editor. Injetamos estilo inline limitando a largura.
+ * Imagens em documentos A4 (ex.: logos, timbres) devem respeitar as margens
+ * sem distorcer proporções nem estourar o layout.
  */
 export function constrainImages(html: string): string {
     return html.replace(
-        /<img(?![^>]*\bstyle=)/g,
-        '<img style="max-width:180px;max-height:72px;width:auto;height:auto"',
+        /<img(?![^>]*\bstyle=)/gi,
+        '<img style="max-width:100%;height:auto;object-fit:contain;"',
     );
 }
 
 export function cleanHtml(html: string): string {
     return html
         .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/>\s+</g, '><')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/>\s*[\r\n]+\s*</g, '><')
         .trim();
 }

@@ -29,6 +29,7 @@ final readonly class StoreGeneratedDocumentAction
         ?array $preview,
         array $fields,
         string $pdfContent,
+        ?string $htmlContent = null,
     ): GeneratedDocument {
         $id = (string) Str::uuid();
         $filePath = 'generated-documents/'.$user->id.'/'.$id.'.pdf';
@@ -48,6 +49,7 @@ final readonly class StoreGeneratedDocumentAction
                 'preview' => $preview,
                 'fields' => $fields,
                 'file_path' => $filePath,
+                'html_content' => $htmlContent,
             ]));
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($filePath);

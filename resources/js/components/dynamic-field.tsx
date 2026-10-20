@@ -1,15 +1,14 @@
-import { Check, Copy, Trash } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Check, Copy, Trash } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 
 type Field = {
     id: string;
@@ -50,12 +49,12 @@ export default function DynamicField({
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <h2 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                     Campos Dinâmicos
                 </h2>
 
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
-                    {fields.length} {fields.length === 1 ? "campo" : "campos"}
+                    {fields.length} {fields.length === 1 ? 'campo' : 'campos'}
                 </span>
             </div>
 
@@ -66,7 +65,7 @@ export default function DynamicField({
                         className="group relative space-y-3 rounded-xl border bg-card/60 p-3.5 shadow-xs transition-colors hover:bg-card"
                     >
                         <div className="flex items-center justify-between border-b border-border/40 pb-1">
-                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                 Campo #{index + 1}
                             </span>
 
@@ -109,13 +108,13 @@ export default function DynamicField({
                                     onDragStart={(e) =>
                                         handleDragStart(e, field.slug)
                                     }
-                                    className="relative flex cursor-grab select-none items-center active:cursor-grabbing"
+                                    className="relative flex cursor-grab items-center select-none active:cursor-grabbing"
                                 >
                                     <Input
                                         value={
                                             field.slug
                                                 ? `{{${field.slug}}}`
-                                                : ""
+                                                : ''
                                         }
                                         disabled
                                         placeholder="{{nome_do_campo}}"

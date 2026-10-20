@@ -13,8 +13,16 @@ final class GeneratedDocument extends Model
     use HasUuids;
 
     protected $fillable = [
-        'id', 'user_id', 'document_model_id', 'model_key', 'name',
-        'data', 'preview', 'fields', 'file_path',
+        'id',
+        'user_id',
+        'document_model_id',
+        'model_key',
+        'name',
+        'data',
+        'preview',
+        'fields',
+        'file_path',
+        'html_content',
     ];
 
     public function user(): BelongsTo
@@ -29,6 +37,10 @@ final class GeneratedDocument extends Model
 
     protected function casts(): array
     {
-        return ['data' => 'array', 'preview' => 'array', 'fields' => 'array'];
+        return [
+            'data' => 'array',
+            'preview' => 'array',
+            'fields' => 'array',
+        ];
     }
 }

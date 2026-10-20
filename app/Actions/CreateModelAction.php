@@ -12,12 +12,14 @@ final readonly class CreateModelAction
 {
     public function __construct(
         private SyncModelElements $syncModelElements = new SyncModelElements(),
+        private ConvertFileToHtmlAction $convertFileToHtml = new ConvertFileToHtmlAction(),
     ) {}
 
     public function handle(array $data, string $userId): DocumentModel
     {
         return DB::transaction(function () use ($data, $userId) {
             $templatePath = null;
+            $htmlContent = null;
 
             if (isset($data['template']) && $data['template'] instanceof \Illuminate\Http\UploadedFile) {
                 $templatePath = $data['template']->store('templates', 'public');
@@ -40,6 +42,10 @@ final readonly class CreateModelAction
                         rename($defaultConverted, $targetConverted);
                     }
                 }
+                $htmlContent = is_string($data['html_content'] ?? null)
+                    && $data['html_content'] !== ''
+                        ? $data['html_content']
+                        : $this->convertFileToHtml->handle($data['template']);
             }
 
             $model = DocumentModel::create([
@@ -47,6 +53,7 @@ final readonly class CreateModelAction
                 'name' => $data['name'],
                 'template_path' => $templatePath,
                 'extracted_text' => $data['extracted_text'] ?? null,
+                'html_content' => $htmlContent,
                 'document_structure' => $data['document_structure'] ?? null,
                 'fields' => $data['fields'],
                 'user_id' => $userId,

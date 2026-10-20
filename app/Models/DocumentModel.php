@@ -18,6 +18,7 @@ final class DocumentModel extends Model
         'name',
         'template_path',
         'extracted_text',
+        'html_content',
         'document_structure',
         'fields',
         'user_id',

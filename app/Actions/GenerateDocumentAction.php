@@ -11,165 +11,69 @@ use RuntimeException;
 
 final readonly class GenerateDocumentAction
 {
-    public function handle(string $modelId, array $data): string
-    {
-        $model = DocumentModel::with(['modelElements.documentElement'])->findOrFail($modelId);
+    public function __construct(private ConvertHtmlToPdfAction $convertToPdf = new ConvertHtmlToPdfAction) {}
 
-        if ($model->document_structure !== null && $model->template_path !== null && ! empty($model->document_structure['pages'] ?? [])) {
+    public function handle(string $modelId, array $data): array
+    {
+        $model = DocumentModel::findOrFail($modelId);
+
+        if ($model->document_structure !== null && $model->template_path !== null) {
             return $this->generateFromStructure($model, $data);
         }
 
-        // Substituir os placeholders pelos dados no HTML rico estruturado
-        $content = $model->extracted_text ?? '';
+        $htmlContent = $model->html_content ?? $model->extracted_text ?? '';
 
         foreach ($data as $key => $value) {
-            if (is_scalar($value)) {
-                $placeholder = '{{'.$key.'}}';
-                $content = str_replace($placeholder, (string) $value, $content);
-            }
+            $placeholder = '{{'.$key.'}}';
+            $htmlContent = str_replace($placeholder, htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $htmlContent);
         }
 
-        // Injeta os cabeçalhos e rodapés institucionais associados ao modelo
-        $content = $this->injectElementsIntoHtml($content, $model);
+        $styledHtml = $this->wrapWithInstitutionalA4Styles($htmlContent, $model->name);
+        $headerHtml = $this->getInstitutionalHeader();
+        $footerHtml = $this->getInstitutionalFooter();
 
-        // Extrair configurações de margens e tipografia se presentes no HTML
-        $marginTop = 30;
-        $marginLeft = 30;
-        $marginRight = 20;
-        $marginBottom = 20;
-        $headerMarginBottom = '16pt';
-        $footerMarginTop = '20pt';
-
-        if (preg_match('/<!--\s*a4-config:\s*([^>]+)\s*-->/', $content, $matches)) {
-            if (preg_match(
-                '/top=([\d]+(?:[.,][\d]+)?)/',
-                $matches[1],
-                $topMatch,
-            )) {
-                $marginTop = (float) str_replace(',', '.', $topMatch[1]);
-            }
-            if (preg_match(
-                '/left=([\d]+(?:[.,][\d]+)?)/',
-                $matches[1],
-                $leftMatch,
-            )) {
-                $marginLeft = (float) str_replace(',', '.', $leftMatch[1]);
-            }
-            if (preg_match(
-                '/right=([\d]+(?:[.,][\d]+)?)/',
-                $matches[1],
-                $rightMatch,
-            )) {
-                $marginRight = (float) str_replace(',', '.', $rightMatch[1]);
-            }
-            if (preg_match(
-                '/bottom=([\d]+(?:[.,][\d]+)?)/',
-                $matches[1],
-                $bottomMatch,
-            )) {
-                $marginBottom = (float) str_replace(',', '.', $bottomMatch[1]);
-            }
-            if (preg_match(
-                '/headerSpacing=([\d]+(?:[.,][\d]+)?)/',
-                $matches[1],
-                $headerSpacingMatch,
-            )) {
-                $headerMarginBottom = (float) str_replace(
-                    ',',
-                    '.',
-                    $headerSpacingMatch[1],
-                ).'cm';
-            }
-            if (preg_match(
-                '/footerSpacing=([\d]+(?:[.,][\d]+)?)/',
-                $matches[1],
-                $footerSpacingMatch,
-            )) {
-                $footerMarginTop = (float) str_replace(
-                    ',',
-                    '.',
-                    $footerSpacingMatch[1],
-                ).'cm';
-            }
+        try {
+            $pdf = $this->convertToPdf->handle($styledHtml, $headerHtml, $footerHtml);
+        } catch (RuntimeException $e) {
+            throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), previous: $e);
         }
 
-        // Criar PDF com mPDF suportando estilos de documento oficial/jurídico, tabelas, imagens e reflow
-        $mpdf = new Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'margin_left' => $marginLeft,
-            'margin_right' => $marginRight,
-            'margin_top' => $marginTop,
-            'margin_bottom' => $marginBottom,
-        ]);
-
-        $styledHtml = '
-        <style>
-            body {
-                font-family: "DejaVu Serif", "Times New Roman", Times, Georgia, serif;
-                font-size: 12pt;
-                color: #111827;
-                line-height: 1.5;
-            }
-            h1, h2, h3 {
-                color: #0f172a;
-                font-family: "DejaVu Serif", "Times New Roman", serif;
-                margin-top: 14pt;
-                margin-bottom: 8pt;
-            }
-            h1 { font-size: 16pt; text-align: center; }
-            h2 { font-size: 14pt; }
-            h3 { font-size: 12pt; font-weight: bold; }
-            p {
-                margin-bottom: 6pt;
-                text-align: justify;
-                line-height: 1.5;
-            }
-            table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 10pt; }
-            td, th { border: 1px solid #94a3b8; padding: 6pt 8pt; vertical-align: top; }
-            img { max-width: 100%; height: auto; display: inline-block; }
-            .page-break { page-break-after: always; }
-            .document-header { margin-bottom: '.$headerMarginBottom.' !important; text-align: center; font-size: 10.5pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 8pt; }
-            .document-footer { margin-top: '.$footerMarginTop.' !important; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
-            .citation-long { margin-left: 4.0cm; font-size: 10pt; line-height: 1.0; text-align: justify; margin-top: 8pt; margin-bottom: 8pt; }
-        </style>
-        '.$content;
-
-        $mpdf->WriteHTML($styledHtml);
-
-        return $mpdf->Output('', 'S');
+        return [
+            'pdf' => $pdf,
+            'html' => $htmlContent,
+        ];
     }
 
     /** @param array<string, mixed> $data */
-    private function generateFromStructure(DocumentModel $model, array $data): string
+    private function generateFromStructure(DocumentModel $model, array $data): array
     {
-        $templatePath = Storage::disk('public')->path($model->template_path);
+        if (! empty($model->html_content) || ! empty($model->extracted_text)) {
+            $html = $model->html_content ?? $model->extracted_text;
 
-        if (str_ends_with(mb_strtolower($templatePath), '.docx')) {
-            $convertedPath = $templatePath.'.converted.pdf';
-            if (! is_file($convertedPath)) {
-                $outputDir = dirname($templatePath);
-                \Illuminate\Support\Facades\Process::timeout(120)->run([
-                    'libreoffice',
-                    '--headless',
-                    '--convert-to',
-                    'pdf',
-                    '--outdir',
-                    $outputDir,
-                    $templatePath,
-                ]);
-                $defaultConverted = $outputDir.'/'.pathinfo($templatePath, PATHINFO_FILENAME).'.pdf';
-                if (is_file($defaultConverted)) {
-                    rename($defaultConverted, $convertedPath);
-                }
+            foreach ($data as $key => $value) {
+                $html = str_replace('{{'.$key.'}}', htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $html);
             }
-            if (is_file($convertedPath)) {
-                $templatePath = $convertedPath;
+
+            $styledHtml = $this->wrapWithInstitutionalA4Styles($html, $model->name);
+            $headerHtml = $this->getInstitutionalHeader();
+            $footerHtml = $this->getInstitutionalFooter();
+
+            try {
+                $pdf = $this->convertToPdf->handle($styledHtml, $headerHtml, $footerHtml);
+            } catch (RuntimeException $e) {
+                throw new RuntimeException('Erro ao gerar PDF: '.$e->getMessage(), previous: $e);
             }
+
+            return [
+                'pdf' => $pdf,
+                'html' => $html,
+            ];
         }
 
+        $templatePath = Storage::disk('public')->path($model->template_path);
+
         if (! is_file($templatePath)) {
-            throw new RuntimeException('O arquivo original deste modelo não foi encontrado.');
+            throw new RuntimeException('O PDF original deste modelo não foi encontrado.');
         }
 
         $structure = $model->document_structure;
@@ -205,7 +109,6 @@ final readonly class GenerateDocumentAction
                 $height = max(1.0, (float) $element['height'] * $size['height']);
                 $text = (string) ($element['text'] ?? '');
                 $originalText = (string) ($element['originalText'] ?? $text);
-                $templateTextLength = max(1, mb_strlen($originalText));
 
                 foreach ($data as $key => $value) {
                     if (is_scalar($value)) {
@@ -217,38 +120,17 @@ final readonly class GenerateDocumentAction
                     continue;
                 }
 
-                $mpdf->SetFillColor(255, 255, 255);
-                $mpdf->SetDrawColor(255, 255, 255);
-                $mpdf->Rect($x, $y, $width, $height, 'F');
-
                 $escapedText = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $fontSize = min(200, max(1, (float) $element['fontSize']));
-                $fontSize = max(6, $fontSize * min(1, $templateTextLength / max(1, mb_strlen($text))));
+                $fontSize = min(24, max(8, (float) ($element['fontSize'] ?? 11)));
+
                 $mpdf->WriteFixedPosHTML(
-                    '<div style="font-family: sans-serif; font-size: '.$fontSize.'pt; line-height: 1; margin: 0; padding: 0; white-space: nowrap;">'.$escapedText.'</div>',
+                    '<div style="font-family: sans-serif; font-size: '.$fontSize.'pt; line-height: 1.3; color: #111; margin: 0; padding: 0; word-wrap: break-word;">'.$escapedText.'</div>',
                     $x,
                     $y,
                     $width,
                     $height,
-                    'hidden',
+                    'auto',
                 );
-            }
-
-            // Aplicar cabeçalhos e rodapés institucionais vinculados ao modelo
-            foreach ($model->modelElements as $modelElement) {
-                if ($modelElement->appliesToPage($pageIndex + 1)) {
-                    $element = $modelElement->documentElement;
-                    if ($element && $element->image_path) {
-                        $localPath = Storage::disk('public')->path($element->image_path);
-                        if (is_file($localPath)) {
-                            $x = $modelElement->getEffectivePositionX();
-                            $y = $modelElement->getEffectivePositionY();
-                            $w = $modelElement->getEffectiveWidth();
-                            $h = $modelElement->getEffectiveHeight();
-                            $mpdf->Image($localPath, $x, $y, $w, $h);
-                        }
-                    }
-                }
             }
         }
 
@@ -257,101 +139,108 @@ final readonly class GenerateDocumentAction
                 $mpdf->AddPage();
                 $templateId = $mpdf->ImportPage($pageNumber);
                 $mpdf->UseTemplate($templateId, 0, 0, null, null, true);
-
-                foreach ($model->modelElements as $modelElement) {
-                    if ($modelElement->appliesToPage($pageNumber)) {
-                        $element = $modelElement->documentElement;
-                        if ($element && $element->image_path) {
-                            $localPath = Storage::disk('public')->path($element->image_path);
-                            if (is_file($localPath)) {
-                                $x = $modelElement->getEffectivePositionX();
-                                $y = $modelElement->getEffectivePositionY();
-                                $w = $modelElement->getEffectiveWidth();
-                                $h = $modelElement->getEffectiveHeight();
-                                $mpdf->Image($localPath, $x, $y, $w, $h);
-                            }
-                        }
-                    }
-                }
             }
         }
 
-        return $mpdf->Output('', 'S');
-    }
-
-    private function injectElementsIntoHtml(string $content, DocumentModel $model): string
-    {
-        $elements = $model->modelElements;
-        if ($elements->isEmpty()) {
-            return $content;
-        }
-
-        // Divide o conteúdo em páginas através dos delimitadores de quebra de página
-        $parts = preg_split('/(<(?:hr|div)[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>(?:\s*<\/div>)?|<!--\s*(?:a4-)?page-break\s*-->)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
-
-        if ($parts === false || count($parts) <= 1) {
-            $overlayHtml = $this->buildOverlayHtmlForPage($elements, 1);
-
-            return $overlayHtml.$content;
-        }
-
-        $result = '';
-        $pageNumber = 1;
-
-        foreach ($parts as $part) {
-            if (preg_match('/(?:class=["\'][^"\']*page-break[^"\']*["\']|<!--\s*(?:a4-)?page-break\s*-->)/i', $part)) {
-                $result .= $part;
-                $pageNumber++;
-            } else {
-                $overlayHtml = $this->buildOverlayHtmlForPage($elements, $pageNumber);
-                $result .= $overlayHtml.$part;
-            }
-        }
-
-        return $result;
+        return [
+            'pdf' => $mpdf->Output('', 'S'),
+            'html' => $model->html_content ?? '',
+        ];
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Collection<int, \App\Models\DocumentModelElement>  $elements
+     * Aplica folha de estilos A4 institucional limpa e compatível com Gotenberg/Chromium.
      */
-    private function buildOverlayHtmlForPage(\Illuminate\Database\Eloquent\Collection $elements, int $pageNumber): string
+    private function wrapWithInstitutionalA4Styles(string $content, string $title): string
     {
-        $html = '';
+        $escapedTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        foreach ($elements as $modelElement) {
-            if (! $modelElement->appliesToPage($pageNumber)) {
-                continue;
-            }
+        return <<<HTML
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>{$escapedTitle}</title>
+            <style>
+                @page {
+                    size: A4 portrait;
+                    margin-top: 25mm;
+                    margin-bottom: 25mm;
+                    margin-left: 20mm;
+                    margin-right: 20mm;
+                }
+                body {
+                    font-family: 'Aptos', 'Calibri', 'Arial', sans-serif;
+                    font-size: 11pt;
+                    line-height: 1.6;
+                    color: #222;
+                }
+                h1, h2, h3, h4 {
+                    color: #0b3d2c;
+                    margin-top: 18pt;
+                    margin-bottom: 8pt;
+                    font-weight: bold;
+                    page-break-after: avoid;
+                }
+                h1 { font-size: 16pt; text-align: center; }
+                h2 { font-size: 13pt; border-bottom: 1px solid #ddd; padding-bottom: 4pt; }
+                h3 { font-size: 11pt; }
+                p {
+                    margin-bottom: 10pt;
+                    text-align: justify;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 14pt 0;
+                    page-break-inside: auto;
+                }
+                th, td {
+                    border: 1px solid #ccc;
+                    padding: 6pt 8pt;
+                    font-size: 10pt;
+                    text-align: left;
+                    vertical-align: top;
+                }
+                th {
+                    background-color: #f4f6f5;
+                    color: #0b3d2c;
+                    font-weight: bold;
+                }
+                tr {
+                    page-break-inside: avoid;
+                }
+                img {
+                    max-width: 100%;
+                    height: auto;
+                }
+                .page-break {
+                    page-break-after: always;
+                }
+            </style>
+        </head>
+        <body>
+            {$content}
+        </body>
+        </html>
+        HTML;
+    }
 
-            $element = $modelElement->documentElement;
-            if (! $element || ! $element->image_path) {
-                continue;
-            }
+    private function getInstitutionalHeader(): string
+    {
+        return <<<'HTML'
+        <div style="text-align: center; font-size: 10pt; color: #666; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+            <strong>UNIVERSIDADE DO EXTREMO SUL CATARINENSE - UNESC</strong>
+        </div>
+        HTML;
+    }
 
-            $localPath = Storage::disk('public')->path($element->image_path);
-            if (! is_file($localPath)) {
-                continue;
-            }
-
-            $x = $modelElement->getEffectivePositionX();
-            $y = $modelElement->getEffectivePositionY();
-            $w = $modelElement->getEffectiveWidth();
-            $h = $modelElement->getEffectiveHeight();
-            $zIndex = (int) $modelElement->z_index;
-
-            $html .= sprintf(
-                '<div style="position: absolute; left: %.2fmm; top: %.2fmm; width: %.2fmm; height: %.2fmm; z-index: %d; margin: 0; padding: 0;"><img src="%s" style="width: %.2fmm; height: %.2fmm; display: block;" /></div>',
-                $x,
-                $y,
-                $w,
-                $h,
-                $zIndex,
-                htmlspecialchars($localPath, ENT_QUOTES, 'UTF-8'),
-                $w,
-                $h
-            );
-        }
-
-        return $html;
+    private function getInstitutionalFooter(): string
+    {
+        return <<<'HTML'
+        <div style="text-align: center; font-size: 9pt; color: #666; padding-top: 10px; border-top: 1px solid #ddd;">
+            Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+        </div>
+        HTML;
     }
 }

@@ -16,7 +16,7 @@ final class EnsureUserIsActive
     {
         $user = $request->user();
 
-        if ($user instanceof User && ! $user->is_active) {
+        if ($user instanceof User && (! isset($user->is_active) || ! $user->is_active)) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
