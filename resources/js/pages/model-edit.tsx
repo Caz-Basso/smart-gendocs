@@ -3,6 +3,7 @@ import { ModelForm } from '@/components/model/model-form';
 import AppLayout from '@/layouts/app-layout';
 import { model_registration } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
+import type { DocumentElement } from '@/types/document-element';
 import type { FieldTypeOption, ModelData } from '@/types/model-template';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
     model: ModelData;
     templateUrl: string | null;
     templateIsPdf: boolean;
+    availableElements?: DocumentElement[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -21,6 +23,7 @@ export default function ModelEdit({
     model,
     templateUrl,
     templateIsPdf,
+    availableElements = [],
 }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -32,6 +35,7 @@ export default function ModelEdit({
                 model={model}
                 templateUrl={templateUrl}
                 templateIsPdf={templateIsPdf}
+                availableElements={availableElements}
             />
         </AppLayout>
     );

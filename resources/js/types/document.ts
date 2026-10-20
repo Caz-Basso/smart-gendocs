@@ -37,6 +37,7 @@ export interface DocumentModel {
     defaultData?: Record<string, string>;
     preview?: string[];
     extracted_text?: string | null;
+    elements?: any[];
 }
 
 const option = (value: string, label: string): FieldOption => ({

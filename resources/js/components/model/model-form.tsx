@@ -1,8 +1,26 @@
 import { useForm } from '@inertiajs/react';
-import { Edit3, FileText, Loader2, Save, X } from 'lucide-react';
+import {
+    Braces,
+    Copy,
+    Download,
+    Edit3,
+    Eye,
+    FileText,
+    Loader2,
+    Save,
+    X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCopyTag } from '@/hooks/use-copy-tag';
@@ -21,8 +39,13 @@ import type {
     ModelData,
     ModelFormData,
 } from '@/types/model-template';
+import type {
+    DocumentElement,
+    ModelElementAttachment,
+} from '@/types/document-element';
 import { ConfirmDialog } from './confirm-dialog';
 import { FieldsPanel } from './fields-panel';
+import { HeaderFooterPanel } from './header-footer-panel';
 import { HelpDialog } from './help-dialog';
 import { HtmlEditor } from './html-editor';
 import { PdfPagination, PdfPreview } from './pdf-preview';
@@ -36,6 +59,7 @@ interface ModelFormProps {
     model?: ModelData;
     templateUrl?: string | null;
     templateIsPdf?: boolean;
+    availableElements?: DocumentElement[];
 }
 
 const createDefaultField = (): FieldItem => ({
@@ -51,6 +75,7 @@ export function ModelForm({
     model,
     templateUrl = null,
     templateIsPdf = false,
+    availableElements = [],
 }: ModelFormProps) {
     const isEdit = mode === 'edit';
     const editorRef = useRef<HTMLDivElement>(null);
@@ -64,6 +89,33 @@ export function ModelForm({
     );
     const initialHtml = model?.extracted_text ?? '';
 
+    const initialElements: ModelElementAttachment[] = useMemo(() => {
+        if (model?.elements && model.elements.length > 0) {
+            return model.elements.map((el: any) => ({
+                ...el,
+                _instanceKey: el._instanceKey ?? el.id ?? crypto.randomUUID(),
+            }));
+        }
+        if (model?.model_elements && model.model_elements.length > 0) {
+            return model.model_elements.map((me: any) => ({
+                id: me.id,
+                _instanceKey: me.id ?? crypto.randomUUID(),
+                element_id: me.document_element_id,
+                name: me.document_element?.name,
+                type: me.document_element?.type,
+                image_url: me.document_element?.image_url,
+                position_x: me.position_x !== null ? Number(me.position_x) : Number(me.document_element?.position_x ?? 0),
+                position_y: me.position_y !== null ? Number(me.position_y) : Number(me.document_element?.position_y ?? 0),
+                width: me.width !== null ? Number(me.width) : Number(me.document_element?.width ?? 210),
+                height: me.height !== null ? Number(me.height) : Number(me.document_element?.height ?? 35),
+                repeat_all_pages: Boolean(me.repeat_all_pages),
+                pages: me.pages ?? [1],
+                z_index: me.z_index ?? 10,
+            }));
+        }
+        return [];
+    }, [model]);
+
     const [templateFile, setTemplateFile] = useState<File | null>(null);
     const [documentStructure, setDocumentStructure] =
         useState<PdfDocumentStructure | null>(initialStructure);
@@ -73,6 +125,7 @@ export function ModelForm({
     const [currentPage, setCurrentPage] = useState(0);
     const [isCancelOpen, setIsCancelOpen] = useState(false);
     const [isUpdateOpen, setIsUpdateOpen] = useState(false);
+    const [isJsonOpen, setIsJsonOpen] = useState(false);
 
     const { data, setData, transform, post, put, processing, errors, isDirty } =
         useForm<ModelFormData>({
@@ -83,6 +136,7 @@ export function ModelForm({
                 : [createDefaultField()],
             extracted_text: initialHtml,
             document_structure: model?.document_structure ?? null,
+            elements: initialElements,
         });
 
     const { loading, loaded } = useTemplateLoader(
@@ -237,6 +291,16 @@ export function ModelForm({
             ...formData,
             extracted_text: html,
             document_structure: null,
+            elements: (formData.elements || []).map((el) => ({
+                element_id: el.element_id,
+                position_x: el.position_x,
+                position_y: el.position_y,
+                width: el.width,
+                height: el.height,
+                repeat_all_pages: el.repeat_all_pages,
+                pages: el.pages,
+                z_index: el.z_index,
+            })),
         }));
 
         const options: Parameters<typeof post>[1] = {
@@ -309,6 +373,48 @@ export function ModelForm({
     // ---------- Render ----------
     const showEmpty = !isEdit && !templateFile && !htmlContent;
     const firstError = Object.values(errors).find(Boolean);
+    const jsonContent = useMemo(
+        () =>
+            documentStructure
+                ? JSON.stringify(
+                      sanitizePdfDocumentStructure(documentStructure),
+                      null,
+                      2,
+                  )
+                : '',
+        [documentStructure],
+    );
+
+    const downloadJson = () => {
+        if (!jsonContent) return;
+
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        const fileName = (model?.name ?? data.name)
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '') || 'documento';
+
+        anchor.href = url;
+        anchor.download = `${fileName}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    const copyJson = async () => {
+        if (!jsonContent) return;
+
+        try {
+            await navigator.clipboard.writeText(jsonContent);
+            toast.success('JSON copiado para a área de transferência.');
+        } catch {
+            toast.error('Não foi possível copiar o JSON.');
+        }
+    };
 
     return (
         <>
@@ -333,6 +439,40 @@ export function ModelForm({
                 disabled={processing}
                 onConfirm={save}
             />
+
+            <Dialog open={isJsonOpen} onOpenChange={setIsJsonOpen}>
+                <DialogContent className="max-h-[85vh] max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Estrutura JSON do PDF</DialogTitle>
+                        <DialogDescription>
+                            Prévia da estrutura convertida, incluindo as alterações
+                            ainda não salvas.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <pre className="max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-left text-xs whitespace-pre-wrap">
+                        {jsonContent}
+                    </pre>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={copyJson}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copiar JSON
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsJsonOpen(false)}
+                        >
+                            Fechar
+                        </Button>
+                        <Button type="button" onClick={downloadJson}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Baixar JSON
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <form
                 onSubmit={handleSubmit}
@@ -373,6 +513,14 @@ export function ModelForm({
                             onSelect={handleFileSelect}
                             onClear={handleFileClear}
                             error={errors.template}
+                        />
+
+                        <hr className="my-4 border-border" />
+
+                        <HeaderFooterPanel
+                            availableElements={availableElements}
+                            elements={data.elements ?? []}
+                            onChange={(els) => setData('elements', els)}
                         />
 
                         <hr className="my-4 border-border" />
@@ -472,6 +620,7 @@ export function ModelForm({
                                 key={docVersion}
                                 editorRef={editorRef}
                                 html={htmlContent}
+                                elements={data.elements ?? []}
                                 onChange={(html) =>
                                     setData('extracted_text', html)
                                 }
