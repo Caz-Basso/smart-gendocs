@@ -14,7 +14,7 @@ export const MANUAL_PAGE_BREAK_HTML =
     '<div class="page-break manual-page-break" data-manual-break="true" style="page-break-after: always;"></div>';
 
 export const AUTO_PAGE_BREAK_HTML =
-    '<div class="page-break" style="page-break-after: always;"></div>';
+    '<div class="page-break auto-page-break" data-auto-break="true" style="page-break-after: always;"></div>';
 
 export function isManualPageBreak(html: string): boolean {
     return /manual-page-break|data-manual-break=["']true["']|<!--\s*manual-page-break\s*-->/i.test(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\DocumentElementType;
 use App\Models\DocumentModel;
 use Illuminate\Support\Facades\Storage;
 use Mpdf\Mpdf;
@@ -28,9 +29,6 @@ final readonly class GenerateDocumentAction
                 $content = str_replace($placeholder, (string) $value, $content);
             }
         }
-
-        // Injeta os cabeçalhos e rodapés institucionais associados ao modelo
-        $content = $this->injectElementsIntoHtml($content, $model);
 
         // Extrair configurações de margens e tipografia se presentes no HTML
         $marginTop = 30;
@@ -61,8 +59,37 @@ final readonly class GenerateDocumentAction
             }
         }
 
-        // Remover quebras <hr> legadas que duplicam a quebra da <div class="page-break">
+        // Resolver cabeçalhos e rodapés institucionais via motor nativo de paginação do mPDF
+        $headerFooterData = $this->resolveHeaderFooterData($model);
+
+        // Ajustar margens superior e inferior dinamicamente para garantir buffer de segurança e evitar sobreposição
+        if ($headerFooterData['maxHeaderHeight'] > 0) {
+            $marginTop = (int) max($marginTop, ceil($headerFooterData['maxHeaderHeight'] + 5));
+        }
+        if ($headerFooterData['maxFooterHeight'] > 0) {
+            $marginBottom = (int) max($marginBottom, ceil($headerFooterData['maxFooterHeight'] + 5));
+        }
+
+        // 1. Remover quebras <hr> legadas que duplicam a quebra da <div class="page-break">
         $cleanContent = preg_replace('/<hr[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>/i', '', $content);
+
+        // 2. Remover quebras de página automáticas do editor (que causam o efeito "double-break" no mPDF),
+        // preservando apenas quebras manuais explicitamente inseridas pelo usuário.
+        $cleanContent = (string) preg_replace_callback(
+            '/(?:<hr[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>|<div[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>(?:\s*<\/div>)?|<(?:div|hr)[^>]*data-(?:manual|auto)-break=["\'][^"\']*["\'][^>]*>(?:\s*<\/(?:div|hr)>)?|<!--\s*(?:a4-)?(?:manual-)?page-break\s*-->)/i',
+            static function (array $matches): string {
+                $match = $matches[0];
+                if (preg_match('/manual-page-break|data-manual-break=["\']true["\']|<!--\s*manual-page-break\s*-->/i', $match)) {
+                    return '<div class="manual-page-break" style="page-break-after: always;"></div>';
+                }
+
+                return '';
+            },
+            (string) $cleanContent
+        );
+
+        // 3. Normalizar múltiplos parágrafos vazios consecutivos que possam ter se acumulado
+        $cleanContent = (string) preg_replace('/(<p[^>]*>\s*(?:<br\s*\/?>|&nbsp;|\s*)*<\/p>\s*){3,}/i', '<p><br/></p>', $cleanContent);
 
         // Criar PDF com mPDF suportando estilos de documento oficial/jurídico, tabelas, imagens e reflow
         $mpdf = new Mpdf([
@@ -72,10 +99,26 @@ final readonly class GenerateDocumentAction
             'margin_right' => $marginRight,
             'margin_top' => $marginTop,
             'margin_bottom' => $marginBottom,
+            'margin_header' => 0,
+            'margin_footer' => 0,
         ]);
+
+        $pageHeaderFooterCss = '';
+        if ($headerFooterData['hasElements']) {
+            $pageHeaderFooterCss = '
+            @page {
+                header: html_HeaderAll;
+                footer: html_FooterAll;
+            }
+            @page :first {
+                header: html_HeaderFirst;
+                footer: html_FooterFirst;
+            }';
+        }
 
         $styledHtml = '
         <style>
+            '.$pageHeaderFooterCss.'
             body {
                 font-family: '.$fontFamily.', "Times New Roman", Times, Georgia, serif;
                 font-size: 12pt;
@@ -87,6 +130,7 @@ final readonly class GenerateDocumentAction
                 font-family: '.$fontFamily.', "Times New Roman", serif;
                 margin-top: 14pt;
                 margin-bottom: 8pt;
+                page-break-after: avoid;
             }
             h1 { font-size: 16pt; text-align: center; }
             h2 { font-size: 14pt; }
@@ -96,15 +140,65 @@ final readonly class GenerateDocumentAction
                 margin-bottom: 4.5pt;
                 text-align: justify;
                 line-height: '.$lineHeight.';
+                orphans: 2;
+                widows: 2;
             }
-            table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 10pt; }
-            td, th { border: 1px solid #94a3b8; padding: 6pt 8pt; vertical-align: top; }
-            img { max-width: 100%; height: auto; display: inline-block; }
-            .page-break { page-break-after: always; }
-            .document-header { margin-bottom: 16pt; text-align: center; font-size: 10.5pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 8pt; }
-            .document-footer { margin-top: 20pt; text-align: center; font-size: 9pt; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 8pt; }
-            .citation-long { margin-left: 4.0cm; font-size: 10pt; line-height: 1.0; text-align: justify; margin-top: 8pt; margin-bottom: 8pt; }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10pt 0;
+                font-size: 10pt;
+                page-break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+            }
+            thead {
+                display: table-header-group;
+            }
+            td, th {
+                border: 1px solid #94a3b8;
+                padding: 5pt 7pt;
+                vertical-align: top;
+            }
+            img {
+                max-width: 100%;
+                height: auto;
+                display: inline-block;
+            }
+            .manual-page-break {
+                page-break-after: always;
+            }
+            .document-header {
+                margin-bottom: 16pt;
+                text-align: center;
+                font-size: 10.5pt;
+                border-bottom: 1px solid #cbd5e1;
+                padding-bottom: 8pt;
+            }
+            .document-footer {
+                margin-top: 20pt;
+                text-align: center;
+                font-size: 9pt;
+                color: #64748b;
+                border-top: 1px solid #cbd5e1;
+                padding-top: 8pt;
+            }
+            .citation-long {
+                margin-left: 4.0cm;
+                font-size: 10pt;
+                line-height: 1.0;
+                text-align: justify;
+                margin-top: 8pt;
+                margin-bottom: 8pt;
+            }
         </style>
+        '.($headerFooterData['hasElements'] ? '
+        <htmlpageheader name="HeaderFirst">'.$headerFooterData['headerFirst'].'</htmlpageheader>
+        <htmlpageheader name="HeaderAll">'.$headerFooterData['headerAll'].'</htmlpageheader>
+        <htmlpagefooter name="FooterFirst">'.$headerFooterData['footerFirst'].'</htmlpagefooter>
+        <htmlpagefooter name="FooterAll">'.$headerFooterData['footerAll'].'</htmlpagefooter>
+        ' : '').'
         '.$cleanContent;
 
         $mpdf->WriteHTML($styledHtml);
@@ -251,50 +345,34 @@ final readonly class GenerateDocumentAction
         return $mpdf->Output('', 'S');
     }
 
-    private function injectElementsIntoHtml(string $content, DocumentModel $model): string
-    {
-        $elements = $model->modelElements;
-        if ($elements->isEmpty()) {
-            return $content;
-        }
-
-        // Divide o conteúdo em páginas através dos delimitadores de quebra de página
-        $parts = preg_split('/(<(?:hr|div)[^>]*class=["\'][^"\']*page-break[^"\']*["\'][^>]*>(?:\s*<\/div>)?|<!--\s*(?:a4-)?page-break\s*-->)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
-
-        if ($parts === false || count($parts) <= 1) {
-            $overlayHtml = $this->buildOverlayHtmlForPage($elements, 1);
-
-            return $overlayHtml.$content;
-        }
-
-        $result = '';
-        $pageNumber = 1;
-
-        foreach ($parts as $part) {
-            if (preg_match('/(?:class=["\'][^"\']*page-break[^"\']*["\']|<!--\s*(?:a4-)?page-break\s*-->)/i', $part)) {
-                $result .= $part;
-                $pageNumber++;
-            } else {
-                $overlayHtml = $this->buildOverlayHtmlForPage($elements, $pageNumber);
-                $result .= $overlayHtml.$part;
-            }
-        }
-
-        return $result;
-    }
-
     /**
-     * @param  \Illuminate\Database\Eloquent\Collection<int, \App\Models\DocumentModelElement>  $elements
+     * @return array{
+     *     hasElements: bool,
+     *     headerFirst: string,
+     *     headerAll: string,
+     *     footerFirst: string,
+     *     footerAll: string,
+     *     maxHeaderHeight: float,
+     *     maxFooterHeight: float
+     * }
      */
-    private function buildOverlayHtmlForPage(\Illuminate\Database\Eloquent\Collection $elements, int $pageNumber): string
+    private function resolveHeaderFooterData(DocumentModel $model): array
     {
-        $html = '';
+        $data = [
+            'hasElements' => false,
+            'headerFirst' => '',
+            'headerAll' => '',
+            'footerFirst' => '',
+            'footerAll' => '',
+            'maxHeaderHeight' => 0.0,
+            'maxFooterHeight' => 0.0,
+        ];
 
-        foreach ($elements as $modelElement) {
-            if (! $modelElement->appliesToPage($pageNumber)) {
-                continue;
-            }
+        if ($model->modelElements->isEmpty()) {
+            return $data;
+        }
 
+        foreach ($model->modelElements as $modelElement) {
             $element = $modelElement->documentElement;
             if (! $element || ! $element->image_path) {
                 continue;
@@ -311,19 +389,63 @@ final readonly class GenerateDocumentAction
             $h = $modelElement->getEffectiveHeight();
             $zIndex = (int) $modelElement->z_index;
 
-            $html .= sprintf(
-                '<div style="position: absolute; left: %.2fmm; top: %.2fmm; width: %.2fmm; height: %.2fmm; z-index: %d; margin: 0; padding: 0;"><img src="%s" style="width: %.2fmm; height: %.2fmm; display: block;" /></div>',
-                $x,
-                $y,
-                $w,
-                $h,
-                $zIndex,
-                htmlspecialchars($localPath, ENT_QUOTES, 'UTF-8'),
-                $w,
-                $h
-            );
+            $appliesToFirst = $modelElement->appliesToPage(1);
+            $appliesToSubsequent = (bool) $modelElement->repeat_all_pages || $modelElement->appliesToPage(2);
+
+            $data['hasElements'] = true;
+
+            if ($element->type === DocumentElementType::Header) {
+                $bottom = $y + $h;
+                if ($bottom > $data['maxHeaderHeight']) {
+                    $data['maxHeaderHeight'] = $bottom;
+                }
+
+                $div = sprintf(
+                    '<div style="position: absolute; left: %.2fmm; top: %.2fmm; width: %.2fmm; height: %.2fmm; z-index: %d;"><img src="%s" style="width: %.2fmm; height: %.2fmm; display: block;" /></div>',
+                    $x,
+                    $y,
+                    $w,
+                    $h,
+                    $zIndex,
+                    htmlspecialchars($localPath, ENT_QUOTES, 'UTF-8'),
+                    $w,
+                    $h
+                );
+
+                if ($appliesToFirst) {
+                    $data['headerFirst'] .= $div;
+                }
+                if ($appliesToSubsequent) {
+                    $data['headerAll'] .= $div;
+                }
+            } else {
+                $distFromBottom = max(0.0, 297.0 - ($y + $h));
+                $footerReach = max(0.0, 297.0 - $y);
+                if ($footerReach > $data['maxFooterHeight']) {
+                    $data['maxFooterHeight'] = $footerReach;
+                }
+
+                $div = sprintf(
+                    '<div style="position: absolute; left: %.2fmm; bottom: %.2fmm; width: %.2fmm; height: %.2fmm; z-index: %d;"><img src="%s" style="width: %.2fmm; height: %.2fmm; display: block;" /></div>',
+                    $x,
+                    $distFromBottom,
+                    $w,
+                    $h,
+                    $zIndex,
+                    htmlspecialchars($localPath, ENT_QUOTES, 'UTF-8'),
+                    $w,
+                    $h
+                );
+
+                if ($appliesToFirst) {
+                    $data['footerFirst'] .= $div;
+                }
+                if ($appliesToSubsequent) {
+                    $data['footerAll'] .= $div;
+                }
+            }
         }
 
-        return $html;
+        return $data;
     }
 }
