@@ -91,7 +91,7 @@ final readonly class BuildMainNavigation
 
             [
                 'group' => 'MyDocument',
-                'title' => 'Meus documentos',
+                'title' => 'Meus rascunhos',
                 'href' => route('documents.index', absolute: false),
                 'icon' => 'Folder',
                 'ability' => null,

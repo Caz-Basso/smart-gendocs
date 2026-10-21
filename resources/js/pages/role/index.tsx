@@ -37,6 +37,7 @@ export default function RolesIndex({ roles }: RolesIndexProps) {
             <ListPageShell
                 title="Perfis"
                 description="Crie perfis a partir das permissões geradas pelas policies."
+                collapsibleFilters={false}
                 activeFiltersCount={activeCount}
                 actions={
                     auth.can.roles.create ? (

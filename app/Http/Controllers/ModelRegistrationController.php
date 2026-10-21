@@ -14,6 +14,7 @@ use App\Http\Requests\GenerateDocumentRequest;
 use App\Http\Requests\StoreModelRequest;
 use App\Models\DocumentElement;
 use App\Models\DocumentModel;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
@@ -292,16 +293,11 @@ final class ModelRegistrationController
     ): HttpResponse {
         $data = $request->validated();
         $modelId = $data['model_id'];
-        $model = null;
-
-        if (Str::isUuid($modelId)) {
-            $model = DocumentModel::findOrFail($modelId);
-            $pdfContent = $generateDocument->handle($modelId, $data['data']);
-            $fields = $model->fields ?? [];
-        } else {
-            $pdfContent = $generateSampleDocument->handle($data['preview'], $data['data']);
-            $fields = json_decode($data['field_definitions'] ?? '[]', true, flags: JSON_THROW_ON_ERROR);
-        }
+        ['model' => $model, 'pdfContent' => $pdfContent, 'fields' => $fields] = $this->generatePdf(
+            $data,
+            $generateDocument,
+            $generateSampleDocument,
+        );
 
         $document = $storeGeneratedDocument->handle(
             user: Auth::user(),
@@ -321,5 +317,64 @@ final class ModelRegistrationController
             'Cache-Control' => 'private, max-age=0, must-revalidate',
             'Pragma' => 'public',
         ]);
+    }
+
+    public function saveDraft(
+        GenerateDocumentRequest $request,
+        GenerateDocumentAction $generateDocument,
+        GenerateSampleDocumentAction $generateSampleDocument,
+        StoreGeneratedDocumentAction $storeGeneratedDocument,
+    ): JsonResponse {
+        $data = $request->validated();
+        $modelId = $data['model_id'];
+        ['model' => $model, 'pdfContent' => $pdfContent, 'fields' => $fields] = $this->generatePdf(
+            $data,
+            $generateDocument,
+            $generateSampleDocument,
+        );
+
+        $document = $storeGeneratedDocument->handle(
+            user: Auth::user(),
+            model: $model,
+            modelKey: $modelId,
+            name: $data['document_name'],
+            data: $data['data'],
+            preview: $data['preview'] ?? null,
+            fields: $fields,
+            pdfContent: $pdfContent,
+        );
+
+        return response()->json([
+            'message' => 'Documento enviado para rascunhos.',
+            'id' => $document->id,
+        ], 201);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{model: DocumentModel|null, pdfContent: string, fields: array}
+     */
+    private function generatePdf(
+        array $data,
+        GenerateDocumentAction $generateDocument,
+        GenerateSampleDocumentAction $generateSampleDocument,
+    ): array {
+        $modelId = $data['model_id'];
+        $model = null;
+
+        if (Str::isUuid($modelId)) {
+            $model = DocumentModel::findOrFail($modelId);
+            $pdfContent = $generateDocument->handle($modelId, $data['data']);
+            $fields = $model->fields ?? [];
+        } else {
+            $pdfContent = $generateSampleDocument->handle($data['preview'], $data['data']);
+            $fields = json_decode($data['field_definitions'] ?? '[]', true, flags: JSON_THROW_ON_ERROR);
+        }
+
+        return [
+            'model' => $model,
+            'pdfContent' => $pdfContent,
+            'fields' => is_array($fields) ? $fields : [],
+        ];
     }
 }

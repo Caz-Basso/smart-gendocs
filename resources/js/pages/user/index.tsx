@@ -105,6 +105,7 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
             <ListPageShell
                 title="Usuários"
                 description="Lista de todos os usuários cadastrados."
+                collapsibleFilters={false}
                 actions={
                     auth.can.users.create && (
                         <Button asChild>

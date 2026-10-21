@@ -27,7 +27,7 @@ export function AppSidebar() {
             icon: LayoutGrid,
         },
         {
-            title: 'Meus documentos',
+            title: 'Meus rascunhos',
             href: '/documentos',
             icon: Files,
         },
