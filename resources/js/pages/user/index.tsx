@@ -143,12 +143,12 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                     />
                 ) : (
                     <>
-                        <Card>
+                        <Card className="rounded-lg border-0 py-0 shadow-none">
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead>
-                                            <tr className="border-b bg-muted/50 text-left text-muted-foreground">
+                                            <tr className="bg-muted/50 text-left text-muted-foreground">
                                                 <th className="px-4 py-3 font-medium">
                                                     Nome
                                                 </th>
@@ -173,7 +173,6 @@ export default function UsersIndex({ users, assignableRoles }: UserPageProps) {
                                             {users.data.map((user) => (
                                                 <tr
                                                     key={user.id}
-                                                    className="border-b last:border-0"
                                                 >
                                                     <td className="px-4 py-3 font-medium">
                                                         {editingId ===
