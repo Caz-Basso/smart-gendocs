@@ -142,7 +142,7 @@ final class ModelRegistrationController
     public function analyze(
         \Illuminate\Http\Request $request,
         \App\Actions\ProcessDocumentTemplate $processDocument,
-    ): \Illuminate\Http\JsonResponse {
+    ): JsonResponse {
         $validated = $request->validate([
             'template' => 'required|file|mimes:pdf,docx|max:10240',
         ]);
@@ -163,8 +163,12 @@ final class ModelRegistrationController
                 'warnings' => $result['warnings'] ?? [],
             ]);
         } catch (Throwable $e) {
+            report($e);
+
             return response()->json([
-                'message' => $e->getMessage(),
+                'message' => mb_strtolower((string) $request->file('template')?->getClientOriginalExtension()) === 'pdf'
+                    ? 'Não foi possível converter o PDF para DOCX. Tente novamente.'
+                    : 'Não foi possível processar o documento. Confira se o arquivo é um PDF ou DOCX válido.',
             ], 422);
         }
     }

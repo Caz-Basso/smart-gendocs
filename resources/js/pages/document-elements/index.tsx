@@ -105,6 +105,33 @@ export default function DocumentElementsIndex({ elements }: Props) {
                         "Não foi possível excluir o elemento.";
                     toast.error(message);
                 },
+                onHttpException: (response) => {
+                    if (response.status !== 409) {
+                        toast.error("Não foi possível excluir o elemento.");
+
+                        return false;
+                    }
+
+                    let message =
+                        "Não é possível excluir este cabeçalho ou rodapé porque ele está sendo utilizado em um ou mais modelos de documentos. Remova o elemento dos modelos que o utilizam antes de tentar excluí-lo novamente.";
+
+                    try {
+                        const payload =
+                            typeof response.data === "string"
+                                ? JSON.parse(response.data)
+                                : response.data;
+
+                        if (typeof payload.message === "string") {
+                            message = payload.message;
+                        }
+                    } catch {
+                        // Mantém a mensagem amigável quando a resposta não for JSON.
+                    }
+
+                    toast.warning(message);
+
+                    return false;
+                },
                 onFinish: () => setIsDeleting(false),
             },
         );
@@ -211,7 +238,7 @@ export default function DocumentElementsIndex({ elements }: Props) {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {filteredElements.map((el) => {
-                            const inUseCount = el.model_elements_count ?? 0;
+                            const inUseCount = el.models_count ?? 0;
                             const isHeader = el.type === "header";
 
                             return (
@@ -444,4 +471,3 @@ export default function DocumentElementsIndex({ elements }: Props) {
         </AppLayout>
     );
 }
-

@@ -1,5 +1,6 @@
 import mammoth from 'mammoth';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { parsePdfBytes, type PdfDocumentStructure } from '@/lib/pdf-document';
 import { cleanHtml, constrainImages } from '@/lib/template-utils';
 
@@ -25,6 +26,8 @@ export type LoadedDocument =
     | { kind: 'error'; message: string };
 
 async function parseFileViaServer(file: File): Promise<LoadedDocument | null> {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
     try {
         const formData = new FormData();
         formData.append('template', file);
@@ -44,6 +47,12 @@ async function parseFileViaServer(file: File): Promise<LoadedDocument | null> {
         });
 
         if (!response.ok) {
+            if (isPdf) {
+                throw new Error(
+                    'Não foi possível converter o PDF para DOCX. Tente novamente.',
+                );
+            }
+
             return null;
         }
 
@@ -73,7 +82,17 @@ async function parseFileViaServer(file: File): Promise<LoadedDocument | null> {
             };
         }
     } catch (e) {
+        if (isPdf) {
+            throw e;
+        }
+
         console.warn('Processamento no servidor indisponível, usando fallback local.', e);
+    }
+
+    if (isPdf) {
+        throw new Error(
+            'Não foi possível converter o PDF para DOCX. Tente novamente.',
+        );
     }
 
     return null;
@@ -160,20 +179,44 @@ export function useTemplateLoader(
         }
 
         let cancelled = false;
+        const conversionToastId = `pdf-conversion-${Date.now()}`;
+        const isPdf = file?.type === 'application/pdf' || file?.name.toLowerCase().endsWith('.pdf');
 
         const run = async () => {
             setLoading(true);
+
+            if (isPdf) {
+                toast.loading(
+                    'Convertendo PDF para DOCX. Aguarde enquanto processamos o documento...',
+                    { id: conversionToastId },
+                );
+            }
 
             try {
                 const result = file
                     ? await parseFile(file)
                     : await parseRemotePdf(remotePdfUrl as string);
 
-                if (!cancelled) setLoaded(result);
+                if (!cancelled) {
+                    setLoaded(result);
+
+                    if (isPdf && result.kind === 'rich_document') {
+                        toast.success('PDF convertido para DOCX com sucesso.', {
+                            id: conversionToastId,
+                        });
+                    }
+                }
             } catch (error) {
                 console.error('Erro ao carregar documento:', error);
 
                 if (!cancelled) {
+                    if (isPdf) {
+                        toast.error(
+                            'Não foi possível converter o PDF para DOCX. Tente novamente.',
+                            { id: conversionToastId },
+                        );
+                    }
+
                     setLoaded({
                         kind: 'error',
                         message:
@@ -181,7 +224,9 @@ export function useTemplateLoader(
                     });
                 }
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
 
@@ -189,6 +234,10 @@ export function useTemplateLoader(
 
         return () => {
             cancelled = true;
+
+            if (isPdf) {
+                toast.dismiss(conversionToastId);
+            }
         };
     }, [file, remotePdfUrl]);
 

@@ -8,6 +8,7 @@ use App\Enums\DocumentElementType;
 use App\Http\Requests\StoreDocumentElementRequest;
 use App\Http\Requests\UpdateDocumentElementRequest;
 use App\Models\DocumentElement;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -160,14 +161,14 @@ final class DocumentElementController
             ->with('success', 'Elemento atualizado com sucesso!');
     }
 
-    public function destroy(string $id): RedirectResponse
+    public function destroy(string $id): RedirectResponse|JsonResponse
     {
         $element = DocumentElement::withCount('modelElements')->findOrFail($id);
 
         if ($element->model_elements_count > 0) {
-            return redirect()
-                ->route('document-elements.index')
-                ->with('error', "Não é possível excluir este elemento porque ele está vinculado a {$element->model_elements_count} modelo(s) de documento. Remova o vínculo nos modelos antes de excluir.");
+            return response()->json([
+                'message' => 'Não é possível excluir este cabeçalho ou rodapé porque ele está sendo utilizado em um ou mais modelos de documentos. Remova o elemento dos modelos que o utilizam antes de tentar excluí-lo novamente.',
+            ], 409);
         }
 
         if ($element->image_path && Storage::disk('public')->exists($element->image_path)) {
@@ -193,4 +194,3 @@ final class DocumentElementController
             ->with('success', "Elemento {$status} com sucesso!");
     }
 }
-

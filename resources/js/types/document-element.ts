@@ -15,7 +15,7 @@ export interface DocumentElement {
     user_id?: string;
     created_at?: string;
     updated_at?: string;
-    model_elements_count?: number;
+    models_count?: number;
 }
 
 export interface ModelElementAttachment {
@@ -35,4 +35,3 @@ export interface ModelElementAttachment {
     pages?: number[]; // e.g. [1] or [1, 2]
     z_index?: number;
 }
-

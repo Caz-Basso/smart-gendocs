@@ -210,11 +210,55 @@ it('blocks deletion of document element when attached to a model', function (): 
     ]);
 
     $this->actingAs($admin)
-        ->delete(route('document-elements.destroy', $element))
-        ->assertRedirect(route('document-elements.index'))
-        ->assertSessionHas('error');
+        ->deleteJson(route('document-elements.destroy', $element))
+        ->assertConflict()
+        ->assertJson([
+            'message' => 'Não é possível excluir este cabeçalho ou rodapé porque ele está sendo utilizado em um ou mais modelos de documentos. Remova o elemento dos modelos que o utilizam antes de tentar excluí-lo novamente.',
+        ]);
 
-    expect(DocumentElement::find($element->id))->not->toBeNull();
+    expect(DocumentElement::find($element->id))->not->toBeNull()
+        ->and($element->modelElements()->count())->toBe(1);
+});
+
+it('blocks direct deletion of an element attached to multiple models', function (): void {
+    $admin = createAdminUser();
+    $element = DocumentElement::create([
+        'id' => (string) Str::uuid(),
+        'name' => 'Rodapé Compartilhado',
+        'type' => DocumentElementType::Footer,
+        'image_path' => 'document-elements/shared-footer.png',
+        'width' => 210,
+        'height' => 35,
+        'position_x' => 0,
+        'position_y' => 262,
+        'is_active' => true,
+        'user_id' => $admin->id,
+    ]);
+
+    foreach (['Modelo A', 'Modelo B'] as $name) {
+        $model = DocumentModel::create([
+            'id' => (string) Str::uuid(),
+            'name' => $name,
+            'extracted_text' => '<p>Documento de teste</p>',
+            'fields' => [],
+            'user_id' => $admin->id,
+        ]);
+
+        DocumentModelElement::create([
+            'id' => (string) Str::uuid(),
+            'document_model_id' => $model->id,
+            'document_element_id' => $element->id,
+            'repeat_all_pages' => true,
+            'z_index' => 10,
+        ]);
+    }
+
+    $this->actingAs($admin)
+        ->deleteJson(route('document-elements.destroy', $element))
+        ->assertConflict();
+
+    expect(DocumentElement::find($element->id))->not->toBeNull()
+        ->and($element->modelElements()->count())->toBe(2);
 });
 
 it('allows deletion of an unused document element', function (): void {
@@ -287,4 +331,3 @@ it('renders headers and footers in generated PDF', function (): void {
 
     expect($pdf)->toStartWith('%PDF-');
 });
-
