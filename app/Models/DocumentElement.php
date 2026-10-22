@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 final class DocumentElement extends Model
 {
@@ -47,9 +46,15 @@ final class DocumentElement extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        return $this->image_path
-            ? Storage::disk('public')->url($this->image_path)
-            : null;
+        if (! $this->image_path) {
+            return null;
+        }
+
+        if (str_starts_with($this->image_path, 'http://') || str_starts_with($this->image_path, 'https://')) {
+            return $this->image_path;
+        }
+
+        return '/storage/'.mb_ltrim($this->image_path, '/');
     }
 
     public function user(): BelongsTo
@@ -80,4 +85,3 @@ final class DocumentElement extends Model
         ])->withTimestamps();
     }
 }
-

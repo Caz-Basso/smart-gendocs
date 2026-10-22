@@ -222,11 +222,14 @@ export default function DocumentElementsIndex({ elements }: Props) {
                                     }`}
                                 >
                                     <div className="relative h-40 bg-neutral-100 dark:bg-neutral-800 border-b flex items-center justify-center p-3 overflow-hidden group">
-                                        <img
-                                            src={el.image_url}
-                                            alt={el.name}
-                                            className="max-h-full max-w-full object-contain drop-shadow-sm transition-transform group-hover:scale-105"
-                                        />
+                                        <div className="w-full h-full bg-white rounded flex items-center justify-center p-2 shadow-xs border border-neutral-200/60 dark:border-neutral-700">
+                                            <img
+                                                src={el.image_url}
+                                                alt={el.name}
+                                                className="max-h-full max-w-full object-contain"
+                                                loading="lazy"
+                                            />
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={() => setPreviewElement(el)}
@@ -407,13 +410,15 @@ export default function DocumentElementsIndex({ elements }: Props) {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center justify-center min-h-[240px] max-h-[500px] overflow-auto">
+                    <div className="p-6 bg-neutral-100 dark:bg-neutral-900 rounded-lg flex flex-col items-center justify-center min-h-[260px] max-h-[520px] overflow-auto">
                         {previewElement && (
-                            <img
-                                src={previewElement.image_url}
-                                alt={previewElement.name}
-                                className="max-w-full max-h-[450px] object-contain drop-shadow"
-                            />
+                            <div className="w-full max-w-2xl bg-white text-neutral-900 rounded-lg border border-neutral-200/80 shadow-xs p-6 flex items-center justify-center">
+                                <img
+                                    src={previewElement.image_url}
+                                    alt={previewElement.name}
+                                    className="max-w-full max-h-[380px] object-contain select-none"
+                                />
+                            </div>
                         )}
                     </div>
 
